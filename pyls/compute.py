@@ -130,16 +130,16 @@ def bootstrap(X, Y, k, U_orig, V_orig, boots=500, procs=1):
     return U_boot, V_boot
 
 
-def perm_sig(permuted_values, orig_values):
+def perm_sig(permuted_svalues, orig_svalues):
     """
-    Calculates significance of `orig_values` by comparing amplitude of each
-    to distribution in `permuted_values`
+    Calculates significance of `orig_svalues` by comparing amplitude of each
+    to distribution in `permuted_svalues`
 
     Parameters
     ----------
-    permuted_values : array (n_perms x k)
+    permuted_svalues : array (n_perms x k)
         distribution of singular values from permutation testing
-    orig_values : array (diagonal, k x k)
+    orig_svalues : array (diagonal, k x k)
         singular values from original SVD
 
     Returns
@@ -147,12 +147,12 @@ def perm_sig(permuted_values, orig_values):
     array : p-values of singular values from original SVD
     """
 
-    pvals = np.zeros(len(orig_values))
-    perms = len(permuted_values.shape)
+    pvals = np.zeros(len(orig_svalues))
+    n_perms = len(permuted_svalues.shape)
 
     for i in range(len(pvals)):
-        top_of_dist = np.where(permuted_values[:,i]>orig_values[i,i])[0]
-        pvals[i] = top_of_dist.size/perms
+        top_of_dist = np.where(permuted_svalues[:,i]>orig_svalues[i,i])[0]
+        pvals[i] = top_of_dist.size/n_perms
 
     return pvals
 
