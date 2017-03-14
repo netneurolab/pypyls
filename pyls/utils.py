@@ -59,13 +59,13 @@ def xcorr(X, Y):
     avg,  stdev  = X.mean(axis=0), X.std(axis=0)
     davg, dstdev = Y.mean(axis=0),  Y.std(axis=0)
 
-    checknan = np.where(stdev==0)
-    if checknan[0].size > 0:
-        X[checknan], avg[checknan[1]], stdev[checknan[1]] = 0, 0, 1
+    checknan = np.where(stdev==0)[0]
+    if checknan.size > 0:
+        X[:,checknan], avg[checknan], stdev[checknan] = 0, 0, 1
 
-    dchecknan = np.where(dstdev==0)
-    if dchecknan[0].size > 0:
-        Y[dchecknan], davg[dchecknan[1]], dstdev[dchecknan[1]] = 0, 0, 1
+    dchecknan = np.where(dstdev==0)[0]
+    if dchecknan.size > 0:
+        Y[:,dchecknan], davg[dchecknan], dstdev[dchecknan] = 0, 0, 1
 
     X, Y = (X-avg)/stdev, (Y-davg)/dstdev
     xprod = (Y.T @ X)/(X.shape[0]-1)

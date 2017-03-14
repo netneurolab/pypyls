@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import sys
 import multiprocessing as mp
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
@@ -13,7 +12,7 @@ def svd(X, Y, k):
     Runs SVD on the covariance matrix of `X` and `Y`
 
     Uses sklearn.utils.extmath.randomized_svd for computation of a truncated
-    SVD.
+    SVD. Only returns first `k` singular vectors/values
 
     Parameters
     ----------
@@ -54,11 +53,12 @@ def procrustes(original, permuted, singular):
     return resamp, Q
 
 
-def permute(X, Y, k, original, perms=1000, procs=1):
+def parallel_permute(X, Y, k, original, perms=1000, procs=1):
     """
-    Permutes `X` (w/o replacement) and recomputes singular values
+    Parallelizes single_perm() to `procs`
 
-    Uses procrustes rotation to ensure SVD is in same space as `original`
+    Uses apply_async with multiprocessing.Pool(). This is really only useful
+    if the SVD call from the permutation would be #rough on memory
 
     Parameters
     ----------
@@ -82,7 +82,7 @@ def permute(X, Y, k, original, perms=1000, procs=1):
         permuted_values.append(result)
 
     permuted_values = []
-    pool = mp.Pool(procs)
+    pool = mp.Pool(procs, maxtasksperchild=10)
     for i in range(perms):
         pool.apply_async(single_perm,
                          args=(X,Y,k,original),
@@ -91,12 +91,31 @@ def permute(X, Y, k, original, perms=1000, procs=1):
     pool.close()
     pool.join()
 
-    permuted_values = np.array(permuted_values)
-
-    return permuted_values
+    return np.array(permuted_values)
 
 
-def serial_perm(X, Y, k, original, perms=1000):
+def serial_permute(X, Y, k, original, perms=1000):
+    """
+    Computes `perms` of single_perm() in serial
+
+    Parameters
+    ----------
+    X : array (N x j)
+    Y : array (N x t)
+    k : int
+        rank of Y.T @ X matrix
+    original : array
+        U or V from original SVD for use in procrustes rotation
+    perms : int
+        number of permutations to run
+    procs : int
+        function will multiprocess permutations for potential speed-up
+
+    Returns
+    -------
+    array : distributions of singular values
+    """
+
     permuted_values = np.zeros((perms,k))
 
     for n in range(perms):
@@ -106,6 +125,27 @@ def serial_perm(X, Y, k, original, perms=1000):
 
 
 def single_perm(data, behav, n_comp, orig, seed=None):
+    """
+    Permutes `data` (w/o replacement) and recomputes SVD of behav.T @ data
+
+    Uses procrustes rotation to ensure SVD is in same space as `orig`
+
+    Parameters
+    ----------
+    data : array (N x j)
+    behav : array (N x t)
+    n_comp : int
+        rank of behav.T @ data matrix
+    orig : array
+        U or V from original SVD for use in procrustes rotation
+    perms : int
+        number of permutations to run
+
+    Returns
+    -------
+    array : distributions of singular values
+    """
+
     if seed is not None: np.random.seed(seed)
     X_perm = np.random.permutation(data)
     U, d, V = svd(X_perm, behav, n_comp)
@@ -150,7 +190,7 @@ def bootstrap(X, Y, k, U_orig, V_orig, boots=500, procs=1, verbose=False):
         if verbose and i % 100 == 0: print("Bootstrap {}".format(str(i)))
         inds = np.random.choice(np.arange(len(X)),size=len(X),replace=True)
         X_boot, Y_boot = X[inds], Y[inds]
-        U, d, V = svd(X_boot, Y_boot, k, norm=True)
+        U, d, V = svd(X_boot, Y_boot, k)
 
         U_boot[:,:,i], Q = procrustes(U_orig, U, I)
         V_boot[:,:,i] = V @ Q
