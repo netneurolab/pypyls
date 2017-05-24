@@ -38,5 +38,8 @@ def test_pls():
     assert U_rel.shape == (behavior, comp)
     assert V_rel.shape == (brain, comp)
 
+    pyls.compute.boot_sig(U_bci[:,0,:])
+    pyls.compute.kaiser_criterion(d)
+
     X[:,10], Y[:,10] = 0, 0
     U2, d2, V2 = pyls.compute.svd(X, Y, comp)

@@ -179,7 +179,7 @@ def bootstrap(X, Y, k, U_orig, V_orig, boots=500, procs=1, verbose=False):
 
     Returns
     -------
-    array, array : boostrapped left, bootstrapped right singular vectors
+    array, array : left (t x k x boots), right (j x k x boots) singular vectors
     """
 
     U_boot = np.zeros(U_orig.shape + (boots,))
@@ -200,8 +200,10 @@ def bootstrap(X, Y, k, U_orig, V_orig, boots=500, procs=1, verbose=False):
 
 def perm_sig(permuted_svalues, orig_svalues):
     """
-    Calculates significance of `orig_svalues` by comparing amplitude of each
-    to distribution in `permuted_svalues`
+    Calculates significance of `orig_svalues`
+
+    Compares amplitude of each singular value to distribution created via
+    permutation in `permuted_svalues`
 
     Parameters
     ----------
@@ -273,3 +275,62 @@ def boot_rel(U_orig, V_orig, U_boot, V_boot):
     V_rel = V_orig/sem(V_boot,axis=2)
 
     return U_rel, V_rel
+
+
+def crossblock_cov(singular):
+    """
+    Calculates cross-block covariance of singular values
+
+    Parameters
+    ----------
+    singular : array (diagonal, k x k)
+        singular values from SVD
+
+    Returns
+    -------
+    array : cross-block covariance (k,)
+    """
+
+    squared_sing = np.diag(singular)**2
+
+    return squared_sing / squared_sing.sum()
+
+
+def kaiser_criterion(singular):
+    """
+    Determines if variance explained by singular value exceeds Kaiser criterion
+
+    Kaiser criterion is 1/# singular values. If cross-block covariance
+    explained by singular value exceeds criterion, return True; else, return
+    False
+
+    Parameters
+    ----------
+    singular : array (diagonal, k x k)
+        singular values from SVD
+
+    Returns
+    -------
+    array : boolean (k,)
+    """
+
+    return crossblock_cov(singular) > (1/len(singular))
+
+
+def boot_sig(boot):
+    """
+    Determines which entries of `boot` are significant via CI crossing
+
+    If CI crosses zero, then bootstrap value is not
+
+    Parameters
+    ----------
+    boot : array (k x 2)
+        components x confidence interval
+
+    Returns
+    -------
+    array : bool (k,)
+    """
+
+    return np.sign(boot).sum(axis=1)
