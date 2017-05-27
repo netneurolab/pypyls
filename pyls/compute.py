@@ -7,33 +7,52 @@ from scipy.stats import sem
 from pyls.utils import xcorr
 
 
-def svd(X, Y, k):
+def svd(X, Y, k=None):
     """
     Runs SVD on the covariance matrix of `X` and `Y`
 
     Uses sklearn.utils.extmath.randomized_svd for computation of a truncated
-    SVD. Only returns first `k` singular vectors/values
+    SVD. Only returns first `k` singular vectors/values.
+
+    If `k` is omitted, it is calculated as the minimum of the dimensions of X
+    and Y.
 
     Parameters
     ----------
-    X : array (N x j)
-    Y : array (N x k)
+    X, Y : array (N x j [x group]), array (N x k [x group])
     k : int
-        rank of Y.T @ X matrix; determines # of singular vectors generated
+        rank of cross-covariance matrix; determines # of singular vectors
 
     Returns
     -------
     U, d, V : left singular vectors, singular values, right singular vectors
     """
 
-    U, d, V = randomized_svd(xcorr(X, Y), n_components=k)
+    if k is None: k = min(min(X.shape),min(Y.shape))
+
+    if k > min(min(X.shape),min(Y.shape)):
+        raise ValueError("Supplied `k` is > rank of supplied matrices.")
+
+    if X.ndim != Y.ndim:
+        raise ValueError("Dimensions of `X` and `Y` must match.")
+    if X.ndim not in [2,3]:
+        raise ValueError("X must have 2 or 3 dimensions.")
+    elif X.ndim == 3:
+        crosscov = []
+        for group in range(X.shape[-1]):
+            crosscov.append(xcorr(X[:,:,group],Y[:,:,group]))
+        covmat = np.row_stack(crosscov)
+    else:
+        covmat = xcorr(X, Y)
+
+    U, d, V = randomized_svd(covmat, n_components=k)
 
     return U, np.diag(d), V.T
 
 
 def procrustes(original, permuted, singular):
     """
-    Performs Procrustes rotation on `permuted` to align with `orig`
+    Performs Procrustes rotation on `permuted` to align with `original`
 
     Parameters
     ----------
@@ -96,7 +115,7 @@ def parallel_permute(X, Y, k, original, perms=1000, procs=1):
 
 def serial_permute(X, Y, k, original, perms=1000):
     """
-    Computes `perms` of single_perm() in serial
+    Computes `perms` instances of single_perm() in serial
 
     Parameters
     ----------
@@ -126,7 +145,7 @@ def serial_permute(X, Y, k, original, perms=1000):
 
 def single_perm(data, behav, n_comp, orig, seed=None):
     """
-    Permutes `data` (w/o replacement) and recomputes SVD of behav.T @ data
+    Permutes `data` (w/o replacement) and recomputes SVD of `behav`.T @ `data`
 
     Uses procrustes rotation to ensure SVD is in same space as `orig`
 
@@ -188,7 +207,7 @@ def bootstrap(X, Y, k, U_orig, V_orig, boots=500, procs=1, verbose=False):
 
     for i in range(boots):
         if verbose and i % 100 == 0: print("Bootstrap {}".format(str(i)))
-        inds = np.random.choice(np.arange(len(X)),size=len(X),replace=True)
+        inds = np.random.choice(np.arange(len(X)), size=len(X), replace=True)
         X_boot, Y_boot = X[inds], Y[inds]
         U, d, V = svd(X_boot, Y_boot, k)
 
@@ -229,7 +248,7 @@ def perm_sig(permuted_svalues, orig_svalues):
 
 def boot_ci(U_boot, V_boot, p=.01):
     """
-    Generates CI for bootstrapped values
+    Generates CI for bootstrapped values `U_boot` and `V_boot`
 
     Parameters
     ----------
@@ -242,6 +261,7 @@ def boot_ci(U_boot, V_boot, p=.01):
     -------
     array, array : CI for U (t x k x 2), CI for V (j x k x 2)
     """
+
     low = 100*(p/2)
     high = 100-low
 
@@ -279,7 +299,7 @@ def boot_rel(U_orig, V_orig, U_boot, V_boot):
 
 def crossblock_cov(singular):
     """
-    Calculates cross-block covariance of singular values
+    Calculates cross-block covariance of `singular` values
 
     Parameters
     ----------
@@ -298,7 +318,7 @@ def crossblock_cov(singular):
 
 def kaiser_criterion(singular):
     """
-    Determines if variance explained by singular value exceeds Kaiser criterion
+    Determines if variance explained by `singular` value > Kaiser criterion
 
     Kaiser criterion is 1/# singular values. If cross-block covariance
     explained by singular value exceeds criterion, return True; else, return

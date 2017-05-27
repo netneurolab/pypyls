@@ -4,20 +4,30 @@ import pytest
 import numpy as np
 import pyls
 
-brain      = 1000
-behavior   = 100
-comp       = 20
-n_perm     = 500
-n_boot     = 100
+brain    = 1000
+behavior = 100
+comp     = 20
+n_perm   = 50
+n_boot   = 10
+groups   = 2
 
 X = np.random.rand(comp,brain)
 Y = np.random.rand(comp,behavior)
+
 
 def test_pls():
     U, d, V = pyls.compute.svd(X, Y, comp)
     assert d.shape == (comp,comp)
     assert U.shape == (behavior,comp)
     assert V.shape == (brain, comp)
+
+    U2, d2, V2 = pyls.compute.svd(X, Y)
+    assert np.allclose(U, U2)
+    assert np.allclose(d, d2)
+    assert np.allclose(V, V2)
+
+    with pytest.raises(ValueError):
+        pyls.compute.svd(np.random.rand(20,10), np.random.rand(20,100), comp)
 
     perms = pyls.compute.serial_permute(X, Y, comp, U, perms=n_perm)
     assert perms.shape == (n_perm, comp)
