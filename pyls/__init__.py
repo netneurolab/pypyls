@@ -1,6 +1,6 @@
-import sys as _sys
+from sys import version_info as _vi
 
-if _sys.version_info < (3,5):
+if _vi < (3,5):
     raise Exception("Python version needs to be >= 3.5")
 
 __all__ = ['compute','utils','types']
