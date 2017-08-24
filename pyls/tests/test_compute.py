@@ -19,7 +19,7 @@ def test_pls():
     U, d, V = pyls.compute.svd(X, Y, comp)
     assert d.shape == (comp,comp)
     assert U.shape == (behavior,comp)
-    assert V.shape == (brain, comp)
+    assert V.shape == (brain,comp)
 
     U2, d2, V2 = pyls.compute.svd(X, Y)
     assert np.allclose(U, U2)
@@ -29,11 +29,11 @@ def test_pls():
     with pytest.raises(ValueError):
         pyls.compute.svd(np.random.rand(20,10), np.random.rand(20,100), comp)
 
-    perms = pyls.compute.serial_permute(X, Y, comp, U, perms=n_perm)
+    perms = pyls.compute.serial_permute(X, Y, comp, U, n_perm=n_perm)
     assert perms.shape == (n_perm, comp)
-    pyls.compute.serial_permute(Y, X, comp, U, perms=n_perm)
+    pyls.compute.serial_permute(Y, X, comp, U, n_perm=n_perm)
 
-    U_boot, V_boot = pyls.compute.bootstrap(X, Y, comp, U, V, boots=n_boot)
+    U_boot, V_boot = pyls.compute.bootstrap(X, Y, comp, U, V, n_boot=n_boot)
     assert U_boot.shape == (behavior, comp, n_boot)
     assert V_boot.shape == (brain, comp, n_boot)
 
