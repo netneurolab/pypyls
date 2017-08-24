@@ -6,6 +6,11 @@ import numpy as np
 import pyls
 
 
+def test_zscore():
+    pyls.utils.zscore([[1]]*10)
+    pyls.utils.zscore(np.ones((10,1)))
+
+
 def test_normalize():
     X = np.random.rand(10,10)
     pyls.utils.normalize(X,dim=0)

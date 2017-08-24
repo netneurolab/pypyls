@@ -59,8 +59,8 @@ def xcorr(X, Y):
     array : cross-correlation of `X` and `Y`
     """
 
-    X, Y = zscore(X), zscore(Y)
-    xprod = (Y.T @ X)/(X.shape[0]-1)
+    Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
+    xprod = (Yz.T @ Xz)/(Xz.shape[0]-1)
 
     return xprod
 
@@ -69,29 +69,38 @@ def zscore(X):
     """
     Z-scores `X` by subtracting mean, dividing by standard deviation
 
+    Performs columnwise (not rowwise) normalization. If the standard deviation
+    of any column of X == 0, that column is returned unchanged
+
     Parameters
     ----------
-    X : array
+    X : array (2D)
 
     Returns
     -------
-    array : z-scored input
+    array
+        z-scored input
     """
 
-    avg, stdev = X.mean(axis=0), X.std(axis=0)
+    arr = np.asarray(X.copy())
 
+    avg, stdev = arr.mean(axis=0), arr.std(axis=0)
     zero_items = np.where(stdev==0)[0]
-    if zero_items.size > 0:
-        X[:,zero_items], avg[zero_items], stdev[zero_items] = 0, 0, 1
 
-    return (X-avg)/stdev
+    if zero_items.size > 0:
+        avg[zero_items], stdev[zero_items] = 0, 1
+
+    zarr = (arr-avg)/stdev
+    zarr[:, zero_items] = arr[:, zero_items]
+
+    return zarr
 
 
 def normalize(X, dim=0):
     """
     Normalizes `X` along dimension `dim`
 
-    Utilizes Frobenius norm (or Hilbert-Schmidt norm, L_p,q norm where p=q=2)
+    Utilizes Frobenius norm (or Hilbert-Schmidt norm, L_{p,q} norm where p=q=2)
 
     Parameters
     ----------
