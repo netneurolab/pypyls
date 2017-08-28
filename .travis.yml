@@ -12,8 +12,7 @@ before_install:
 - sudo apt-get install gfortran
 
 install:
-- pip install pytest pytest-cov
-- pip install coveralls
+- pip install pytest pytest-cov codecov coveralls coverage
 - pip install -r requirements.txt
 
 before_script:
@@ -23,4 +22,5 @@ script:
 - py.test --cov-report term-missing --cov=pyls
 
 after_success:
+- codecov
 - coveralls

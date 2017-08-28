@@ -4,4 +4,5 @@ A Python3 implementation of [PLS](https://www.rotman-baycrest.on.ca/index.php?se
 
 ## Status
 [![Build Status](https://travis-ci.org/rmarkello/pyls.svg?branch=master)](https://travis-ci.org/rmarkello/pyls)
-[![Coverage Status](https://coveralls.io/repos/github/rmarkello/pyls/badge.svg?branch=master)](https://coveralls.io/github/rmarkello/pyls?branch=master)
+[![codecov](https://codecov.io/gh/rmarkello/pyls/branch/master/graph/badge.svg)](https://codecov.io/gh/rmarkello/pyls)
+
