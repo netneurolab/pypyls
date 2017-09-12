@@ -6,52 +6,55 @@ from pyls import compute
 
 class behavioral_pls():
     """
-    Runs behavioral PLS on `brain` and `behav` arrays
+    Runs PLS on `brain` and `behav` arrays
 
     Uses singular value decomposition (SVD) to find latent variables from
     cross-covariance matrix of `brain` and `behav`.
 
     Parameters
     ----------
-    brain, behav : array (N x k [x group]), array (N x j [x group])
-        provided data
-    n_comp : int
-        number of components to return from SVD (default: rank of Y.T @ X)
-    n_perm : int
-        number of permutations to generate (default: 5000)
-    n_boot : int
-        number of bootstraps to generate (default: 1000)
-    p : float (0,1)
-        signifiance criterion for bootstrapping (default: 0.01)
-    seed : int
-        whether to set random seed for reproducibility (default: None)
+    brain : array_like
+        Array of data in shape (N x k [x group])
+    behav : array_like
+        Array of data in shape (N x j [x group])
+    n_comp : int, optional
+        Number of components to return from SVD (default: rank of Y.T @ X)
+    n_perm : int, optional
+        Number of permutations to generate (default: 5000)
+    n_boot : int, optional
+        Number of bootstraps to generate (default: 1000)
+    p : float, optional
+        Signifiance criterion for bootstrapping, within (0, 1) (default: 0.01)
+    seed : int, optional
+        Whether to set random seed for reproducibility (default: None)
 
     Attributes
     -------
-    U : array (k[*group] x n_comp)
-        left singular vectors
-    d : array (diagonal, n_comp x n_comp)
-        singular values
-    V : array (j x n_comp)
-        right singular vectors
-    d_pvals : array (by permutation; n_comp)
-        p-values of latent variables
-    d_kaiser : array (by Kaiser criterion; n_comp)
-        relevance of latent variables
-    d_varexp : array (n_comp)
-        percent variance explained by each latent variable
-    U_bci : array (k x n_comp x 2)
-        bootstrapped CI for left singular vectors
-    V_bci : array (j x n_comp x 2)
-        bootstrapped CI for right singular vectors
-    U_bsr : array (k x n_comp)
-        bootstrap ratios for left singular vectors
-    V_bsr : array (j x n_comp)
-        bootstrap ratios for right singular vectors
-    U_sig : array (k x n_comp)
-        significance (by zero-crossing) of left singular vectors
-    V_sig : array (j x n_comp)
-        significance (by zero-crossing) of right singular vectors
+    U : array
+        left singular vectors (k[*group] x n_comp)
+    d : array
+        singular values (diagonal, n_comp x n_comp)
+    V : array
+        right singular vectors (j x n_comp)
+    d_pvals : array
+        p-values of latent variables as determined by permutation (n_comp)
+    d_kaiser : array
+        relevance of latent variables as determined by Kaiser criterion
+        (n_comp)
+    d_varexp : array
+        percent variance explained by each latent variable (n_comp)
+    U_bci : array
+        bootstrapped CI for left singular vectors (k x n_comp x 2)
+    V_bci : array
+        bootstrapped CI for right singular vectors (j x n_comp x 2)
+    U_bsr : array
+        bootstrap ratios for left singular vectors (k x n_comp)
+    V_bsr : array
+        bootstrap ratios for right singular vectors (j x n_comp)
+    U_sig : array
+        significance (by zero-crossing) of left singular vectors (k x n_comp)
+    V_sig : array
+        significance (by zero-crossing) of right singular vectors (j x n_comp)
     """
 
     def __init__(self, brain, behav, n_comp=None,

@@ -11,18 +11,22 @@ def svd(X, Y, n_comp=None):
     """
     Runs SVD on the cross-covariance matrix of `X` and `Y`
 
-    Uses sklearn.utils.extmath.randomized_svd for computation of a truncated
+    Uses `sklearn.utils.extmath.randomized_svd` for computation of a truncated
     SVD. Only returns first `n_comp` singular vectors/values.
 
     If `n_comp` is omitted, it is calculated as the minimum of the 1st and 2nd
-    dimensions of X and Y (if X/Y are 2D) or the minimum of the 1st and 3rd
-    dimensions (if X/Y are 3D).
+    dimensions of `X` and `Y` (if `X`/`Y` are 2D) or the minimum of the 1st and
+    3rd dimensions (if `X`/`Y` are 3D).
 
     Parameters
     ----------
-    X, Y : array (N x k [x group]), array (N x j [x group])
-    n_comp : int
-        rank of cross-covariance matrix; determines # of singular vectors
+    X : array_like
+        Array of size (N x k [x group])
+    Y : array_like
+        Array of size (N x j [x group])
+    n_comp : int, optional
+        Rank of cross-covariance matrix; determines # of singular vectors
+        (default: rank of Y.T @ X)
 
     Returns
     -------
@@ -34,6 +38,7 @@ def svd(X, Y, n_comp=None):
         right singular vectors (j x n_comp)
     """
 
+    # TODO:0 handling of condition + grouping factors
     if X.ndim != Y.ndim:
         raise ValueError("Dimensions of `X` and `Y` must match.")
     if X.ndim not in [2,3]:
@@ -41,6 +46,7 @@ def svd(X, Y, n_comp=None):
 
     if X.ndim == 3: sl = slice(0,3,2)
 
+    # TODO:10 handling of n_comp AFTER crosscov
     if n_comp is None:
         if X.ndim == 2: n_comp = min(min(X.shape), min(Y.shape))
         else: n_comp = min(min(X.shape[sl]), min(Y.shape[sl]))
@@ -69,14 +75,14 @@ def procrustes(original, permuted, singular):
 
     Parameters
     ----------
-    original : array
-    permuted : array
-    singular : array
+    original : array_like
+    permuted : array_like
+    singular : array_like
 
     Returns
     -------
     array
-        singular values of rotated `permuted` matrix
+        Singular values of rotated `permuted` matrix
     """
 
     N, _, P = np.linalg.svd(original.T @ permuted)
@@ -88,28 +94,31 @@ def procrustes(original, permuted, singular):
 
 def parallel_permute(X, Y, n_comp, original, n_perm=1000, n_proc=1):
     """
-    Parallelizes single_perm() to `n_procs`
+    Parallelizes `single_perm()`` to `n_procs`
 
-    Uses apply_async with multiprocessing.Pool(). This is really only useful
-    if the SVD call from the permutation would be #rough on memory
+    Uses `apply_async` with `multiprocessing.Pool()``. This is really only
+    useful if the SVD call from the permutation takes longer than the spawning
+    of new processes -- which depends on how big your arrays are!
 
     Parameters
     ----------
-    X : array (N x k)
-    Y : array (N x j)
+    X : array_like
+        Array of size (N x k)
+    Y : array_like
+        Array of size (N x j)
     n_comp : int
-        rank of cross-covariance matrix; determines # of singular vectors
-    original : array
-        U or V from original SVD for use in procrustes rotation
-    n_perm : int
-        number of permutations to run
-    n_proc : int
-        function will multiprocess permutations for potential speed-up
+        Rank of cross-covariance matrix; determines # of singular vectors
+    original : array_like
+        `U` or `V` from original SVD for use in procrustes rotation
+    n_perm : int, optional
+        Number of permutations to run (default: 1000)
+    n_proc : int, optional
+        Number of processors to utilize (default: 1)
 
     Returns
     -------
     array
-        distributions of singular values
+        Distributions of singular values
     """
 
     def callback(result):
@@ -130,23 +139,25 @@ def parallel_permute(X, Y, n_comp, original, n_perm=1000, n_proc=1):
 
 def serial_permute(X, Y, n_comp, original, n_perm=1000):
     """
-    Computes `perms` instances of single_perm() in serial
+    Computes `perms` instances of `single_perm()`` in serial
 
     Parameters
     ----------
-    X : array (N x k)
-    Y : array (N x j)
+    X : array_like
+        Array of size (N x k)
+    Y : array_like
+        Array of size (N x j)
     n_comp : int
-        rank of cross-covariance matrix; determines # of singular vectors
-    original : array
-        U or V from original SVD for use in procrustes rotation
-    n_perm : int
-        number of permutations to run
+        Rank of cross-covariance matrix; determines # of singular vectors
+    original : array_like
+        `U` or `V` from original SVD for use in procrustes rotation
+    n_perm : int, optional
+        Number of permutations to run (default: 1000)
 
     Returns
     -------
     array
-        distributions of singular values
+        Distributions of singular values
     """
 
     permuted_values = np.zeros((n_perm,n_comp))
@@ -159,29 +170,31 @@ def serial_permute(X, Y, n_comp, original, n_perm=1000):
 
 def single_perm(X, Y, n_comp, original, seed=None):
     """
-    Permutes `X` (w/o replacement) and recomputes SVD of `Y`.T @ `X`
+    Permutes `X` (w/o replacement) and recomputes SVD of `Y.T` @ `X`
 
     Uses procrustes rotation to ensure SVD is in same space as `original`
 
     Parameters
     ----------
-    X : array (N x k)
-    Y : array (N x j)
+    X : array_like
+        Array of size (N x k)
+    Y : array_like
+        Array of size (N x j)
     n_comp : int
-        rank of cross-covariance matrix; determines # of singular vectors
-    original : array
-        U or V from original SVD for use in procrustes rotation
-    seed : int
-        to set np.random.seed
+        Rank of cross-covariance matrix; determines # of singular vectors
+    original : array_like
+        `U or `V` from original SVD for use in procrustes rotation
+    seed : int, optional
+        To set `np.random.seed` (default: None)
 
     Returns
     -------
     array
-        distributions of singular values
+        Distributions of singular values
     """
 
-    # TODO: ensure permute across group
-    # TODO: ensure permutations ~groups are unique, diff than original
+    # TODO:20 ensure permute across group
+    # TODO:30 ensure permutations ~groups are unique, diff than original
     if seed is not None: np.random.seed(seed)
     X_perm = np.random.permutation(X)
     U, d, V = svd(X_perm, Y, n_comp)
@@ -200,28 +213,32 @@ def bootstrap(X, Y, n_comp, U_orig, V_orig, n_boot=500):
 
     Parameters
     ----------
-    X : array (N x k)
-    Y : array (N x j)
-    n_comp: int
-        rank of cross-covariance matrix; determines # of singular vectors
-    U_orig : array (k x n_comp)
-    V_orig : array (j x n_comp)
-    n_boot : int
-        number of boostraps to run
+    X : array_like
+        Array of size (N x k)
+    Y : array_like
+        Array of size (N x j)
+    n_comp : int
+        Rank of cross-covariance matrix; determines # of singular vectors
+    U_orig : array_like
+        Array of size (k x n_comp)
+    V_orig : array_like
+        Array of size (j x n_comp)
+    n_boot : int, optional
+        Number of boostraps to run (default: 500)
 
     Returns
     -------
     array
-        left singular vectors (k x n_comp x n_boot)
+        Left singular vectors (k x n_comp x n_boot)
     array
-        right singular vectors (j x n_comp x n_boot)
+        Right singular vectors (j x n_comp x n_boot)
     """
 
     U_boot = np.zeros(U_orig.shape + (n_boot,))
     V_boot = np.zeros(V_orig.shape + (n_boot,))
     I = np.identity(n_comp)
 
-    # TODO: bootstrap independently for each group
+    # TODO:40 bootstrap independently for each group
     for i in range(n_boot):
         inds = np.random.choice(np.arange(len(X)), size=len(X), replace=True)
         X_boot, Y_boot = X[inds], Y[inds]
@@ -242,15 +259,16 @@ def perm_sig(permuted_singular, orig_singular):
 
     Parameters
     ----------
-    permuted_singular : array (n_perms x n_comp)
-        distribution of singular values from permutation testing
-    orig_singular : array (diagonal, n_comp x n_comp)
-        singular values from original SVD
+    permuted_singular : array_like
+        Distribution of singular values (n_perms x n_comp) from permutation
+        testing
+    orig_singular : array_like
+        Singular values (diagonal, n_comp x n_comp) from original SVD
 
     Returns
     -------
     array
-        p-values of singular values from original SVD
+        P-values of singular values from original SVD
     """
 
     pvals = np.zeros(len(orig_singular))
@@ -269,10 +287,12 @@ def boot_ci(U_boot, V_boot, p=.01):
 
     Parameters
     ----------
-    U_boot : array (k x n_comp x n_boot)
-    V_boot : array (j x n_comp x n_boot)
+    U_boot : array_like
+        Array of size (k x n_comp x n_boot)
+    V_boot : array_like
+        Array of size (j x n_comp x n_boot)
     p : float (0,1)
-        determines bounds of CI
+        Determines bounds of CI
 
     Returns
     -------
@@ -301,17 +321,21 @@ def boot_rel(U_orig, V_orig, U_boot, V_boot):
 
     Parameters
     ----------
-    U_orig : array (k x n_comp)
-    V_orig : array (j x n_comp)
-    U_boot : array (k x n_comp x n_boot)
-    V_boot : array (j x n_comp x n_boot)
+    U_orig : array_like
+        Array of size (k x n_comp)
+    V_orig : array_like
+        Array of size (j x n_comp)
+    U_boot : array_like
+        Array of size (k x n_comp x n_boot)
+    V_boot : array_like
+        Array of size (j x n_comp x n_boot)
 
     Returns
     -------
     array
-        BSR for U (k x n_comp)
+        BSR for `U` (k x n_comp)
     array
-        BSR for V (j x n_comp)
+        BSR for `V` (j x n_comp)
     """
 
     U_rel = U_orig/sem(U_boot,axis=2)
@@ -326,13 +350,13 @@ def crossblock_cov(singular):
 
     Parameters
     ----------
-    singular : array (diagonal, n_comp x n_comp)
-        singular values from SVD
+    singular : array_like
+        Singular values (diagonal, n_comp x n_comp) from SVD
 
     Returns
     -------
     array
-        cross-block covariance (n_comp,)
+        Cross-block covariance (n_comp,)
     """
 
     squared_sing = np.diag(singular)**2
@@ -346,17 +370,17 @@ def kaiser_criterion(singular):
 
     Kaiser criterion is 1/# singular values. If cross-block covariance
     explained by singular value exceeds criterion, return True; else, return
-    False
+    False.
 
     Parameters
     ----------
-    singular : array (diagonal, n_comp x n_comp)
-        singular values from SVD
+    singular : array_like
+        Singular values (diagonal, n_comp x n_comp) from SVD
 
     Returns
     -------
     array
-        boolean (n_comp,)
+        Boolean array (n_comp,)
     """
 
     return crossblock_cov(singular) > (1/len(singular))
@@ -370,13 +394,13 @@ def boot_sig(boot):
 
     Parameters
     ----------
-    boot : array (k x 2)
-        components x confidence interval
+    boot : array_like
+        Components x confidence interval (k x 2)
 
     Returns
     -------
     array
-        bool (k,)
+        Boolean array (k,)
     """
 
     return np.sign(boot).sum(axis=-1)

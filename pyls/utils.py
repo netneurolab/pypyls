@@ -11,15 +11,18 @@ def flatten_niis(fnames, thresh=0.2):
 
     Parameters
     ----------
-    fnames : list (N)
-        list of nii files to be loaded
-    thresh : float [0,1]
-        determines # of participants that must have activity in voxel for it
-        to be kept in final array
+    fnames : list
+        List of nifti files to be loaded, flattened, and masked (via
+        thresholding).
+    thresh : float, optional
+        Threshold to determines # of participants that must have activity in
+        voxel for it to be kept in final array. Must be within (0,1)
+        (default: 0.2).
 
     Returns
     -------
-    array: N x non-zero voxels
+    array
+        Stacked, masked input data (N x voxels)
     """
 
     if thresh > 1 or thresh < 0:
@@ -49,14 +52,15 @@ def xcorr(X, Y):
 
     Parameters
     ----------
-    X : array
-        data array
-    Y : array
-        behavior array
+    X : array_like
+        Data array
+    Y : array_like
+        Behavior array
 
     Returns
     -------
-    array : cross-correlation of `X` and `Y`
+    array
+        Cross-correlation of `X` and `Y`
     """
 
     Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
@@ -74,12 +78,13 @@ def zscore(X):
 
     Parameters
     ----------
-    X : array (2D)
+    X : array_like
+        Two-dimensional input array
 
     Returns
     -------
     array
-        z-scored input
+        Z-scored input
     """
 
     arr = np.asarray(X.copy())
@@ -104,13 +109,14 @@ def normalize(X, dim=0):
 
     Parameters
     ----------
-    X : array
+    X : array_like
     dim : bool
-        dimension for normalization
+        Dimension for normalization
 
     Returns
     -------
-    array : normalized `X`
+    array
+        Normalized `X`
     """
 
     normal_base = np.linalg.norm(X, axis=dim, keepdims=True)
