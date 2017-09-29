@@ -25,8 +25,8 @@ attrs = ['U','d','V',
 
 
 def test_behavioral_pls():
-    o1 = pyls.types.behavioral_pls(braindata, behavmat, comp, n_perm, n_boot)
-    o2 = pyls.types.behavioral_pls(behavmat, braindata, comp, n_perm, n_boot)
+    o1 = pyls.types.behavioral_pls(braindata, behavmat, n_perm, n_boot)
+    o2 = pyls.types.behavioral_pls(behavmat, braindata, n_perm, n_boot)
     for f in attrs: assert hasattr(o1,f)
 
     with pytest.raises(ValueError):
@@ -35,14 +35,9 @@ def test_behavioral_pls():
         pyls.types.behavioral_pls(behavmat[:,0], braindata[:,0], comp)
 
 def test_group_behavioral_pls():
-    pyls.types.behavioral_pls(groupbraindata, groupbehavmat,
-                              groups, n_perm, n_boot)
+    pyls.types.behavioral_pls(groupbraindata, groupbehavmat, n_perm, n_boot)
 
     onecol = np.stack([np.ones([comp,1]),np.ones([comp,1])*2], axis=2)
-
-    with pytest.raises(ValueError):
-        pyls.types.behavioral_pls(groupbraindata, onecol, 5,
-                                  n_perm=n_perm, n_boot=n_boot)
 
     pyls.types.behavioral_pls(groupbraindata, onecol,
                               n_perm=n_perm, n_boot=n_boot)

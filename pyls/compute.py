@@ -20,25 +20,26 @@ def svd(X, Y, n_comp=None):
 
     Parameters
     ----------
-    X : array_like
-        Array of size (N x k [x group])
-    Y : array_like
-        Array of size (N x j [x group])
+    X : (N x K [x G]) array_like
+        Input array, where N is the number of subjects, K is the number of
+        variables, and G is a grouping factor (if there are multiple groups)
+    Y : (N x J [x G]) array_like
+        Input array, where N is the number of subjects, K is the number of
+        variables, and G is a grouping factor (if there are multiple groups)
     n_comp : int, optional
-        Rank of cross-covariance matrix; determines # of singular vectors
-        (default: rank of Y.T @ X)
+        Rank of cross-covariance matrix; determines # of singular vectors.
+        Default: rank of `Y.T @ X`
 
     Returns
     -------
-    array
-        left singular vectors (k[*group] x n_comp)
-    array
-        singular values (diagonal, n_comp x n_comp)
-    array
-        right singular vectors (j x n_comp)
+    (K[*G] x N_COMP] ndarray
+        Left singular vectors
+    (N_COMP x N_COMP) ndarray
+        Diagonal array of singular value
+    (J[*G] x N_COMP) ndarray
+        Right singular vectors
     """
 
-    # TODO:0 handling of condition + grouping factors
     if X.ndim != Y.ndim:
         raise ValueError("Dimensions of `X` and `Y` must match.")
     if X.ndim not in [2,3]:
@@ -46,7 +47,6 @@ def svd(X, Y, n_comp=None):
 
     if X.ndim == 3: sl = slice(0,3,2)
 
-    # TODO:10 handling of n_comp AFTER crosscov
     if n_comp is None:
         if X.ndim == 2: n_comp = min(min(X.shape), min(Y.shape))
         else: n_comp = min(min(X.shape[sl]), min(Y.shape[sl]))
@@ -72,6 +72,10 @@ def svd(X, Y, n_comp=None):
 def procrustes(original, permuted, singular):
     """
     Performs Procrustes rotation on `permuted` to align with `original`
+
+    `original` and `permuted` should be either left *or* right singular vectors
+    from two SVDs. `singular` should be the diagonal matrix of singular values
+    from the SVD that generated `original`.
 
     Parameters
     ----------
@@ -111,9 +115,9 @@ def parallel_permute(X, Y, n_comp, original, n_perm=1000, n_proc=1):
     original : array_like
         `U` or `V` from original SVD for use in procrustes rotation
     n_perm : int, optional
-        Number of permutations to run (default: 1000)
+        Number of permutations to run. Default: 1000
     n_proc : int, optional
-        Number of processors to utilize (default: 1)
+        Number of processors to utilize. Default: 1
 
     Returns
     -------
@@ -137,7 +141,7 @@ def parallel_permute(X, Y, n_comp, original, n_perm=1000, n_proc=1):
     return np.array(permuted_values)
 
 
-def serial_permute(X, Y, n_comp, original, n_perm=1000):
+def serial_permute(X, Y, n_comp, original, n_perm=1000, n_split=None):
     """
     Computes `perms` instances of `single_perm()`` in serial
 
@@ -152,7 +156,9 @@ def serial_permute(X, Y, n_comp, original, n_perm=1000):
     original : array_like
         `U` or `V` from original SVD for use in procrustes rotation
     n_perm : int, optional
-        Number of permutations to run (default: 1000)
+        Number of permutations to run. Default: 1000
+    n_split : int, optional
+        Number of split-half resamples to assess reliability. Default: None
 
     Returns
     -------
@@ -163,12 +169,13 @@ def serial_permute(X, Y, n_comp, original, n_perm=1000):
     permuted_values = np.zeros((n_perm,n_comp))
 
     for n in range(n_perm):
-        permuted_values[n] = single_perm(X, Y, n_comp, original)
+        permuted_values[n] = single_perm(X, Y, n_comp, original,
+                                         n_split=n_split)
 
     return permuted_values
 
 
-def single_perm(X, Y, n_comp, original, seed=None):
+def single_perm(X, Y, n_comp, original, n_split=None, seed=None):
     """
     Permutes `X` (w/o replacement) and recomputes SVD of `Y.T` @ `X`
 
@@ -184,8 +191,10 @@ def single_perm(X, Y, n_comp, original, seed=None):
         Rank of cross-covariance matrix; determines # of singular vectors
     original : array_like
         `U or `V` from original SVD for use in procrustes rotation
+    n_split : int, optional
+        Number of split-half resamples to assess reliability. Default: None
     seed : int, optional
-        To set `np.random.seed` (default: None)
+        To set `np.random.seed`. Default: None
 
     Returns
     -------
@@ -193,18 +202,48 @@ def single_perm(X, Y, n_comp, original, seed=None):
         Distributions of singular values
     """
 
-    # TODO:20 ensure permute across group
-    # TODO:30 ensure permutations ~groups are unique, diff than original
     if seed is not None: np.random.seed(seed)
-    X_perm = np.random.permutation(X)
-    U, d, V = svd(X_perm, Y, n_comp)
 
-    if len(U) < len(V): permuted = U
-    else: permuted = V
+    while True:
+        if X.ndim == 2: X_perm = np.random.permutation(X)
+        else: X_perm = perm_3d(X)
 
-    resamp, *rest = procrustes(original, permuted, d)
+        if not np.allclose(X_perm.mean(axis=0), X.mean(axis=0)): break
 
-    return np.sqrt((resamp**2).sum(axis=0))
+    if n_split is not None:
+        pass
+    else:
+        U, d, V = svd(X_perm, Y, n_comp)
+
+        if len(U) < len(V): permuted = U
+        else: permuted = V
+
+        resamp, *rest = procrustes(original, permuted, d)
+
+        return np.sqrt((resamp**2).sum(axis=0))
+
+
+def perm_3d(X):
+    """
+    Permutes `X` across 3rd dimension (i.e., groups)
+
+    Parameters
+    ----------
+    X : array_like
+        Array of size (N x k x group)
+
+    Returns
+    -------
+    array
+        Permuted `X`
+    """
+
+    X_2d   = X.transpose((0,2,1)).reshape(X.shape[1],-1)
+    X_2dp  = np.random.permutation(X_2d)
+    X_3dp  = X_2dp.reshape(X.shape[-1],X.shape[0],-1)
+    X_perm = X_3dp.transpose((1,2,0))
+
+    return X_perm
 
 
 def bootstrap(X, Y, n_comp, U_orig, V_orig, n_boot=500):
@@ -224,7 +263,7 @@ def bootstrap(X, Y, n_comp, U_orig, V_orig, n_boot=500):
     V_orig : array_like
         Array of size (j x n_comp)
     n_boot : int, optional
-        Number of boostraps to run (default: 500)
+        Number of boostraps to run. Default: 500
 
     Returns
     -------
@@ -238,7 +277,6 @@ def bootstrap(X, Y, n_comp, U_orig, V_orig, n_boot=500):
     V_boot = np.zeros(V_orig.shape + (n_boot,))
     I = np.identity(n_comp)
 
-    # TODO:40 bootstrap independently for each group
     for i in range(n_boot):
         inds = np.random.choice(np.arange(len(X)), size=len(X), replace=True)
         X_boot, Y_boot = X[inds], Y[inds]
@@ -275,13 +313,13 @@ def perm_sig(permuted_singular, orig_singular):
     n_perm = len(permuted_singular)
 
     for i in range(len(pvals)):
-        top_of_dist = np.argwhere(permuted_singular[:,i]>orig_singular[i,i])
+        top_of_dist = np.argwhere(permuted_singular[:,i] > orig_singular[i,i])
         pvals[i] = top_of_dist.size/n_perm
 
     return pvals
 
 
-def boot_ci(U_boot, V_boot, p=.01):
+def boot_ci(U_boot, V_boot, p=0.05):
     """
     Generates CI for bootstrapped values `U_boot` and `V_boot`
 
@@ -291,8 +329,8 @@ def boot_ci(U_boot, V_boot, p=.01):
         Array of size (k x n_comp x n_boot)
     V_boot : array_like
         Array of size (j x n_comp x n_boot)
-    p : float (0,1)
-        Determines bounds of CI
+    p : float (0,1), optional
+        Determines bounds of CI. Default: 0.05
 
     Returns
     -------
@@ -338,8 +376,8 @@ def boot_rel(U_orig, V_orig, U_boot, V_boot):
         BSR for `V` (j x n_comp)
     """
 
-    U_rel = U_orig/sem(U_boot,axis=2)
-    V_rel = V_orig/sem(V_boot,axis=2)
+    U_rel = U_orig/sem(U_boot,axis=-1)
+    V_rel = V_orig/sem(V_boot,axis=-1)
 
     return U_rel, V_rel
 

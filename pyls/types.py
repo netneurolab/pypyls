@@ -17,16 +17,16 @@ class behavioral_pls():
         Array of data in shape (N x k [x group])
     behav : array_like
         Array of data in shape (N x j [x group])
-    n_comp : int, optional
-        Number of components to return from SVD (default: rank of Y.T @ X)
     n_perm : int, optional
-        Number of permutations to generate (default: 5000)
+        Number of permutations to generate. Default: 5000
     n_boot : int, optional
-        Number of bootstraps to generate (default: 1000)
+        Number of bootstraps to generate. Default: 1000
+    n_split : int, optional
+        Number of split-half resamples during permutation testing. Default: 100
     p : float, optional
-        Signifiance criterion for bootstrapping, within (0, 1) (default: 0.01)
+        Signifiance criterion for bootstrapping, within (0, 1). Default: 0.05
     seed : int, optional
-        Whether to set random seed for reproducibility (default: None)
+        Whether to set random seed for reproducibility. Default: None
 
     Attributes
     -------
@@ -57,38 +57,39 @@ class behavioral_pls():
         significance (by zero-crossing) of right singular vectors (j x n_comp)
     """
 
-    def __init__(self, brain, behav, n_comp=None,
-                 n_perm=5000, n_boot=1000, p=0.01,
+    def __init__(self, brain, behav,
+                 n_perm=5000, n_boot=1000,
+                 n_split=None,
+                 p=0.05,
                  seed=None):
         self.brain, self.behav = brain, behav
-        self._n_comp = n_comp
-        self._n_perm, self._n_boot = n_perm, n_boot
+        self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._p = p
 
         if seed is not None: np.random.seed(seed)
 
-        self._run_svd()
-        self._run_perms()
-        self._run_boots()
-        self._get_sig()
+        self.run_svd()
+        self.run_perms()
+        self.run_boots()
+        self.get_sig()
 
-    def _run_svd(self):
+    def run_svd(self):
         self.U, self.d, self.V = compute.svd(self.brain,
-                                             self.behav,
-                                             self._n_comp)
+                                             self.behav)
 
-        if self._n_comp is None: self._n_comp = len(self.d)
+        self._n_comp = len(self.d)
 
-    def _run_perms(self):
+    def run_perms(self):
         if len(self.U) < len(self.V): orig = self.U
         else: orig = self.V
 
         perms = compute.serial_permute(self.brain, self.behav,
                                        self._n_comp, orig,
-                                       n_perm=self._n_perm)
+                                       n_perm=self._n_perm,
+                                       n_split=self._n_split)
         self.d_pvals = compute.perm_sig(perms, self.d)
 
-    def _run_boots(self):
+    def run_boots(self):
         U_boot, V_boot = compute.bootstrap(self.brain, self.behav,
                                            self._n_comp,
                                            self.U, self.V,
@@ -97,7 +98,7 @@ class behavioral_pls():
         self.U_bsr, self.V_bsr = compute.boot_rel(self.U, self.V,
                                                   U_boot, V_boot)
 
-    def _get_sig(self):
+    def get_sig(self):
         self.U_sig = compute.boot_sig(self.U_bci)
         self.V_sig = compute.boot_sig(self.V_bci)
 

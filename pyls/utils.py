@@ -15,7 +15,7 @@ def flatten_niis(fnames, thresh=0.2):
         List of nifti files to be loaded, flattened, and masked (via
         thresholding).
     thresh : float, optional
-        Threshold to determines # of participants that must have activity in
+        Threshold to determine # of participants that must have activity in a
         voxel for it to be kept in final array. Must be within (0,1)
         (default: 0.2).
 
@@ -29,8 +29,8 @@ def flatten_niis(fnames, thresh=0.2):
         raise ValueError("Thresh must be between 0 and 1.")
 
     # get some information on the data
-    cutoff = np.ceil(thresh*len(fnames))
-    shape = nib.load(fnames[0]).shape
+    cutoff   = np.ceil(thresh*len(fnames))
+    shape    = nib.load(fnames[0]).shape
     all_data = np.zeros((len(fnames), np.product(shape[:3])))
 
     # load in data
@@ -40,8 +40,8 @@ def flatten_niis(fnames, thresh=0.2):
         all_data[n] = temp.flatten()
 
     # get non-zero voxels
-    non_zero = np.array(Counter(np.where(all_data!=0)[1]).most_common())
-    all_data = all_data[:,non_zero[np.where(non_zero[:,1]>cutoff)[0],0]]
+    non_zero = np.array(Counter(all_data.nonzero()[1]).most_common())
+    all_data = all_data[:,non_zero[np.where(non_zero[:,1] > cutoff)[0],0]]
 
     return all_data
 
@@ -119,7 +119,9 @@ def normalize(X, dim=0):
         Normalized `X`
     """
 
-    normal_base = np.linalg.norm(X, axis=dim, keepdims=True)
+    normed = X.copy()
+
+    normal_base = np.linalg.norm(normed, axis=dim, keepdims=True)
     if dim == 1: normal_base = normal_base.T  # to ensure proper broadcasting
 
     # to avoid DivideByZero errors
@@ -127,7 +129,7 @@ def normalize(X, dim=0):
     normal_base[zero_items] = 1
 
     # normalize and re-set zero_items
-    normal = X/normal_base
+    normed /= normal_base
     normal[zero_items] = 0
 
-    return normal
+    return normed
