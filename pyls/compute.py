@@ -42,10 +42,10 @@ def svd(X, Y, n_comp=None):
 
     if X.ndim != Y.ndim:
         raise ValueError("Dimensions of `X` and `Y` must match.")
-    if X.ndim not in [2,3]:
+    if X.ndim not in [2, 3]:
         raise ValueError("X must have 2 or 3 dimensions.")
 
-    if X.ndim == 3: sl = slice(0,3,2)
+    if X.ndim == 3: sl = slice(0, 3, 2)
 
     if n_comp is None:
         if X.ndim == 2: n_comp = min(min(X.shape), min(Y.shape))
@@ -61,7 +61,7 @@ def svd(X, Y, n_comp=None):
     else:
         crosscov = []
         for group in range(X.shape[-1]):
-            crosscov.append(xcorr(X[:,:,group], Y[:,:,group]))
+            crosscov.append(xcorr(X[:, :, group], Y[:, :, group]))
         covarr = np.row_stack(crosscov)
 
     U, d, V = randomized_svd(covarr, n_components=n_comp)
@@ -132,8 +132,8 @@ def parallel_permute(X, Y, n_comp, original, n_perm=1000, n_proc=1):
     pool = mp.Pool(n_proc)
     for i in range(n_perm):
         pool.apply_async(single_perm,
-                         args=(X,Y,n_comp,original),
-                         kwds={'seed':np.random.randint(4294967295)},
+                         args=(X, Y, n_comp, original),
+                         kwds={'seed': np.random.randint(4294967295)},
                          callback=callback)
     pool.close()
     pool.join()
@@ -166,7 +166,7 @@ def serial_permute(X, Y, n_comp, original, n_perm=1000, n_split=None):
         Distributions of singular values
     """
 
-    permuted_values = np.zeros((n_perm,n_comp))
+    permuted_values = np.zeros((n_perm, n_comp))
 
     for n in range(n_perm):
         permuted_values[n] = single_perm(X, Y, n_comp, original,
@@ -204,11 +204,13 @@ def single_perm(X, Y, n_comp, original, n_split=None, seed=None):
 
     if seed is not None: np.random.seed(seed)
 
-    while True:
-        if X.ndim == 2: X_perm = np.random.permutation(X)
-        else: X_perm = perm_3d(X)
-
-        if not np.allclose(X_perm.mean(axis=0), X.mean(axis=0)): break
+    if X.ndim == 2:
+        X_perm = np.random.permutation(X)
+    else:
+        while True:
+            X_perm = perm_3d(X)
+            if not np.allclose(X_perm.mean(axis=0), X.mean(axis=0)):
+                break
 
     if n_split is not None:
         pass
@@ -238,10 +240,10 @@ def perm_3d(X):
         Permuted `X`
     """
 
-    X_2d   = X.transpose((0,2,1)).reshape(X.shape[1],-1)
+    X_2d   = X.transpose((0, 2, 1)).reshape(X.shape[1], -1)
     X_2dp  = np.random.permutation(X_2d)
-    X_3dp  = X_2dp.reshape(X.shape[-1],X.shape[0],-1)
-    X_perm = X_3dp.transpose((1,2,0))
+    X_3dp  = X_2dp.reshape(X.shape[-1], X.shape[0], -1)
+    X_perm = X_3dp.transpose((1, 2, 0))
 
     return X_perm
 
@@ -282,8 +284,8 @@ def bootstrap(X, Y, n_comp, U_orig, V_orig, n_boot=500):
         X_boot, Y_boot = X[inds], Y[inds]
         U, d, V = svd(X_boot, Y_boot, n_comp)
 
-        U_boot[:,:,i], Q = procrustes(U_orig, U, I)
-        V_boot[:,:,i] = V @ Q
+        U_boot[:, :, i], Q = procrustes(U_orig, U, I)
+        V_boot[:, :, i] = V @ Q
 
     return U_boot, V_boot
 
@@ -313,8 +315,8 @@ def perm_sig(permuted_singular, orig_singular):
     n_perm = len(permuted_singular)
 
     for i in range(len(pvals)):
-        top_of_dist = np.argwhere(permuted_singular[:,i] > orig_singular[i,i])
-        pvals[i] = top_of_dist.size/n_perm
+        top_of_dist = np.argwhere(permuted_singular[:, i] > orig_singular[i, i])
+        pvals[i] = top_of_dist.size / n_perm
 
     return pvals
 
@@ -340,15 +342,15 @@ def boot_ci(U_boot, V_boot, p=0.05):
         CI for V (j x n_comp x 2)
     """
 
-    low = 100*(p/2)
-    high = 100-low
+    low = 100 * (p / 2)
+    high = 100 - low
 
-    U_out = np.zeros(U_boot.shape[0:2]+(2,))
-    V_out = np.zeros(V_boot.shape[0:2]+(2,))
+    U_out = np.zeros(U_boot.shape[0:2] + (2,))
+    V_out = np.zeros(V_boot.shape[0:2] + (2,))
 
-    for n, f in enumerate([low,high]):
-        U_out[:,:,n] = np.percentile(U_boot,f,axis=2)
-        V_out[:,:,n] = np.percentile(V_boot,f,axis=2)
+    for n, f in enumerate([low, high]):
+        U_out[:, :, n] = np.percentile(U_boot, f, axis=2)
+        V_out[:, :, n] = np.percentile(V_boot, f, axis=2)
 
     return U_out, V_out
 
@@ -376,8 +378,8 @@ def boot_rel(U_orig, V_orig, U_boot, V_boot):
         BSR for `V` (j x n_comp)
     """
 
-    U_rel = U_orig/sem(U_boot,axis=-1)
-    V_rel = V_orig/sem(V_boot,axis=-1)
+    U_rel = U_orig / sem(U_boot, axis=-1)
+    V_rel = V_orig / sem(V_boot, axis=-1)
 
     return U_rel, V_rel
 
@@ -421,7 +423,7 @@ def kaiser_criterion(singular):
         Boolean array (n_comp,)
     """
 
-    return crossblock_cov(singular) > (1/len(singular))
+    return crossblock_cov(singular) > (1 / len(singular))
 
 
 def boot_sig(boot):

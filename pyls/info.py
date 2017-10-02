@@ -19,7 +19,7 @@ TESTS_REQUIRE = [
 ]
 
 PACKAGE_DATA = {
-    'pyls.tests' : [
+    'pyls.tests': [
         'data/*'
     ]
 }

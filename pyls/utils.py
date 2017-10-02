@@ -29,19 +29,19 @@ def flatten_niis(fnames, thresh=0.2):
         raise ValueError("Thresh must be between 0 and 1.")
 
     # get some information on the data
-    cutoff   = np.ceil(thresh*len(fnames))
+    cutoff   = np.ceil(thresh * len(fnames))
     shape    = nib.load(fnames[0]).shape
     all_data = np.zeros((len(fnames), np.product(shape[:3])))
 
     # load in data
     for n, f in enumerate(fnames):
         temp = nib.load(f).get_data()
-        if temp.ndim > 3: temp = temp[:,:,:,0]
+        if temp.ndim > 3: temp = temp[:, :, :, 0]
         all_data[n] = temp.flatten()
 
     # get non-zero voxels
     non_zero = np.array(Counter(all_data.nonzero()[1]).most_common())
-    all_data = all_data[:,non_zero[np.where(non_zero[:,1] > cutoff)[0],0]]
+    all_data = all_data[:, non_zero[np.where(non_zero[:, 1] > cutoff)[0], 0]]
 
     return all_data
 
@@ -64,7 +64,7 @@ def xcorr(X, Y):
     """
 
     Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
-    xprod = (Yz.T @ Xz)/(Xz.shape[0]-1)
+    xprod = (Yz.T @ Xz) / (Xz.shape[0] - 1)
 
     return xprod
 
@@ -90,12 +90,12 @@ def zscore(X):
     arr = np.asarray(X.copy())
 
     avg, stdev = arr.mean(axis=0), arr.std(axis=0)
-    zero_items = np.where(stdev==0)[0]
+    zero_items = np.where(stdev == 0)[0]
 
     if zero_items.size > 0:
         avg[zero_items], stdev[zero_items] = 0, 1
 
-    zarr = (arr-avg)/stdev
+    zarr = (arr - avg) / stdev
     zarr[:, zero_items] = arr[:, zero_items]
 
     return zarr
@@ -125,11 +125,11 @@ def normalize(X, dim=0):
     if dim == 1: normal_base = normal_base.T  # to ensure proper broadcasting
 
     # to avoid DivideByZero errors
-    zero_items = np.where(normal_base==0)
+    zero_items = np.where(normal_base == 0)
     normal_base[zero_items] = 1
 
     # normalize and re-set zero_items
     normed /= normal_base
-    normal[zero_items] = 0
+    normed[zero_items] = 0
 
     return normed
