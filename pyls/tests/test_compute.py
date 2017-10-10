@@ -16,7 +16,7 @@ Y = np.random.rand(comp, behavior)
 
 
 def test_svd():
-    U, d, V = pyls.compute.svd(X, Y, comp)
+    U, d, V = pyls.compute.svd(X, Y)
     assert d.shape == (comp, comp)
     assert U.shape == (behavior, comp)
     assert V.shape == (brain, comp)
@@ -26,29 +26,26 @@ def test_svd():
     assert np.allclose(d, d2)
     assert np.allclose(V, V2)
 
-    with pytest.raises(ValueError):
-        pyls.compute.svd(np.random.rand(20, 10), np.random.rand(20, 100), comp)
-
     Xc, Yc = X.copy(), Y.copy()
     Xc[:, 10], Yc[:, 10] = 0, 0
-    U2, d2, V2 = pyls.compute.svd(Xc, Yc, comp)
+    U2, d2, V2 = pyls.compute.svd(Xc, Yc)
 
 
 def test_serial_permute():
-    U, d, V = pyls.compute.svd(X, Y, comp)
+    U, d, V = pyls.compute.svd(X, Y)
 
-    perms = pyls.compute.serial_permute(X, Y, comp, U, n_perm=n_perm)
+    perms = pyls.compute.serial_permute(X, Y, U, d, n_perm=n_perm)
     assert perms.shape == (n_perm, comp)
-    pyls.compute.serial_permute(Y, X, comp, U, n_perm=n_perm)
+    pyls.compute.serial_permute(Y, X, U, d, n_perm=n_perm)
 
     pvals = pyls.compute.perm_sig(perms, d)
     assert pvals.size == comp
 
 
 def test_bootstrap():
-    U, d, V = pyls.compute.svd(X, Y, comp)
+    U, d, V = pyls.compute.svd(X, Y)
 
-    U_boot, V_boot = pyls.compute.bootstrap(X, Y, comp, U, V, n_boot=n_boot)
+    U_boot, V_boot = pyls.compute.bootstrap(X, Y, U, V, n_boot=n_boot)
     assert U_boot.shape == (behavior, comp, n_boot)
     assert V_boot.shape == (brain, comp, n_boot)
 
