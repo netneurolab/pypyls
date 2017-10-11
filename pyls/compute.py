@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
+from itertools import repeat
 import multiprocessing as mp
+import sys
+
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from scipy.stats import sem
+
 from pyls.utils import xcorr
 
 
@@ -61,6 +65,10 @@ def svd(X, Y):
     return U, np.diag(d), V.T
 
 
+def split_half(X, Y):
+    raise NotImplementedError
+
+
 def procrustes(original, permuted, singular):
     """
     Performs Procrustes rotation on `permuted` to align with `original`
@@ -88,13 +96,15 @@ def procrustes(original, permuted, singular):
     return resamp, Q
 
 
-def parallel_permute(X, Y, original, singular, n_perm=1000, n_proc=None):
+def parallel_permute(X, Y,
+                     original,
+                     n_perm=1000,
+                     n_proc=None):
     """
     Parallelizes `single_perm()`` to `n_procs`
 
-    Uses `apply_async` with `multiprocessing.Pool()``. This is really only
-    useful if the SVD call from the permutation takes longer than the spawning
-    of new processes -- which depends on how big your arrays are!
+    Uses `starmap_async` with `multiprocessing.Pool()` to parallelize jobs.
+    Each job will get a unique random seed to avoid re-use.
 
     Parameters
     ----------
@@ -102,12 +112,10 @@ def parallel_permute(X, Y, original, singular, n_perm=1000, n_proc=None):
     Y : (N x J [x G]) array_like
     original : array_like
         `U` or `V` from original SVD for use in procrustes rotation
-    singular : array_like
-        Singular values from original SVD for use in procrustes rotation
     n_perm : int, optional
         Number of permutations to run. Default: 1000
     n_proc : int, optional
-        Number of processors to utilize. Default: 1
+        Number of processes to use. Default: `mp.cpu_count()`
 
     Returns
     -------
@@ -118,25 +126,25 @@ def parallel_permute(X, Y, original, singular, n_perm=1000, n_proc=None):
     def callback(result):
         permuted_values.append(result)
 
-    if n_proc is None: n_proc = mp.cpu_count()
+    if n_proc is None or n_proc < 0: n_proc = mp.cpu_count()
 
     permuted_values = []
-    pool = mp.Pool(n_proc)
 
-    for i in range(n_perm):
-        pool.apply_async(single_perm,
-                         args=(X, Y, original, singular),
-                         kwds={'seed': np.random.randint(4294967295)},
-                         callback=callback)
+    pool = mp.Pool(n_proc)
+    pool.starmap_async(single_perm,
+                       zip(repeat(X), repeat(Y), repeat(original),
+                           np.arange(n_perm)),
+                       callback=callback)
     pool.close()
     pool.join()
 
-    return np.array(permuted_values)
+    return np.row_stack(permuted_values)
 
 
 def serial_permute(X, Y,
-                   original, singular,
-                   n_perm=1000, n_split=None):
+                   original,
+                   n_perm=1000,
+                   verbose=False):
     """
     Computes `perms` instances of `single_perm()`` in serial
 
@@ -146,12 +154,10 @@ def serial_permute(X, Y,
     Y : (N x J [x G]) array_like
     original : array_like
         `U` or `V` from original SVD for use in procrustes rotation
-    singular : array_like
-        Singular values from original SVD for use in procrustes rotation
     n_perm : int, optional
         Number of permutations to run. Default: 1000
-    n_split : int, optional
-        Number of split-half resamples to assess reliability. Default: None
+    verbose : bool, optional
+        Whether to print status updates. Default: False
 
     Returns
     -------
@@ -159,16 +165,24 @@ def serial_permute(X, Y,
         Distributions of singular values
     """
 
-    permuted_values = np.zeros((n_perm, len(singular)))
+    permuted_values = np.zeros((n_perm, original.shape[1]))
+    msg = ''
 
     for n in range(n_perm):
-        permuted_values[n] = single_perm(X, Y, original, singular,
-                                         n_split=n_split)
+        if verbose:
+            sys.stdout.write('\b'*len(msg))
+            msg = f'Running permutation: {n+1}'
+            sys.stdout.write(msg)
+            sys.stdout.flush()
+
+        permuted_values[n] = single_perm(X, Y, original)
+
+    if verbose: sys.stdout.write('\n')
 
     return permuted_values
 
 
-def single_perm(X, Y, original, singular, n_split=None, seed=None):
+def single_perm(X, Y, original, seed=None):
     """
     Permutes `X` (w/o replacement) and recomputes SVD of `Y.T` @ `X`
 
@@ -180,10 +194,6 @@ def single_perm(X, Y, original, singular, n_split=None, seed=None):
     Y : (N x J [x G]) array_like
     original : array_like
         `U or `V` from original SVD for use in procrustes rotation
-    singular : array_like
-        Singular values from original SVD for use in procrustes rotation
-    n_split : int, optional
-        Number of split-half resamples to assess reliability. Default: None
     seed : int, optional
         Whether to set random seed for reproducibility. Default: None
 
@@ -203,17 +213,14 @@ def single_perm(X, Y, original, singular, n_split=None, seed=None):
             if not np.allclose(X_perm.mean(axis=0), X.mean(axis=0)):
                 break
 
-    if n_split is not None:
-        pass
-    else:
-        U, d, V = svd(X_perm, Y)
+    U, d, V = svd(X_perm, Y)
 
-        if len(U) < len(V): permuted = U
-        else: permuted = V
+    if len(U) < len(V): permuted = U
+    else: permuted = V
 
-        resamp, *rest = procrustes(original, permuted, singular)
+    resamp, *rest = procrustes(original, permuted, d)
 
-        return np.sqrt((resamp**2).sum(axis=0))
+    return np.sqrt((resamp**2).sum(axis=0))
 
 
 def perm_3d(X):
@@ -238,7 +245,10 @@ def perm_3d(X):
     return X_perm
 
 
-def bootstrap(X, Y, U_orig, V_orig, n_boot=500):
+def bootstrap(X, Y,
+              U_orig, V_orig,
+              n_boot=500,
+              verbose=False):
     """
     Bootstrap `X`/`Y` (with replacement) and computes SE of singular values
 
@@ -252,6 +262,8 @@ def bootstrap(X, Y, U_orig, V_orig, n_boot=500):
         Left singular vectors from original SVD
     n_boot : int, optional
         Number of boostraps to run. Default: 500
+    verbose : bool, optional
+        Whether to print status updates. Default: False
 
     Returns
     -------
@@ -264,8 +276,15 @@ def bootstrap(X, Y, U_orig, V_orig, n_boot=500):
     U_boot = np.zeros(U_orig.shape + (n_boot,))
     V_boot = np.zeros(V_orig.shape + (n_boot,))
     I = np.identity(U_orig.shape[1])
+    msg = ''
 
     for i in range(n_boot):
+        if verbose:
+            sys.stdout.write('\b'*len(msg))
+            msg = f'Running bootstrap {i+1}'
+            sys.stdout.write(msg)
+            sys.stdout.flush()
+
         inds = np.random.choice(np.arange(len(X)), size=len(X), replace=True)
         X_boot, Y_boot = X[inds], Y[inds]
         U, d, V = svd(X_boot, Y_boot)
@@ -273,12 +292,14 @@ def bootstrap(X, Y, U_orig, V_orig, n_boot=500):
         U_boot[:, :, i], Q = procrustes(U_orig, U, I)
         V_boot[:, :, i] = V @ Q
 
+    if verbose: sys.stdout.write('\n')
+
     return U_boot, V_boot
 
 
 def perm_sig(permuted_singular, orig_singular):
     """
-    Calculates significance of `orig_singular` vaues
+    Calculates significance of `orig_singular` values
 
     Compares amplitude of each singular value to distribution created via
     permutation in `permuted_singular`
@@ -424,4 +445,4 @@ def boot_sig(boot):
         Boolean array
     """
 
-    return np.sign(boot).sum(axis=-1)
+    return np.sign(boot).sum(axis=-1).astype('bool')

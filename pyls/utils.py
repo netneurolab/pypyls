@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 from collections import Counter
-import numpy as np
+
 import nibabel as nib
+import numpy as np
 
 
 def flatten_niis(fnames, thresh=0.2):

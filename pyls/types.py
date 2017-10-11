@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+
 from pyls import compute
 
 
@@ -15,10 +16,10 @@ class behavioral_pls():
     ----------
     brain : (N x K [x G]) array_like
         Where `N` is the number of subjects, `K` is the number of observations,
-        and `G` is a grouping factor
+        and `G` is an optional grouping factor
     behav : (N x J [x G]) array_like
         Where `N` is the number of subjects, `J` is the number of observations,
-        and `G` is a grouping factor
+        and `G` is an optional grouping factor
     n_perm : int, optional
         Number of permutations to generate. Default: 5000
     n_boot : int, optional
@@ -27,6 +28,11 @@ class behavioral_pls():
         Number of split-half resamples during permutation testing. Default: 100
     p : float (0,1), optional
         Signifiance criterion for bootstrapping, within (0, 1). Default: 0.05
+    verbose : bool, optional
+        Whether to print status updates. Default: True
+    n_proc : int, optional
+        If not None, number of processes to use for multiprocessing permutation
+        testing/bootstrapping. Default: None
     seed : int, optional
         Whether to set random seed for reproducibility. Default: None
 
@@ -59,39 +65,48 @@ class behavioral_pls():
     """
 
     def __init__(self, brain, behav,
-                 n_perm=5000, n_boot=1000,
-                 n_split=None,
+                 n_perm=5000, n_boot=1000, n_split=100,
                  p=0.05,
+                 verbose=True,
+                 n_proc=None,
                  seed=None):
         self.brain, self.behav = brain, behav
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
+        self._n_proc = n_proc
         self._p = p
 
         if seed is not None: np.random.seed(seed)
 
         self.run_svd()
-        self.run_perms()
-        self.run_boots()
+        self.run_perms(verbose=verbose)
+        self.run_boots(verbose=verbose)
         self.get_sig()
 
     def run_svd(self):
         self.U, self.d, self.V = compute.svd(self.brain,
                                              self.behav)
+        # self.ucorr, self.vcorr = compute.split_half(self.brain,
+        #                                             self.behav)
 
-    def run_perms(self):
+    def run_perms(self, verbose=True):
         if len(self.U) < len(self.V): orig = self.U
         else: orig = self.V
 
-        perms = compute.serial_permute(self.brain, self.behav,
-                                       orig, self.d,
-                                       n_perm=self._n_perm,
-                                       n_split=self._n_split)
+        if self._n_proc is not None:
+            perms = compute.parallel_permute(self.brain, self.behav, orig,
+                                             n_perm=self._n_perm,
+                                             n_proc=self._n_proc)
+        else:
+            perms = compute.serial_permute(self.brain, self.behav, orig,
+                                           n_perm=self._n_perm,
+                                           verbose=verbose)
         self.d_pvals = compute.perm_sig(perms, self.d)
 
-    def run_boots(self):
+    def run_boots(self, verbose=True):
         U_boot, V_boot = compute.bootstrap(self.brain, self.behav,
                                            self.U, self.V,
-                                           n_boot=self._n_boot)
+                                           n_boot=self._n_boot,
+                                           verbose=verbose)
         self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot, p=self._p)
         self.U_bsr, self.V_bsr = compute.boot_rel(self.U, self.V,
                                                   U_boot, V_boot)
