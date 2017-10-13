@@ -34,9 +34,9 @@ def test_svd():
 def test_serial_permute():
     U, d, V = pyls.compute.svd(X, Y)
 
-    perms = pyls.compute.serial_permute(X, Y, U, d, n_perm=n_perm)
+    perms = pyls.compute.serial_permute(X, Y, U, n_perm=n_perm)
     assert perms.shape == (n_perm, comp)
-    pyls.compute.serial_permute(Y, X, U, d, n_perm=n_perm)
+    pyls.compute.serial_permute(Y, X, U, n_perm=n_perm)
 
     pvals = pyls.compute.perm_sig(perms, d)
     assert pvals.size == comp

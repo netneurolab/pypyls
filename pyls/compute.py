@@ -171,7 +171,7 @@ def serial_permute(X, Y,
     for n in range(n_perm):
         if verbose:
             sys.stdout.write('\b'*len(msg))
-            msg = f'Running permutation: {n+1}'
+            msg = 'Running permutation: {:>4}'.format(n+1)
             sys.stdout.write(msg)
             sys.stdout.flush()
 
@@ -281,7 +281,7 @@ def bootstrap(X, Y,
     for i in range(n_boot):
         if verbose:
             sys.stdout.write('\b'*len(msg))
-            msg = f'Running bootstrap {i+1}'
+            msg = 'Running bootstrap: {:>6}'.format(i+1)
             sys.stdout.write(msg)
             sys.stdout.flush()
 
