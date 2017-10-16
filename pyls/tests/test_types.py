@@ -9,6 +9,7 @@ behavior = 100
 comp     = 20
 n_perm   = 50
 n_boot   = 10
+n_split  = 5
 groups   = 2
 
 behavmat  = np.random.rand(comp, behavior)
@@ -26,10 +27,10 @@ attrs = ['U', 'd', 'V',
 
 def test_behavioral_pls():
     o1 = pyls.types.behavioral_pls(braindata, behavmat,
-                                   n_perm, n_boot,
+                                   n_perm=n_perm, n_boot=n_boot,
                                    verbose=False)
     _ = pyls.types.behavioral_pls(behavmat, braindata,
-                                  n_perm, n_boot,
+                                  n_perm=n_perm, n_boot=n_boot,
                                   verbose=False)
     for f in attrs: assert hasattr(o1, f)
 
@@ -43,7 +44,7 @@ def test_behavioral_pls():
 
 def test_group_behavioral_pls():
     pyls.types.behavioral_pls(groupbraindata, groupbehavmat,
-                              n_perm, n_boot,
+                              n_perm=n_perm, n_boot=n_boot,
                               verbose=False)
 
     onecol = np.stack([np.ones([comp, 1]), np.ones([comp, 1]) * 2], axis=2)
@@ -51,3 +52,13 @@ def test_group_behavioral_pls():
     pyls.types.behavioral_pls(groupbraindata, onecol,
                               n_perm=n_perm, n_boot=n_boot,
                               verbose=False)
+
+
+def test_behavioral_split_half():
+    split_attrs = ['ucorr', 'vcorr', 'u_pvals', 'v_pvals']
+
+    o1 = pyls.types.behavioral_pls(braindata, behavmat,
+                                   n_perm=n_perm, n_boot=n_boot,
+                                   n_split=n_split,
+                                   verbose=False)
+    for f in split_attrs: assert hasattr(o1, f)

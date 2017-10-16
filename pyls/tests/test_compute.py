@@ -30,11 +30,15 @@ def test_svd():
     Xc[:, 10], Yc[:, 10] = 0, 0
     U2, d2, V2 = pyls.compute.svd(Xc, Yc)
 
+    with pytest.raises(ValueError):
+        pyls.compute.svd(Xc[[0]], Yc)
+
 
 def test_serial_permute():
     U, d, V = pyls.compute.svd(X, Y)
 
-    perms = pyls.compute.serial_permute(X, Y, U, n_perm=n_perm)
+    perms = pyls.compute.serial_permute(X, Y, U, n_perm=n_perm,
+                                        verbose=True)
     assert perms.shape == (n_perm, comp)
     pyls.compute.serial_permute(Y, X, U, n_perm=n_perm)
 
@@ -45,7 +49,8 @@ def test_serial_permute():
 def test_bootstrap():
     U, d, V = pyls.compute.svd(X, Y)
 
-    U_boot, V_boot = pyls.compute.bootstrap(X, Y, U, V, n_boot=n_boot)
+    U_boot, V_boot = pyls.compute.bootstrap(X, Y, U, V, n_boot=n_boot,
+                                            verbose=True)
     assert U_boot.shape == (behavior, comp, n_boot)
     assert V_boot.shape == (brain, comp, n_boot)
 
@@ -59,3 +64,9 @@ def test_bootstrap():
 
     pyls.compute.boot_sig(U_bci[:, 0, :])
     pyls.compute.kaiser_criterion(d)
+
+
+def test_splithalf():
+    ucorr, vcorr = pyls.compute.split_half(X, Y, n_split=n_perm)
+    assert ucorr.size == comp
+    assert vcorr.size == comp

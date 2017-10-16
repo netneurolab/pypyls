@@ -64,8 +64,16 @@ def xcorr(X, Y):
         Cross-correlation of `X` and `Y`
     """
 
-    Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
-    xprod = (Yz.T @ Xz) / (Xz.shape[0] - 1)
+    if X.ndim == 2:
+        Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
+        xprod = (Yz.T @ Xz) / (Xz.shape[0] - 1)
+    else:
+        crosscov = []
+        for g in range(X.shape[-1]):
+            Xz = np.nan_to_num(zscore(X[:, :, g]))
+            Yz = np.nan_to_num(zscore(Y[:, :, g]))
+            crosscov.append((Yz.T @ Xz) / (Xz.shape[0] - 1))
+        xprod = np.row_stack(crosscov)
 
     return xprod
 
