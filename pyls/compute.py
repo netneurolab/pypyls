@@ -3,12 +3,45 @@
 from itertools import repeat
 import multiprocessing as mp
 import sys
-
 import numpy as np
-from sklearn.utils.extmath import randomized_svd
 from scipy.stats import sem
+from sklearn.utils.extmath import randomized_svd
+from pyls.utils import xcorr, normalize
 
-from pyls.utils import xcorr
+
+def mcsvd(X, Y):
+    """
+    Runs SVD on a mean-centered matrix computed from `X` and `Y`
+
+    Parameters
+    ----------
+    X : (N x K) array_like
+        Input array, where `N` is the number of subjects and `K` is the number
+        of variables.
+    Y : (N x J) array_like
+        Input array, where `N` is the number of subjects and `J` corresponds to
+        the number of groups. A value of 1 in a given row/column indicates that
+        a subject belongs to a given group. This is a dummy coded matrix.
+
+    Returns
+    -------
+    U : (J x J-1) ndarray
+        Left singular vectors
+    d : (J-1 x J-1) ndarray
+        Diagonal array of singular values
+    V : (K x J-1) ndarray
+        Right singular vectors
+    """
+
+    I = np.ones(shape=(len(Y), 1))
+    M = np.linalg.inv(np.diag((I.T @ Y).flatten())) @ Y.T @ X
+    L = np.ones(shape=(len(M), 1))
+    N = len(M)
+    R = M - L @ (((1/N) * L.T) @ M)
+    G = Y.shape[-1]
+    U, d, V = randomized_svd(R, n_components=G-1)
+
+    return U, np.diag(d), V.T
 
 
 def svd(X, Y):
@@ -56,7 +89,7 @@ def svd(X, Y):
         sl = slice(0, 3, 2)
         n_comp = min(min(X.shape[sl]), min(Y.shape[sl]))
 
-    crosscov = xcorr(X, Y)
+    crosscov = normalize(xcorr(X, Y))
 
     U, d, V = randomized_svd(crosscov, n_components=n_comp)
 
@@ -299,9 +332,9 @@ def perm_3d(X):
         Permuted `X`
     """
 
-    X_2d   = X.transpose((0, 2, 1)).reshape(X.shape[1], -1)
-    X_2dp  = np.random.permutation(X_2d)
-    X_3dp  = X_2dp.reshape(X.shape[-1], X.shape[0], -1)
+    X_2d = X.transpose((0, 2, 1)).reshape(X.shape[1], -1)
+    X_2dp = np.random.permutation(X_2d)
+    X_3dp = X_2dp.reshape(X.shape[-1], X.shape[0], -1)
     X_perm = X_3dp.transpose((1, 2, 0))
 
     return X_perm

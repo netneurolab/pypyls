@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from collections import Counter
-
 import nibabel as nib
 import numpy as np
 
@@ -30,8 +29,8 @@ def flatten_niis(fnames, thresh=0.2):
         raise ValueError("Thresh must be between 0 and 1.")
 
     # get some information on the data
-    cutoff   = np.ceil(thresh * len(fnames))
-    shape    = nib.load(fnames[0]).shape
+    cutoff = np.ceil(thresh * len(fnames))
+    shape = nib.load(fnames[0]).shape
     all_data = np.zeros((len(fnames), np.product(shape[:3])))
 
     # load in data
@@ -82,9 +81,6 @@ def zscore(X):
     """
     Z-scores `X` by subtracting mean, dividing by standard deviation
 
-    Performs columnwise (not rowwise) normalization. If the standard deviation
-    of any column of X == 0, that column is returned unchanged
-
     Parameters
     ----------
     X : array_like
@@ -105,7 +101,7 @@ def zscore(X):
         avg[zero_items], stdev[zero_items] = 0, 1
 
     zarr = (arr - avg) / stdev
-    zarr[:, zero_items] = arr[:, zero_items]
+    zarr[:, zero_items] = 0
 
     return zarr
 
