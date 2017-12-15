@@ -46,7 +46,7 @@ def flatten_niis(fnames, thresh=0.2):
     return all_data
 
 
-def xcorr(X, Y):
+def xcorr(X, Y, grouping=None):
     """
     Calculates the cross-correlation of `X` and `Y`
 
@@ -56,6 +56,8 @@ def xcorr(X, Y):
         Data array
     Y : array_like
         Behavior array
+    grouping : array_like
+        Group arry (containing labels for X/Y)
 
     Returns
     -------
@@ -63,7 +65,7 @@ def xcorr(X, Y):
         Cross-correlation of `X` and `Y`
     """
 
-    if X.ndim == 2:
+    if grouping is None:
         Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
         xprod = (Yz.T @ Xz) / (Xz.shape[0] - 1)
     else:

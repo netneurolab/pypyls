@@ -19,9 +19,9 @@ def mcsvd(X, Y):
         Input array, where `N` is the number of subjects and `K` is the number
         of variables.
     Y : (N x J) array_like
-        Input array, where `N` is the number of subjects and `J` corresponds to
-        the number of groups. A value of 1 in a given row/column indicates that
-        a subject belongs to a given group. This is a dummy coded matrix.
+        Dummy coded input array, where `N` is the number of subjects and `J`
+        corresponds to the number of groups. A value of 1 in a given row/column
+        indicates that a subject belongs to a given group.
 
     Returns
     -------
@@ -36,15 +36,13 @@ def mcsvd(X, Y):
     I = np.ones(shape=(len(Y), 1))
     M = np.linalg.inv(np.diag((I.T @ Y).flatten())) @ Y.T @ X
     L = np.ones(shape=(len(M), 1))
-    N = len(M)
-    R = M - L @ (((1/N) * L.T) @ M)
-    G = Y.shape[-1]
-    U, d, V = randomized_svd(R, n_components=G-1)
+    R = M - L @ (((1/len(M)) * L.T) @ M)
+    U, d, V = randomized_svd(R, n_components=Y.shape[-1]-1)
 
     return U, np.diag(d), V.T
 
 
-def svd(X, Y):
+def svd(X, Y, grouping=None):
     """
     Runs SVD on the cross-covariance matrix of `X` and `Y`
 
@@ -59,16 +57,16 @@ def svd(X, Y):
 
     Parameters
     ----------
-    X : (N x K [x G]) array_like
-        Input array, where `N` is the number of subjects, `K` is the number of
-        variables, and `G` is a grouping factor (if there are multiple groups)
-    Y : (N x J [x G]) array_like
-        Input array, where `N` is the number of subjects, `J` is the number of
-        variables, and `G` is a grouping factor (if there are multiple groups)
+    X : (N x K) array_like
+        Input array, where `N` is the number of subjects and `K` is the number
+        of variables
+    Y : (N x J) array_like
+        Input array, where `N` is the number of subjects and `J` is the number
+        of variables
 
     Returns
     -------
-    U : (K[*G] x L) ndarray
+    U : (K x L) ndarray
         Left singular vectors
     d : (L x L) ndarray
         Diagonal array of singular values

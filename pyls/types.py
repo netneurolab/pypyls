@@ -152,3 +152,67 @@ class behavioral_pls():
 
         self.d_kaiser = compute.kaiser_criterion(self.d)
         self.d_varexp = compute.crossblock_cov(self.d)
+
+
+class mean_centered_pls():
+    """
+    Runs PLS on `data` and `grouping` arrays
+
+    Uses singular value decomposition (SVD) to find latent variables from
+    mean-centered matrix generated from `data`
+
+    Parameters
+    ----------
+    brain : (N x K) array_like
+        Where `N` is the number of subjects and  `K` is the number of
+        observations
+    behav : (N x J) array_like
+        Where `N` is the number of subjects, `J` is the number of groups.
+        Should be a dummy coded matrix (i.e., 1 indicates group membership)
+    n_perm : int, optional
+        Number of permutations to generate. Default: 5000
+    n_boot : int, optional
+        Number of bootstraps to generate. Default: 1000
+    n_split : int, optional
+        Number of split-half resamples during permutation testing. Default:
+        None
+    p : float (0,1), optional
+        Signifiance criterion for bootstrapping, within (0, 1). Default: 0.05
+    verbose : bool, optional
+        Whether to print status updates. Default: True
+    seed : int, optional
+        Whether to set random seed for reproducibility. Default: None
+    """
+
+    def __init__(self, data, grouping,
+                 n_perm=5000, n_boot=1000, n_split=None,
+                 p=0.05,
+                 verbose=True,
+                 seed=None):
+        self.data, self.grouping = data, grouping
+        self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
+        self._p = p
+
+        if seed is not None: np.random.seed(seed)
+
+        self.run_svd()
+        self.run_perms(verbose=verbose)
+        self.run_boots(verbose=verbose)
+        self.get_sig()
+
+    def run_svd(self):
+        self.U, self.d, self.V = compute.mcsvd(self.data,
+                                               self.grouping)
+        if self._n_split is not None:
+            self.ucorr, self.vcorr = compute.split_half(self.data,
+                                                        self.grouping,
+                                                        n_split=self._n_split)
+
+    def run_perms(self, verbose=True):
+        pass
+
+    def run_boots(self, verbose=True):
+        pass
+
+    def get_sig(self):
+        pass
