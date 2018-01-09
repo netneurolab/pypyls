@@ -104,8 +104,6 @@ def normalize(X, axis=0):
 
     normed = np.array(X)
     normal_base = np.linalg.norm(normed, axis=axis, keepdims=True)
-    if axis == 1:
-        normal_base = normal_base.T  # to ensure proper broadcasting
 
     # avoid DivideByZero errors
     zero_items = np.where(normal_base == 0)

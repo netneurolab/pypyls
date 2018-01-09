@@ -12,7 +12,7 @@ def test_zscore():
     out = pyls.utils.zscore([[1]] * 10)
     assert np.allclose(out, 0)
 
-    out = pyls.utils.zscore(np.random.rand((10, 10)))
+    out = pyls.utils.zscore(rs.rand(10, 10))
     assert out.shape == (10, 10)
     assert not np.allclose(out, 0)
 
