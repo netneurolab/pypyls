@@ -227,7 +227,7 @@ class BasePLS():
 
         if n_proc > 1:
             pool = mp.Pool(n_proc)
-            tdqm(pool.starmap_async(self._single_perm,
+            tqdm(pool.starmap_async(self._single_perm,
                                     zip(repeat(X), repeat(Y), repeat(grouping),
                                         repeat(n_split), seeds),
                                     callback=callback),
