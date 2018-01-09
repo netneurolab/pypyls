@@ -15,11 +15,12 @@ Using `git clone` and `python setup.py install` should do the trick.
 
 ## Usage
 ```
->>> from pyls import behavioral_pls
+>>> import pyls
 
->>> brain    = np.random.rand(20, 10000)
->>> behavior = np.random.rand(20, 10)
->>> bpls     = behavioral_pls(brain, behavior)
+>>> rs = np.random.RandomState(123)
+>>> X = rs.rand(20, 10000)
+>>> Y = rs.rand(20, 10)
+>>> bpls = pyls.BehavioralPLS(X, Y, n_perm=100, n_boot=50, n_split=50)
 
 # list the singular values from the decomposition
 >>> np.diag(bpls.d)
@@ -34,5 +35,4 @@ array([ 0.23427363,  0.19919146, ...,  0.01586851])
 ['U', 'U_bci', 'U_bsr', ..., 'behav', 'brain']
 ```
 
-This version of PLS has split-half resampling implenented; simply set `n_split`
-when instantiating `behavioral_pls`.
+This version of PLS has split-half resampling implenented; simply set `n_split` when instantiating `BehavioralPLS`.

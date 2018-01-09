@@ -7,14 +7,14 @@ import sys
 def main():
     from setuptools import setup, find_packages
 
-    if sys.version_info < (3,5):
+    if sys.version_info < (3, 5):
         raise SystemError("You need Python version 3.5 or above to use " +
                           "pyls.")
 
     # from nipype setup.py file
     ldict = locals()
     curr_path = os.path.dirname(__file__)
-    ver_file  = os.path.join(curr_path, 'pyls', 'info.py')
+    ver_file = os.path.join(curr_path, 'pyls', 'info.py')
     with open(ver_file) as infofile:
         exec(infofile.read(), globals(), ldict)
 

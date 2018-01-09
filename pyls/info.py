@@ -11,15 +11,13 @@ INSTALL_REQUIRES = [
     'numpy',
     'scikit-learn',
     'scipy',
-    'nibabel'
+    'tqdm'
 ]
 
 TESTS_REQUIRE = [
-    'pytest-cov',
+    'pytest',
+    'pytest-cov'
 ]
 
 PACKAGE_DATA = {
-    'pyls.tests': [
-        'data/*'
-    ]
 }

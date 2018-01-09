@@ -1,5 +1,4 @@
-__all__ = ['compute', 'utils', 'types']
+__all__ = ['base', 'utils', 'types']
 
 from pyls.info import (__version__)
-from pyls import (compute, utils, types)
-from pyls.types import (behavioral_pls)
+from pyls.types import (BehavioralPLS, MeanCenteredPLS)

@@ -1,100 +1,75 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-from collections import Counter
-import nibabel as nib
 import numpy as np
-
-
-def flatten_niis(fnames, thresh=0.2):
-    """
-    Loads 3D nii files in `fnames`, flattens, and removes non-zero voxels
-
-    Parameters
-    ----------
-    fnames : list
-        List of nifti files to be loaded, flattened, and masked (via
-        thresholding).
-    thresh : float, optional
-        Threshold to determine # of participants that must have activity in a
-        voxel for it to be kept in final array. Must be within (0,1)
-        (default: 0.2).
-
-    Returns
-    -------
-    array
-        Stacked, masked input data (N x voxels)
-    """
-
-    if thresh > 1 or thresh < 0:
-        raise ValueError("Thresh must be between 0 and 1.")
-
-    # get some information on the data
-    cutoff = np.ceil(thresh * len(fnames))
-    shape = nib.load(fnames[0]).shape
-    all_data = np.zeros((len(fnames), np.product(shape[:3])))
-
-    # load in data
-    for n, f in enumerate(fnames):
-        temp = nib.load(f).get_data()
-        if temp.ndim > 3: temp = temp[:, :, :, 0]
-        all_data[n] = temp.flatten()
-
-    # get non-zero voxels
-    non_zero = np.array(Counter(all_data.nonzero()[1]).most_common())
-    all_data = all_data[:, non_zero[np.where(non_zero[:, 1] > cutoff)[0], 0]]
-
-    return all_data
+from scipy.stats import sem
 
 
 def xcorr(X, Y, grouping=None):
     """
-    Calculates the cross-correlation of `X` and `Y`
+    Calculates the cross-covariance matrix of ``X`` and ``Y``
 
     Parameters
     ----------
-    X : array_like
-        Data array
-    Y : array_like
-        Behavior array
-    grouping : array_like
-        Group arry (containing labels for X/Y)
+    X : (N x J) array_like
+    Y : (N x K) array_like
+    grouping : (N,) array_like, optional
+        Grouping array, where ``len(np.unique(grouping))`` is the number of
+        distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
+        computed separately for each group and are stacked row-wise.
 
     Returns
     -------
-    array
-        Cross-correlation of `X` and `Y`
+    (K[*G] x J) np.ndarray
+        Cross-covariance of ``X`` and ``Y``
     """
 
     if grouping is None:
-        Xz, Yz = np.nan_to_num(zscore(X)), np.nan_to_num(zscore(Y))
-        xprod = (Yz.T @ Xz) / (Xz.shape[0] - 1)
+        return _compute_xcorr(X, Y)
     else:
-        crosscov = []
-        for g in range(X.shape[-1]):
-            Xz = np.nan_to_num(zscore(X[:, :, g]))
-            Yz = np.nan_to_num(zscore(Y[:, :, g]))
-            crosscov.append((Yz.T @ Xz) / (Xz.shape[0] - 1))
-        xprod = np.row_stack(crosscov)
+        return np.row_stack([_compute_xcorr(X[grouping == grp],
+                                            Y[grouping == grp])
+                             for grp in np.unique(grouping)])
+
+
+def _compute_xcorr(X, Y):
+    """
+    Calculates the cross-covariance matrix of ``X`` and ``Y``
+
+    Parameters
+    ----------
+    X : (N x J) array_like
+    Y : (N x K) array_like
+
+    Returns
+    -------
+    xprod : (K x J) np.ndarray
+        Cross-covariance of ``X`` and ``Y``
+    """
+
+    Xnz, Ynz = normalize(zscore(X)), normalize(zscore(Y))
+    xprod = (Ynz.T @ Xnz) / (Xnz.shape[0] - 1)
 
     return xprod
 
 
 def zscore(X):
     """
-    Z-scores `X` by subtracting mean, dividing by standard deviation
+    Z-scores ``X`` by subtracting mean and dividing by standard deviation
+
+    Effectively the same as ``np.nan_to_num(scipy.stats.zscore(X))`` but
+    handles DivideByZero without issuing annoying warnings.
 
     Parameters
     ----------
-    X : array_like
-        Two-dimensional input array
+    X : (N x J) array_like
 
     Returns
     -------
-    array
-        Z-scored input
+    zarr : (N x J) np.ndarray
+        Z-scored ``X``
     """
 
-    arr = np.asarray(X.copy())
+    arr = np.array(X)
 
     avg, stdev = arr.mean(axis=0), arr.std(axis=0)
     zero_items = np.where(stdev == 0)[0]
@@ -108,35 +83,231 @@ def zscore(X):
     return zarr
 
 
-def normalize(X, dim=0):
+def normalize(X, axis=0):
     """
-    Normalizes `X` along dimension `dim`
+    Normalizes ``X`` along ``axis``
 
     Utilizes Frobenius norm (or Hilbert-Schmidt norm, L_{p,q} norm where p=q=2)
 
     Parameters
     ----------
-    X : array_like
-    dim : bool
-        Dimension for normalization
+    X : (N x K) array_like
+        Data to be normalized
+    axis : int, optional
+        Axis for normalization. Default: 0
 
     Returns
     -------
-    array
-        Normalized `X`
+    normed : (N x K) np.ndarray
+        Normalized ``X``
     """
 
-    normed = X.copy()
+    normed = np.array(X)
+    normal_base = np.linalg.norm(normed, axis=axis, keepdims=True)
+    if axis == 1:
+        normal_base = normal_base.T  # to ensure proper broadcasting
 
-    normal_base = np.linalg.norm(normed, axis=dim, keepdims=True)
-    if dim == 1: normal_base = normal_base.T  # to ensure proper broadcasting
-
-    # to avoid DivideByZero errors
+    # avoid DivideByZero errors
     zero_items = np.where(normal_base == 0)
     normal_base[zero_items] = 1
-
-    # normalize and re-set zero_items
-    normed /= normal_base
+    # normalize and re-set zero_items to 0
+    normed = normed / normal_base
     normed[zero_items] = 0
 
     return normed
+
+
+def perm_sig(permuted_singular, orig_singular):
+    """
+    Calculates significance of ``orig_singular`` values
+
+    Compares amplitude of each singular value to distribution created via
+    permutation in ``permuted_singular``
+
+    Parameters
+    ----------
+    permuted_singular : (P x L) array_like
+        Distribution of singular values from permutation testing where ``P``
+        is the number of permutations and ``L`` is the number of components
+        from the SVD
+    orig_singular : (L x L) array_like
+        Diagonal matrix of singular values from original SVD
+
+    Returns
+    -------
+    pvals : (L,) np.ndarray
+        P-values of singular values from original SVD
+    """
+
+    pvals = np.zeros(len(orig_singular))
+    n_perm = len(permuted_singular)
+
+    for i in range(len(pvals)):
+        top_dist = np.argwhere(permuted_singular[:, i] > orig_singular[i, i])
+        pvals[i] = top_dist.size / n_perm
+
+    return pvals
+
+
+def boot_ci(U_boot, V_boot, ci=95):
+    """
+    Generates CI for bootstrapped values ``U_boot`` and ``V_boot``
+
+    Parameters
+    ----------
+    U_boot : (K[*G] x L x B) array_like
+    V_boot : (J x L x B) array_like
+    ci : (0, 100) float, optional
+        Confidence interval bounds to be calculated. Default: 95
+
+    Returns
+    -------
+    (K[*G] x L x 2) ndarray
+        Bounds of confidence interval for left singular vectors
+    (J x L x 2) array
+        Bounds of confidence interval for right singular vectors
+    """
+
+    low = (100 - ci) / 2
+    prc = [low, 100 - low]
+
+    U_ci = np.percentile(U_boot, prc, axis=2).transpose(1, 2, 0)
+    V_ci = np.percentile(V_boot, prc, axis=2).transpose(1, 2, 0)
+
+    return U_ci, V_ci
+
+
+def boot_rel(U_orig, V_orig, U_boot, V_boot):
+    """
+    Determines bootstrap ratios (BSR) of saliences from bootstrap distributions
+
+    Parameters
+    ----------
+    U_orig : (K[*G] x L) array_like
+    V_orig : (J x L) array_like
+    U_boot : (K[*G] x L x B) array_like
+    V_boot : (J x L x B) array_like
+
+    Returns
+    -------
+    (K[*G] x L) ndarray
+        Bootstrap ratios for left singular vectors
+    (J x L) ndarray
+        Bootstrap ratios for right singular vectors
+    """
+
+    U_rel = U_orig / sem(U_boot, axis=-1)
+    V_rel = V_orig / sem(V_boot, axis=-1)
+
+    return U_rel, V_rel
+
+
+def crossblock_cov(singular):
+    """
+    Calculates cross-block covariance of ``singular`` values
+
+    Cross-block covariances details amount of variance explained
+
+    Parameters
+    ----------
+    singular : (L x L) array_like
+        Diagonal matrix of singular values
+
+    Returns
+    -------
+    (L,) np.ndarray
+        Cross-block covariance
+    """
+
+    squared_sing = np.diag(singular)**2
+
+    return squared_sing / squared_sing.sum()
+
+
+def kaiser_criterion(singular):
+    """
+    Determines if variance explained by ``singular`` value > Kaiser criterion
+
+    Kaiser criterion is 1/# singular values. If cross-block covariance
+    explained by singular value exceeds criterion, return True; else, return
+    False.
+
+    Parameters
+    ----------
+    singular : (L x L) array_like
+        Diagonal matrix of singular values from original SVD
+
+    Returns
+    -------
+    (L,) np.ndarray
+        Boolean array detailing whether singular value passes Kaiser criterion
+    """
+
+    return crossblock_cov(singular) > (1 / len(singular))
+
+
+def boot_sig(boot):
+    """
+    Determines which entries of ``boot`` are significant via CI crossing
+
+    If CI crosses zero, then bootstrap value is not
+
+    Parameters
+    ----------
+    boot : (F x L x 2) array_like
+        One of the outputs of ``boot_ci()``
+
+    Returns
+    -------
+    (F,) ndarray
+        Boolean array
+    """
+
+    return np.sign(boot).sum(axis=-1).astype('bool')
+
+
+def get_seed(seed=None):
+    """
+    Determines type of ``seed`` and returns RandomState instance
+
+    Parameters
+    ----------
+    seed : {int, RandomState instance, None}, optional
+        The seed of the pseudo random number generator to use when shuffling
+        the data.  If int, ``seed`` is the seed used by the random number
+        generator. If RandomState instance, ``seed`` is the random number
+        generator. If None, the random number generator is the RandomState
+        instance used by ``np.random``. Default: None
+
+    Returns
+    -------
+    RandomState instance
+    """
+
+    if seed is not None:
+        if isinstance(seed, int):
+            return np.random.RandomState(seed)
+        elif isinstance(seed, np.random.RandomState):
+            return seed
+    return np.random
+
+
+def dummy_code(grouping):
+    """
+    Dummy codes ``grouping``
+
+    Parameters
+    ----------
+    grouping : (N,) array_like
+        Array with labels separating ``N`` subjects into ``G`` groups
+
+    Returns
+    -------
+    Y : (N x G) np.ndarray
+        Dummy coded grouping array
+    """
+
+    groups = np.unique(grouping)
+    Y = np.column_stack([(grouping==grp).astype(int) for grp in groups])
+
+    return Y

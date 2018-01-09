@@ -1,10 +1,12 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import numpy as np
-from pyls import compute
+from sklearn.utils.extmath import randomized_svd
+from pyls.base import BasePLS
+from pyls.utils import normalize, xcorr, get_seed, dummy_code
 
 
-class behavioral_pls():
+class BehavioralPLS(BasePLS):
     """
     Runs PLS on `brain` and `behav` arrays
 
@@ -13,10 +15,10 @@ class behavioral_pls():
 
     Parameters
     ----------
-    brain : (N x K [x G]) array_like
+    brain : (N x K) array_like
         Where `N` is the number of subjects, `K` is the number of observations,
         and `G` is an optional grouping factor
-    behav : (N x J [x G]) array_like
+    behav : (N x J) array_like
         Where `N` is the number of subjects, `J` is the number of observations,
         and `G` is an optional grouping factor
     n_perm : int, optional
@@ -27,7 +29,7 @@ class behavioral_pls():
         Number of split-half resamples during permutation testing. Default:
         None
     p : float (0,1), optional
-        Signifiance criterion for bootstrapping, within (0, 1). Default: 0.05
+        Reliability criterion for bootstrapping, within (0, 1). Default: 0.05
     verbose : bool, optional
         Whether to print status updates. Default: True
     n_proc : int, optional
@@ -37,12 +39,12 @@ class behavioral_pls():
         Whether to set random seed for reproducibility. Default: None
 
     Attributes
-    -------
-    U : (K[*G] x L) ndarray
+    ----------
+    U : (J[*G] x L) ndarray
         Left singular vectors
-    d : (L x N_COM) ndarray
+    d : (L x L) ndarray
         Diagonal matrix of singular values
-    V : (J x L) ndarray
+    V : (K x L) ndarray
         Right singular vectors
     ucorr, vcorr : (L,) ndarray
         Correlations of split-half resamples of singular vectors. Only present
@@ -57,17 +59,17 @@ class behavioral_pls():
         Relevance of latent variables as determined by Kaiser criterion
     d_varexp : (L,) ndarray
         Percent variance explained by each latent variable
-    U_bci : (K[*G] x L x 2) ndarray
+    U_bci : (J[*G] x L x 2) ndarray
         Bootstrapped CI for left singular vectors
-    V_bci : (J x L x 2) ndarray
+    V_bci : (K x L x 2) ndarray
         Bootstrapped CI for right singular vectors
-    U_bsr : (K[*G] x L) ndarray
+    U_bsr : (J[*G] x L) ndarray
         Bootstrap ratios for left singular vectors
-    V_bsr : (J x L) ndarray
+    V_bsr : (K x L) ndarray
         Bootstrap ratios for right singular vectors
-    U_sig : (K[*G] x L) ndarray
+    U_sig : (J[*G] x L) ndarray
         Significance (by zero-crossing) of left singular vectors
-    V_sig : (J x L) ndarray
+    V_sig : (K x L) ndarray
         Significance (by zero-crossing) of right singular vectors
 
     References
@@ -87,74 +89,87 @@ class behavioral_pls():
        Squares and Related Methods (pp. 159-170). Springer, New York, NY.
        Chicago
     """
+    def __init__(self, brain, behav, grouping=None, **kwargs):
+        super(BehavioralPLS, self).__init__(**kwargs)
+        self.X, self.Y, self.groups = brain, behav, grouping
 
-    def __init__(self, brain, behav,
-                 n_perm=5000, n_boot=1000, n_split=None,
-                 p=0.05,
-                 verbose=True,
-                 n_proc=None,
-                 seed=None):
-        self.brain, self.behav = brain, behav
-        self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
-        self._n_proc = n_proc
-        self._p = p
+        self._run_svd()
+        self._run_perms()
+        self._run_boots()
+        self._get_sig()
 
-        if seed is not None: np.random.seed(seed)
+    def _svd(self, X, Y, grouping=None, seed=None):
+        """
+        Runs SVD on the cross-covariance matrix of ``X`` and ``Y``
 
-        self.run_svd()
-        self.run_perms(verbose=verbose)
-        self.run_boots(verbose=verbose)
-        self.get_sig()
+        Finds ``L`` singular vectors, where ``L`` is the minimum of the dimensions
+        of ``X`` and ``Y`` if ``grouping`` is not provided, or the number of unique
+        values in ``grouping`` if provided.
 
-    def run_svd(self):
-        self.U, self.d, self.V = compute.svd(self.brain,
-                                             self.behav)
-        if self._n_split is not None:
-            self.ucorr, self.vcorr = compute.split_half(self.brain,
-                                                        self.behav,
-                                                        n_split=self._n_split)
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables
+        Y : (N x J) array_like
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables
+        grouping : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(grouping))`` is the number of
+            distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
+            computed separately for each group and stacked prior to SVD. Default:
+            None
+        seed : {int, RandomState instance, None}, optional
+            The seed of the pseudo random number generator to use when
+            shuffling the data.  If int, ``seed`` is the seed used by the
+            random number generator. If RandomState instance, ``seed`` is the
+            random number generator. If None, the random number generator is
+            the RandomState instance used by ``np.random``. Default: None
 
-    def run_perms(self, verbose=True):
-        if len(self.U) < len(self.V): orig = self.U
-        else: orig = self.V
+        Returns
+        -------
+        U : (J[*G] x L) ndarray
+            Left singular vectors, where ``G`` is the number of unique values in
+            ``grouping`` if provided
+        d : (L x L) ndarray
+            Diagonal array of singular values
+        V : (K x L) ndarray
+            Right singular vectors
+        """
 
-        if self._n_proc is not None:
-            perms = compute.parallel_permute(self.brain, self.behav, orig,
-                                             n_perm=self._n_perm,
-                                             n_split=self._n_split,
-                                             n_proc=self._n_proc)
+        if X.ndim != Y.ndim:
+            raise ValueError('Number of dimensions of ``X`` and ``Y`` must '
+                             'match.')
+        if X.ndim != 2:
+            raise ValueError('``X`` and ``Y`` must each have 2 dimensions.')
+        if X.shape[0] != Y.shape[0]:
+            raise ValueError('The first dimension of ``X`` and ``Y`` must '
+                             'match.')
+
+        if grouping is None:
+            n_comp = min(min(X.shape), min(Y.shape))
+            crosscov = xcorr(normalize(X), normalize(Y))
         else:
-            perms = compute.serial_permute(self.brain, self.behav, orig,
-                                           n_perm=self._n_perm,
-                                           n_split=self._n_split,
-                                           verbose=verbose)
+            groups = np.unique(grouping)
+            n_comp = len(groups)
+            crosscov = np.row_stack([xcorr(normalize(X[grouping == grp]),
+                                           normalize(Y[grouping == grp]))
+                                     for grp in groups])
 
-        if self._n_split is not None:
-            self.u_pvals = compute.perm_sig(perms[:, :, 0],
-                                            np.diag(self.ucorr))
-            self.v_pvals = compute.perm_sig(perms[:, :, 1],
-                                            np.diag(self.vcorr))
-        else:
-            self.d_pvals = compute.perm_sig(perms, self.d)
+        U, d, V = randomized_svd(crosscov, n_components=n_comp,
+                                 random_state=get_seed(seed))
 
-    def run_boots(self, verbose=True):
-        U_boot, V_boot = compute.bootstrap(self.brain, self.behav,
-                                           self.U, self.V,
-                                           n_boot=self._n_boot,
-                                           verbose=verbose)
-        self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot, p=self._p)
-        self.U_bsr, self.V_bsr = compute.boot_rel(self.U, self.V,
-                                                  U_boot, V_boot)
+        return U, np.diag(d), V.T
 
-    def get_sig(self):
-        self.U_sig = compute.boot_sig(self.U_bci)
-        self.V_sig = compute.boot_sig(self.V_bci)
-
-        self.d_kaiser = compute.kaiser_criterion(self.d)
-        self.d_varexp = compute.crossblock_cov(self.d)
+    def _run_svd(self):
+        self.U, self.d, self.V = self._svd(self.X, self.Y, self.groups)
+        if self.n_split is not None:
+            self.ucorr, self.vcorr = self._split_half(self.X, self.Y,
+                                                      grouping=self.groups,
+                                                      n_split=self.n_split)
 
 
-class mean_centered_pls():
+class MeanCenteredPLS(BasePLS):
     """
     Runs PLS on `data` and `grouping` arrays
 
@@ -163,10 +178,10 @@ class mean_centered_pls():
 
     Parameters
     ----------
-    brain : (N x K) array_like
+    X : (N x K) array_like
         Where `N` is the number of subjects and  `K` is the number of
         observations
-    behav : (N x J) array_like
+    grouping : (N x J) array_like
         Where `N` is the number of subjects, `J` is the number of groups.
         Should be a dummy coded matrix (i.e., 1 indicates group membership)
     n_perm : int, optional
@@ -184,35 +199,59 @@ class mean_centered_pls():
         Whether to set random seed for reproducibility. Default: None
     """
 
-    def __init__(self, data, grouping,
-                 n_perm=5000, n_boot=1000, n_split=None,
-                 p=0.05,
-                 verbose=True,
-                 seed=None):
-        self.data, self.grouping = data, grouping
-        self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
-        self._p = p
+    def __init__(self, data, grouping, **kwargs):
+        super(MeanCenteredPLS, self).__init__(**kwargs)
+        self.X, self.Y, self.groups = data, dummy_code(grouping), None
 
-        if seed is not None: np.random.seed(seed)
+        self._run_svd()
+        self._run_perms()
+        self._run_boots()
+        self._get_sig()
 
-        self.run_svd()
-        self.run_perms(verbose=verbose)
-        self.run_boots(verbose=verbose)
-        self.get_sig()
+        self.groups = grouping
 
-    def run_svd(self):
-        self.U, self.d, self.V = compute.mcsvd(self.data,
-                                               self.grouping)
-        if self._n_split is not None:
-            self.ucorr, self.vcorr = compute.split_half(self.data,
-                                                        self.grouping,
-                                                        n_split=self._n_split)
+    def _svd(self, X, Y, grouping=None, seed=None):
+        """
+        Runs SVD on a mean-centered matrix computed from ``X`` and ``Y``
 
-    def run_perms(self, verbose=True):
-        pass
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 in a given
+            row/column indicates that subject belongs to a given group.
+        seed : {int, RandomState instance, None}, optional
+            The seed of the pseudo random number generator to use when
+            shuffling the data.  If int, ``seed`` is the seed used by the
+            random number generator. If RandomState instance, ``seed`` is the
+            random number generator. If None, the random number generator is
+            the RandomState instance used by ``np.random``. Default: None
 
-    def run_boots(self, verbose=True):
-        pass
+        Returns
+        -------
+        U : (J x J-1) ndarray
+            Left singular vectors
+        d : (J-1 x J-1) ndarray
+            Diagonal array of singular values
+        V : (K x J-1) ndarray
+            Right singular vectors
+        """
 
-    def get_sig(self):
-        pass
+        iden = np.ones(shape=(len(Y), 1))
+        M = np.linalg.inv(np.diag((iden.T @ Y).flatten())) @ Y.T @ X
+        L = np.ones(shape=(len(M), 1))
+        R = M - L @ (((1/len(M)) * L.T) @ M)
+        U, d, V = randomized_svd(R, n_components=Y.shape[-1]-1,
+                                 random_state=get_seed(seed))
+
+        return U, np.diag(d), V.T
+
+    def _run_svd(self):
+        self.U, self.d, self.V = self._svd(self.X, self.Y, seed=self._rs)
+        if self.n_split is not None:
+            self.ucorr, self.vcorr = self._split_half(self.X, self.Y,
+                                                      n_split=self.n_split,
+                                                      seed=self._rs)
