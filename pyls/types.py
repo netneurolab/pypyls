@@ -3,7 +3,7 @@
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from pyls.base import BasePLS
-from pyls.utils import normalize, xcorr, get_seed, dummy_code
+from pyls import utils
 
 
 class BehavioralPLS(BasePLS):
@@ -15,26 +15,29 @@ class BehavioralPLS(BasePLS):
 
     Parameters
     ----------
-    brain : (N x K) array_like
-        Where `N` is the number of subjects, `K` is the number of observations,
-        and `G` is an optional grouping factor
-    behav : (N x J) array_like
-        Where `N` is the number of subjects, `J` is the number of observations,
-        and `G` is an optional grouping factor
+    X : (N x K) array_like
+        Where ``N`` is the number of subjects and ``K`` is the number of
+        observations
+    Y : (N x J) array_like
+        Where ``N`` is the number of subjects and ``J`` is the number of
+        observations
+    grouping : (N,) array_like
+        Array with labels separating ``N`` subjects into ``G`` groups
     n_perm : int, optional
-        Number of permutations to generate. Default: 5000
+        Number of permutations for testing statistical significance of singular
+        vectors. Default: 5000
     n_boot : int, optional
-        Number of bootstraps to generate. Default: 1000
+        Number of bootstraps for testing reliability of singular vectors.
+        Default: 1000
     n_split : int, optional
-        Number of split-half resamples during permutation testing. Default:
-        None
-    p : float (0,1), optional
-        Reliability criterion for bootstrapping, within (0, 1). Default: 0.05
-    verbose : bool, optional
-        Whether to print status updates. Default: True
+        Number of split-half resamples for testing reliability of permutations.
+        Default: 500
+    ci : (0, 100) float, optional
+        Confidence interval to calculate from bootstrapped distributions.
+        Default: 95
     n_proc : int, optional
-        If not None, number of processes to use for multiprocessing permutation
-        testing/bootstrapping. Default: None
+        Number of processes to use for parallelizing permutation and
+        bootstrapping. Default: 1
     seed : int, optional
         Whether to set random seed for reproducibility. Default: None
 
@@ -71,23 +74,6 @@ class BehavioralPLS(BasePLS):
         Significance (by zero-crossing) of left singular vectors
     V_sig : (K x L) ndarray
         Significance (by zero-crossing) of right singular vectors
-
-    References
-    ----------
-    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
-       (1996). Spatial pattern analysis of functional brain images using
-       partial least squares. Neuroimage, 3(3), 143-157.
-    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
-       analysis of neuroimaging data: applications and advances. Neuroimage,
-       23, S250-S263.
-    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
-       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
-       review. Neuroimage, 56(2), 455-475.
-    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
-       Revisiting PLS resampling: comparing significance versus reliability
-       across range of simulations. In New Perspectives in Partial Least
-       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago
     """
     def __init__(self, brain, behav, grouping=None, **kwargs):
         super(BehavioralPLS, self).__init__(**kwargs)
@@ -102,9 +88,9 @@ class BehavioralPLS(BasePLS):
         """
         Runs SVD on the cross-covariance matrix of ``X`` and ``Y``
 
-        Finds ``L`` singular vectors, where ``L`` is the minimum of the dimensions
-        of ``X`` and ``Y`` if ``grouping`` is not provided, or the number of unique
-        values in ``grouping`` if provided.
+        Finds ``L`` singular vectors, where ``L`` is the minimum of the
+        dimensions of ``X`` and ``Y`` if ``grouping`` is not provided, or the
+        number of unique values in ``grouping`` if provided.
 
         Parameters
         ----------
@@ -117,8 +103,8 @@ class BehavioralPLS(BasePLS):
         grouping : (N,) array_like, optional
             Grouping array, where ``len(np.unique(grouping))`` is the number of
             distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
-            computed separately for each group and stacked prior to SVD. Default:
-            None
+            computed separately for each group and stacked prior to SVD.
+            Default: None
         seed : {int, RandomState instance, None}, optional
             The seed of the pseudo random number generator to use when
             shuffling the data.  If int, ``seed`` is the seed used by the
@@ -129,8 +115,8 @@ class BehavioralPLS(BasePLS):
         Returns
         -------
         U : (J[*G] x L) ndarray
-            Left singular vectors, where ``G`` is the number of unique values in
-            ``grouping`` if provided
+            Left singular vectors, where ``G`` is the number of unique values
+            in ``grouping`` if provided
         d : (L x L) ndarray
             Diagonal array of singular values
         V : (K x L) ndarray
@@ -148,16 +134,16 @@ class BehavioralPLS(BasePLS):
 
         if grouping is None:
             n_comp = min(min(X.shape), min(Y.shape))
-            crosscov = xcorr(normalize(X), normalize(Y))
+            crosscov = utils.xcorr(utils.normalize(X), utils.normalize(Y))
         else:
             groups = np.unique(grouping)
             n_comp = len(groups)
-            crosscov = np.row_stack([xcorr(normalize(X[grouping == grp]),
-                                           normalize(Y[grouping == grp]))
+            crosscov = np.row_stack([utils.xcorr(utils.normalize(X[grouping == grp]),
+                                                 utils.normalize(Y[grouping == grp]))
                                      for grp in groups])
 
         U, d, V = randomized_svd(crosscov, n_components=n_comp,
-                                 random_state=get_seed(seed))
+                                 random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T
 
@@ -201,14 +187,8 @@ class MeanCenteredPLS(BasePLS):
 
     def __init__(self, data, grouping, **kwargs):
         super(MeanCenteredPLS, self).__init__(**kwargs)
-        self.X, self.Y, self.groups = data, dummy_code(grouping), None
-
-        self._run_svd()
-        self._run_perms()
-        self._run_boots()
-        self._get_sig()
-
-        self.groups = grouping
+        self.X, self.Y = data, utils.dummy_code(grouping)
+        self._run_pls()
 
     def _svd(self, X, Y, grouping=None, seed=None):
         """
@@ -241,17 +221,84 @@ class MeanCenteredPLS(BasePLS):
         """
 
         iden = np.ones(shape=(len(Y), 1))
-        M = np.linalg.inv(np.diag((iden.T @ Y).flatten())) @ Y.T @ X
-        L = np.ones(shape=(len(M), 1))
-        R = M - L @ (((1/len(M)) * L.T) @ M)
-        U, d, V = randomized_svd(R, n_components=Y.shape[-1]-1,
-                                 random_state=get_seed(seed))
+        grp_means = np.linalg.inv(np.diag((iden.T @ Y).flatten())) @ Y.T @ X
+        num_group = len(grp_means)
+        L = np.ones(shape=(num_group, 1))
+        # effectively the same as M - M.mean(axis=0)...
+        mean_centered = grp_means - (L @ (((1/num_group) * L.T) @ grp_means))
+        U, d, V = randomized_svd(mean_centered,
+                                 n_components=Y.shape[-1]-1,
+                                 random_state=seed)
 
         return U, np.diag(d), V.T
 
-    def _run_svd(self):
+    def _run_pls(self):
+        """
+        Runs PLS analysis
+        """
+
+        # original singular vectors / values
         self.U, self.d, self.V = self._svd(self.X, self.Y, seed=self._rs)
+        # brain / design scores
+        self.usc, self.vsc = self.X @ self.V, self.Y @ self.U
+
+        # compute permutations
+        perms = self._permutation(self.X, self.Y,
+                                  n_perm=self.n_perm,
+                                  n_split=self.n_split,
+                                  n_proc=self._n_proc)
+        # get split half reliability, if set
         if self.n_split is not None:
             self.ucorr, self.vcorr = self._split_half(self.X, self.Y,
                                                       n_split=self.n_split,
                                                       seed=self._rs)
+            self.u_pvals = utils.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
+            self.v_pvals = utils.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
+        else:
+            self.d_pvals = utils.perm_sig(perms, self.d)
+
+        Xmn = get_mean_norm(self.X, self.Y)
+        self.usc2 = Xmn @ self.V
+        self.orig_usc = get_group_mean(self.usc2, self.Y, grand=False)
+
+        U_boot, V_boot, bootsamp = self._bootstrap(self.X, self.Y,
+                                                   n_boot=self.n_boot)
+        self.bootsamp = bootsamp
+        self.U_bci, self.V_bci = utils.boot_ci(U_boot, V_boot, ci=self.ci)
+        self.U_bsr, self.V_bsr = utils.boot_rel(self.U @ self.d,
+                                                self.V @ self.d,
+                                                U_boot, V_boot)
+
+        self.U_sig = utils.boot_sig(self.U_bci)
+        self.V_sig = utils.boot_sig(self.V_bci)
+
+        self.d_kaiser = utils.kaiser_criterion(self.d)
+        self.d_varexp = utils.crossblock_cov(self.d)
+
+
+def get_group_mean(X, Y, grand=True):
+    """
+    """
+
+    group_mean = np.zeros((Y.shape[-1], X.shape[-1]))
+
+    for n, grp in enumerate(Y.T.astype('bool')):
+        group_mean[n] = X[grp].mean(axis=0)
+
+    if grand:
+        return group_mean.sum(axis=0) / Y.shape[-1]
+    else:
+        return group_mean
+
+
+def get_mean_norm(X, Y):
+    """
+    """
+
+    grand_mean = get_group_mean(X, Y)
+    X_mean_centered = np.zeros_like(X)
+
+    for grp in Y.T.astype('bool'):
+        X_mean_centered[grp] = X[grp] - grand_mean
+
+    return X_mean_centered

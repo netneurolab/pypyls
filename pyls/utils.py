@@ -264,6 +264,33 @@ def boot_sig(boot):
     return np.sign(boot).sum(axis=-1).astype('bool')
 
 
+def procrustes(self, original, permuted, singular):
+    """
+    Performs Procrustes rotation on ``permuted`` to align with ``original``
+
+    ``original`` and ``permuted`` should be either left *or* right singular
+    vector from two SVDs. ``singular`` should be the diagonal matrix of
+    singular values from the SVD that generated ``original``
+
+    Parameters
+    ----------
+    original : array_like
+    permuted : array_like
+    singular : array_like
+
+    Returns
+    -------
+    ndarray
+        Singular values of rotated ``permuted`` matrix
+    """
+
+    N, _, P = np.linalg.svd(original.T @ permuted)
+    Q = N @ P
+    resamp = permuted @ singular @ Q
+
+    return resamp, Q
+
+
 def get_seed(seed=None):
     """
     Determines type of ``seed`` and returns RandomState instance
@@ -306,6 +333,6 @@ def dummy_code(grouping):
     """
 
     groups = np.unique(grouping)
-    Y = np.column_stack([(grouping==grp).astype(int) for grp in groups])
+    Y = np.column_stack([(grouping == grp).astype(int) for grp in groups])
 
     return Y

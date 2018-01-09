@@ -25,6 +25,23 @@ class BasePLS():
         Default: 1 (no multiprocessing)
     seed : int, optional
         Seed for random number generator. Default: None
+
+    References
+    ----------
+    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
+       (1996). Spatial pattern analysis of functional brain images using
+       partial least squares. Neuroimage, 3(3), 143-157.
+    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
+       analysis of neuroimaging data: applications and advances. Neuroimage,
+       23, S250-S263.
+    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
+       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
+       review. Neuroimage, 56(2), 455-475.
+    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
+       Revisiting PLS resampling: comparing significance versus reliability
+       across range of simulations. In New Perspectives in Partial Least
+       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
+       Chicago
     """
 
     def __init__(self, n_perm=5000, n_boot=1000, n_split=500,
@@ -97,7 +114,7 @@ class BasePLS():
             if grouping is not None:
                 for n, grp in enumerate(np.unique(grouping)):
                     take = [np.ceil, np.floor][n % 2]
-                    curr_group = grouping==grp
+                    curr_group = grouping == grp
                     inds = rs.choice(np.argwhere(curr_group).squeeze(),
                                      size=int(take(np.sum(curr_group)/2)),
                                      replace=False)
@@ -124,34 +141,7 @@ class BasePLS():
         # return average correlations for singular vectors across ``n_splits``
         return ucorr.mean(axis=0), vcorr.mean(axis=0)
 
-    def _procrustes(self, original, permuted, singular):
-        """
-        Performs Procrustes rotation on ``permuted`` to align with ``original``
-
-        ``original`` and ``permuted`` should be either left *or* right singular
-        vector from two SVDs. ``singular`` should be the diagonal matrix of
-        singular values from the SVD that generated ``original``
-
-        Parameters
-        ----------
-        original : array_like
-        permuted : array_like
-        singular : array_like
-
-        Returns
-        -------
-        ndarray
-            Singular values of rotated ``permuted`` matrix
-        """
-
-        N, _, P = np.linalg.svd(original.T @ permuted)
-        Q = N @ P
-        resamp = permuted @ singular @ Q
-
-        return resamp, Q
-
-    def _bootstrap(self, X, Y, U_orig, V_orig,
-                   grouping=None, n_boot=500):
+    def _bootstrap(self, X, Y, grouping=None, n_boot=500):
         """
         Bootstraps ``X`` and ``Y`` (w/replace) and computes SE of sing values
 
@@ -159,10 +149,6 @@ class BasePLS():
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        U_orig : (J[*G] x L) array_like
-            Right singular vectors from original SVD
-        V_orig : (K x L) array_like
-            Left singular vectors from original SVD
         grouping : (N,) array_like, optional
         n_boot : int, optional
             Number of boostraps to run. Default: 500
@@ -175,21 +161,32 @@ class BasePLS():
             Right singular vectors, where ``B = n_boot``
         """
 
+        # "original_u", "original_v" from Matlab PLS
+        U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
+                                           seed=self._rs)
         U_boot = np.zeros(U_orig.shape + (n_boot,))
         V_boot = np.zeros(V_orig.shape + (n_boot,))
-        identity = np.identity(U_orig.shape[1])
+        bootsamp = np.zeros((len(X), n_boot))
 
-        for i in trange(n_boot):
-            inds = self._rs.choice(np.arange(len(X)), size=len(X),
-                                   replace=True)
-            X_boot, Y_boot = X[inds], Y[inds]
-            U, d, V = self._svd(X_boot, Y_boot, grouping=grouping,
-                                seed=self._rs)
+        for i in trange(n_boot, desc='Bootstraps'):
+            if grouping is not None:
+                inds = np.zeros(len(grouping))
+                for grp in np.unique(grouping):
+                    curr_group = np.argwhere(grouping == grp).squeeze()
+                    inds[curr_group] = self._rs.choice(curr_group,
+                                                       size=len(curr_group),
+                                                       replace=True)
+            else:
+                inds = self._rs.choice(np.arange(len(X)), size=len(X),
+                                       replace=True)
+            U, d_boot, V = self._svd(X[inds], Y[inds], grouping=grouping,
+                                     seed=self._rs)
 
-            U_boot[:, :, i], Q = self._procrustes(U_orig, U, identity)
+            U_boot[:, :, i], Q = utils.procrustes(U_orig, U, d_boot)
             V_boot[:, :, i] = V @ Q
+            bootsamp[:, i] = inds
 
-        return U_boot, V_boot
+        return U_boot, V_boot, bootsamp
 
     def _permutation(self, X, Y, grouping=None,
                      n_perm=1000, n_split=None, n_proc=1):
@@ -235,7 +232,7 @@ class BasePLS():
             pool.close()
             pool.join()
         else:
-            for n in trange(n_perm):
+            for n in trange(n_perm, desc='Permutations'):
                 permuted_values.append(self._single_perm(X, Y,
                                                          grouping=grouping,
                                                          n_split=n_split,
@@ -273,7 +270,7 @@ class BasePLS():
         rs = utils.get_seed(seed)
 
         if grouping is not None:
-            X_perm = np.row_stack([rs.permutation(X[grouping==grp])
+            X_perm = np.row_stack([rs.permutation(X[grouping == grp])
                                    for grp in np.unique(grouping)])
         else:
             X_perm = rs.permutation(X)
