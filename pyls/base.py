@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from itertools import repeat
-import multiprocessing as mp
 import numpy as np
-from tqdm import tqdm, trange
-from pyls import utils
+from tqdm import trange
+from pyls import compute, utils
 
 
 class BasePLS():
@@ -108,8 +106,7 @@ class BasePLS():
         """
 
         # generate bootstrap resampled indices
-        if self._verbose: print("Generating bootstrap arrays.")
-        bootsamp = self._gen_bootsamp(X, Y, grouping=grouping)
+        self.bootsamp = self._gen_bootsamp(X, Y, grouping=grouping)
 
         # "original_u", "original_v" from Matlab PLS
         U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
@@ -117,12 +114,13 @@ class BasePLS():
         U_boot = np.zeros(shape=U_orig.shape + (self.n_boot,))
         V_boot = np.zeros(shape=V_orig.shape + (self.n_boot,))
 
-        for i in trange(self.n_boot, desc='Bootstraps'):
-            inds = bootsamp[:, i]
+        if self._verbose: print('Running bootstraps:')
+        for i in trange(self.n_boot):
+            inds = self.bootsamp[:, i]
             U, d, V = self._svd(X[inds], Y[inds], grouping=grouping,
                                 seed=self._rs)
-            U_boot[:, :, i], Q = utils.procrustes(U_orig, U, d)
-            V_boot[:, :, i] = V @ Q
+            U_boot[:, :, i], Q = compute.procrustes(U_orig, U, d)
+            V_boot[:, :, i] = V @ d @ Q
 
         return U_boot, V_boot
 
@@ -150,24 +148,13 @@ class BasePLS():
         def callback(result):
             permuted_values.append(result)
 
-        if self._verbose: print("Generating permutation arrays.")
-        permsamp = self._gen_permsamp(X, Y, grouping=grouping)
-
-        permuted_values = []
+        self.permsamp = self._gen_permsamp(X, Y, grouping=grouping)
         seeds = self._rs.choice(100000, self.n_perm, replace=False)
 
-        # # to implement multiprocessing at a later date
-        # if self._n_proc > 1:
-        #     pool = mp.Pool(self._n_proc)
-        #     pool.starmap_async(self._single_perm,
-        #                        zip(repeat(X), repeat(Y), repeat(grouping),
-        #                            seeds),
-        #                        callback=callback)
-        #     pool.close()
-        #     pool.join()
-        # else:
-        for i in trange(self.n_perm, desc='Permutations'):
-            permuted_values.append(self._single_perm(X[permsamp[:, i]], Y,
+        permuted_values = []
+        if self._verbose: print('Running permutations:')
+        for i in trange(self.n_perm):
+            permuted_values.append(self._single_perm(X[self.permsamp[:, i]], Y,
                                                      grouping=grouping,
                                                      seed=seeds[i]))
 

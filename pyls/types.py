@@ -2,8 +2,9 @@
 
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
+from tqdm import trange
 from pyls.base import BasePLS
-from pyls import utils
+from pyls import compute, utils
 
 
 class BehavioralPLS(BasePLS):
@@ -177,7 +178,6 @@ class BehavioralPLS(BasePLS):
 
         return bootsamp
 
-
     def _run_pls(self, X, Y, grouping=None):
         """
         Runs PLS analysis
@@ -196,24 +196,24 @@ class BehavioralPLS(BasePLS):
         if self.n_split is not None:
             self.ucorr, self.vcorr = self._split_half(X, Y, grouping=grouping,
                                                       seed=self._rs)
-            self.u_pvals = utils.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
-            self.v_pvals = utils.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
+            self.u_pvals = compute.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
+            self.v_pvals = compute.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
         else:
-            self.d_pvals = utils.perm_sig(perms, self.d)
+            self.d_pvals = compute.perm_sig(perms, self.d)
 
         # compute bootstraps
         U_boot, V_boot = self._bootstrap(X, Y, grouping=grouping)
 
-        self.U_bci, self.V_bci = utils.boot_ci(U_boot, V_boot, ci=self.ci)
-        self.U_bsr, self.V_bsr = utils.boot_rel(self.U @ self.d,
+        self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot, ci=self.ci)
+        self.U_bsr, self.V_bsr = compute.boot_rel(self.U @ self.d,
                                                 self.V @ self.d,
                                                 U_boot, V_boot)
 
-        self.U_sig = utils.boot_sig(self.U_bci)
-        self.V_sig = utils.boot_sig(self.V_bci)
+        self.U_sig = compute.boot_sig(self.U_bci)
+        self.V_sig = compute.boot_sig(self.V_bci)
 
-        self.d_kaiser = utils.kaiser_criterion(self.d)
-        self.d_varexp = utils.crossblock_cov(self.d)
+        self.d_kaiser = compute.kaiser_criterion(self.d)
+        self.d_varexp = compute.crossblock_cov(self.d)
 
 
 class MeanCenteredPLS(BasePLS):
@@ -305,15 +305,31 @@ class MeanCenteredPLS(BasePLS):
         """
 
         bootsamp = np.zeros(shape=(len(X), self.n_boot), dtype=int)
-        grouping = utils.reverse_dummy_code(Y)
+        min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
+        subj_inds = np.arange(len(X), dtype=int)
 
-        for i in range(self.n_boot):
-            inds = np.zeros(shape=len(grouping), dtype=int)
-            for grp in np.unique(grouping):
-                curr_group = np.argwhere(grouping == grp).squeeze()
-                inds[curr_group] = self._rs.choice(curr_group,
-                                                   size=len(curr_group),
-                                                   replace=True)
+        if self._verbose: print('Generating bootstrap arrays:')
+        for i in trange(self.n_boot):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                # empty container to store current bootstrap attempt
+                inds = np.zeros_like(subj_inds)
+                count, duplicated = count + 1, False
+                # iterate through and resample from w/i groups
+                for grp in Y.T.astype(bool):
+                    curr_grp, all_same = subj_inds[grp], True
+                    while all_same:
+                        inds[curr_grp] = self._rs.choice(curr_grp,
+                                                         size=curr_grp.size,
+                                                         replace=True)
+                        # make sure bootstrap has enough unique subjs
+                        if np.unique(inds[curr_grp]).size >= min_subj:
+                            all_same = False
+                # make sure bootstrap is not a duplicated sequence
+                dupe_seq = np.sort(inds)[:, None] == np.sort(bootsamp[:, :i], axis=0)
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+                count += 1
             bootsamp[:, i] = inds
 
         return bootsamp
@@ -334,14 +350,26 @@ class MeanCenteredPLS(BasePLS):
         """
 
         permsamp = np.zeros(shape=(len(X), self.n_perm), dtype=int)
-        grouping = utils.dummy_code(Y)
-        orig_gm = get_group_mean(X, grouping).mean()
+        subj_inds = np.arange(len(X), dtype=int)
 
-        # ensure that all permutations are different from original grouping
-        for i in range(self.n_perm):
-            perm = self._rs.permutation(np.arange(len(X), dtype=int))
-            while get_group_mean(X[perm], grouping).mean() == orig_gm:
-                perm = self._rs.permutation(perm)
+        if self._verbose: print('Generating permutation arrays:')
+        for i in trange(self.n_perm):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                # initial permutation attempt
+                perm = self._rs.permutation(subj_inds)
+                count, duplicated = count + 1, False
+                # iterate through groups and ensure that we aren't just
+                # permuting subjects *within* any of the groups
+                for grp in Y.T.astype(bool):
+                    if np.all(np.sort(perm[grp]) == subj_inds[grp]):
+                        duplicated = True
+                # make sure permutation is not a duplicated sequence
+                dupe_seq = perm[:, None] == permsamp[:, :i]
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            if count == 500:
+                print('ERROR: Duplicate permutations used')
             permsamp[:, i] = perm
 
         return permsamp
@@ -361,74 +389,27 @@ class MeanCenteredPLS(BasePLS):
         # get split half reliability, if set
         if self.n_split is not None:
             self.ucorr, self.vcorr = self._split_half(X, Y, seed=self._rs)
-            self.u_pvals = utils.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
-            self.v_pvals = utils.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
+            self.u_pvals = compute.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
+            self.v_pvals = compute.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
         else:
-            self.d_pvals = utils.perm_sig(perms, self.d)
+            self.d_pvals = compute.perm_sig(perms, self.d)
 
         # compute bootstraps
         U_boot, V_boot = self._bootstrap(X, Y)
+        self.U_boot, self.V_boot = U_boot, V_boot
 
-        self.usc2 = get_mean_norm(X, Y) @ self.V
-        self.orig_usc = get_group_mean(self.usc2, Y, grand=False)
+        # bootstrap results
+        self.usc2 = compute.get_mean_norm(X, Y) @ self.V
+        self.orig_usc = compute.get_group_mean(self.usc2, Y, grand=False)
 
-        self.U_bci, self.V_bci = utils.boot_ci(U_boot, V_boot, ci=self.ci)
-        self.U_bsr, self.V_bsr = utils.boot_rel(self.U @ self.d,
+        # bootstrap ratios
+        self.U_bsr, self.V_bsr = compute.boot_rel(self.U @ self.d,
                                                 self.V @ self.d,
                                                 U_boot, V_boot)
 
-        self.U_sig = utils.boot_sig(self.U_bci)
-        self.V_sig = utils.boot_sig(self.V_bci)
+        self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot, ci=self.ci)
+        self.U_sig = compute.boot_sig(self.U_bci)
+        self.V_sig = compute.boot_sig(self.V_bci)
 
-        self.d_kaiser = utils.kaiser_criterion(self.d)
-        self.d_varexp = utils.crossblock_cov(self.d)
-
-
-def get_group_mean(X, Y, grand=True):
-    """
-    Parameters
-    ----------
-    X : (N x K) array_like
-    Y : (N x G) array_like
-        Dummy coded group array
-    grand : bool, optional
-        Default : True
-
-    Returns
-    -------
-    group_mean : {(G,) or (G x K)} np.ndarray
-        If grand is set, returns array with shape (G,); else, returns (G x K)
-    """
-
-    group_mean = np.zeros((Y.shape[-1], X.shape[-1]))
-
-    for n, grp in enumerate(Y.T.astype('bool')):
-        group_mean[n] = X[grp].mean(axis=0)
-
-    if grand:
-        return group_mean.sum(axis=0) / Y.shape[-1]
-    else:
-        return group_mean
-
-
-def get_mean_norm(X, Y):
-    """
-    Parameters
-    ----------
-    X : (N x K) array_like
-    Y : (N x G) array_like
-        Dummy coded group array
-
-    Returns
-    -------
-    X_mean_centered : (N x K) np.ndarray
-        ``X`` centered based on grand mean (i.e., mean of group means)
-    """
-
-    grand_mean = get_group_mean(X, Y)
-    X_mean_centered = np.zeros_like(X)
-
-    for grp in Y.T.astype('bool'):
-        X_mean_centered[grp] = X[grp] - grand_mean
-
-    return X_mean_centered
+        self.d_kaiser = compute.kaiser_criterion(self.d)
+        self.d_varexp = compute.crossblock_cov(self.d)
