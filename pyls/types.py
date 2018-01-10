@@ -78,11 +78,7 @@ class BehavioralPLS(BasePLS):
     def __init__(self, brain, behav, grouping=None, **kwargs):
         super(BehavioralPLS, self).__init__(**kwargs)
         self.X, self.Y, self.groups = brain, behav, grouping
-
-        self._run_svd()
-        self._run_perms()
-        self._run_boots()
-        self._get_sig()
+        self._run_pls(brain, behav, grouping=grouping)
 
     def _svd(self, X, Y, grouping=None, seed=None):
         """
@@ -147,27 +143,92 @@ class BehavioralPLS(BasePLS):
 
         return U, np.diag(d), V.T
 
-    def _run_svd(self):
-        self.U, self.d, self.V = self._svd(self.X, self.Y, self.groups)
+    def _gen_bootsamp(self, X, Y, grouping=None, n_boot=500, seed=None):
+        """
+        Generates bootstrap resample arrays to be used in ``self._bootstrap``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        grouping : (N,) array_like, optional
+        n_boot : int, optional
+            Number of boostraps to run. Default: 500
+
+        Returns
+        -------
+        bootsamp : (N x B) np.ndarray
+        """
+
+        rs = utils.get_seed(seed)
+        bootsamp = np.zeros(shape=(len(X), n_boot), dtype=int)
+
+        for i in range(n_boot):
+            if grouping is not None:
+                inds = np.zeros(shape=len(grouping))
+                for grp in np.unique(grouping):
+                    curr_group = np.argwhere(grouping == grp).squeeze()
+                    inds[curr_group] = rs.choice(curr_group,
+                                                 size=len(curr_group),
+                                                 replace=True)
+            else:
+                inds = rs.choice(np.arange(len(X)), size=len(X), replace=True)
+            bootsamp[i] = inds
+
+        return bootsamp
+
+
+    def _run_pls(self, X, Y, grouping=None):
+        """
+        Runs PLS analysis
+        """
+
+        # original singular vectors / values
+        self.U, self.d, self.V = self._svd(X, Y, grouping=grouping,
+                                           seed=self._rs)
+        # brain / design scores
+        self.usc, self.vsc = X @ self.V, Y @ self.U
+
+        # compute permutations
+        perms = self._permutation(X, Y, grouping=grouping)
+
+        # get split half reliability, if set
         if self.n_split is not None:
-            self.ucorr, self.vcorr = self._split_half(self.X, self.Y,
-                                                      grouping=self.groups,
-                                                      n_split=self.n_split)
+            self.ucorr, self.vcorr = self._split_half(X, Y, grouping=grouping,
+                                                      seed=self._rs)
+            self.u_pvals = utils.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
+            self.v_pvals = utils.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
+        else:
+            self.d_pvals = utils.perm_sig(perms, self.d)
+
+        # compute bootstraps
+        U_boot, V_boot = self._bootstrap(X, Y, grouping=grouping)
+
+        self.U_bci, self.V_bci = utils.boot_ci(U_boot, V_boot, ci=self.ci)
+        self.U_bsr, self.V_bsr = utils.boot_rel(self.U @ self.d,
+                                                self.V @ self.d,
+                                                U_boot, V_boot)
+
+        self.U_sig = utils.boot_sig(self.U_bci)
+        self.V_sig = utils.boot_sig(self.V_bci)
+
+        self.d_kaiser = utils.kaiser_criterion(self.d)
+        self.d_varexp = utils.crossblock_cov(self.d)
 
 
 class MeanCenteredPLS(BasePLS):
     """
-    Runs PLS on `data` and `grouping` arrays
+    Runs PLS on `data` and `groups` arrays
 
     Uses singular value decomposition (SVD) to find latent variables from
     mean-centered matrix generated from `data`
 
     Parameters
     ----------
-    X : (N x K) array_like
+    data : (N x K) array_like
         Where `N` is the number of subjects and  `K` is the number of
         observations
-    grouping : (N x J) array_like
+    groups : (N x J) array_like
         Where `N` is the number of subjects, `J` is the number of groups.
         Should be a dummy coded matrix (i.e., 1 indicates group membership)
     n_perm : int, optional
@@ -185,12 +246,12 @@ class MeanCenteredPLS(BasePLS):
         Whether to set random seed for reproducibility. Default: None
     """
 
-    def __init__(self, data, grouping, **kwargs):
+    def __init__(self, data, groups, **kwargs):
         super(MeanCenteredPLS, self).__init__(**kwargs)
-        self.X, self.Y = data, utils.dummy_code(grouping)
-        self._run_pls()
+        self.data, self.groups = data, groups
+        self._run_pls(data, utils.dummy_code(groups))
 
-    def _svd(self, X, Y, grouping=None, seed=None):
+    def _svd(self, X, Y, seed=None, grouping=None):
         """
         Runs SVD on a mean-centered matrix computed from ``X`` and ``Y``
 
@@ -201,14 +262,10 @@ class MeanCenteredPLS(BasePLS):
             number of variables.
         Y : (N x J) array_like
             Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 in a given
-            row/column indicates that subject belongs to a given group.
-        seed : {int, RandomState instance, None}, optional
-            The seed of the pseudo random number generator to use when
-            shuffling the data.  If int, ``seed`` is the seed used by the
-            random number generator. If RandomState instance, ``seed`` is the
-            random number generator. If None, the random number generator is
-            the RandomState instance used by ``np.random``. Default: None
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
+        grouping : placeholder
+            Here for compatibility purposes; does nothing.
 
         Returns
         -------
@@ -228,42 +285,93 @@ class MeanCenteredPLS(BasePLS):
         mean_centered = grp_means - (L @ (((1/num_group) * L.T) @ grp_means))
         U, d, V = randomized_svd(mean_centered,
                                  n_components=Y.shape[-1]-1,
-                                 random_state=seed)
+                                 random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T
 
-    def _run_pls(self):
+    def _gen_bootsamp(self, X, Y, grouping=None):
+        """
+        Generates bootstrap resample arrays to be used in ``self._bootstrap()``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        grouping : placeholder
+
+        Returns
+        -------
+        bootsamp : (N x B) np.ndarray
+        """
+
+        bootsamp = np.zeros(shape=(len(X), self.n_boot), dtype=int)
+        grouping = utils.reverse_dummy_code(Y)
+
+        for i in range(self.n_boot):
+            inds = np.zeros(shape=len(grouping), dtype=int)
+            for grp in np.unique(grouping):
+                curr_group = np.argwhere(grouping == grp).squeeze()
+                inds[curr_group] = self._rs.choice(curr_group,
+                                                   size=len(curr_group),
+                                                   replace=True)
+            bootsamp[:, i] = inds
+
+        return bootsamp
+
+    def _gen_permsamp(self, X, Y, grouping=None):
+        """
+        Generates permutation arrays to be used in ``self.permutation()``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        grouping : placeholder
+
+        Returns
+        -------
+        permsamp : (N x B) np.ndarray
+        """
+
+        permsamp = np.zeros(shape=(len(X), self.n_perm), dtype=int)
+        grouping = utils.dummy_code(Y)
+        orig_gm = get_group_mean(X, grouping).mean()
+
+        # ensure that all permutations are different from original grouping
+        for i in range(self.n_perm):
+            perm = self._rs.permutation(np.arange(len(X), dtype=int))
+            while get_group_mean(X[perm], grouping).mean() == orig_gm:
+                perm = self._rs.permutation(perm)
+            permsamp[:, i] = perm
+
+        return permsamp
+
+    def _run_pls(self, X, Y):
         """
         Runs PLS analysis
         """
 
         # original singular vectors / values
-        self.U, self.d, self.V = self._svd(self.X, self.Y, seed=self._rs)
+        self.U, self.d, self.V = self._svd(X, Y, seed=self._rs)
         # brain / design scores
-        self.usc, self.vsc = self.X @ self.V, self.Y @ self.U
+        self.usc, self.vsc = X @ self.V, Y @ self.U
 
         # compute permutations
-        perms = self._permutation(self.X, self.Y,
-                                  n_perm=self.n_perm,
-                                  n_split=self.n_split,
-                                  n_proc=self._n_proc)
+        perms = self._permutation(X, Y)
         # get split half reliability, if set
         if self.n_split is not None:
-            self.ucorr, self.vcorr = self._split_half(self.X, self.Y,
-                                                      n_split=self.n_split,
-                                                      seed=self._rs)
+            self.ucorr, self.vcorr = self._split_half(X, Y, seed=self._rs)
             self.u_pvals = utils.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
             self.v_pvals = utils.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
         else:
             self.d_pvals = utils.perm_sig(perms, self.d)
 
-        Xmn = get_mean_norm(self.X, self.Y)
-        self.usc2 = Xmn @ self.V
-        self.orig_usc = get_group_mean(self.usc2, self.Y, grand=False)
+        # compute bootstraps
+        U_boot, V_boot = self._bootstrap(X, Y)
 
-        U_boot, V_boot, bootsamp = self._bootstrap(self.X, self.Y,
-                                                   n_boot=self.n_boot)
-        self.bootsamp = bootsamp
+        self.usc2 = get_mean_norm(X, Y) @ self.V
+        self.orig_usc = get_group_mean(self.usc2, Y, grand=False)
+
         self.U_bci, self.V_bci = utils.boot_ci(U_boot, V_boot, ci=self.ci)
         self.U_bsr, self.V_bsr = utils.boot_rel(self.U @ self.d,
                                                 self.V @ self.d,
@@ -278,6 +386,18 @@ class MeanCenteredPLS(BasePLS):
 
 def get_group_mean(X, Y, grand=True):
     """
+    Parameters
+    ----------
+    X : (N x K) array_like
+    Y : (N x G) array_like
+        Dummy coded group array
+    grand : bool, optional
+        Default : True
+
+    Returns
+    -------
+    group_mean : {(G,) or (G x K)} np.ndarray
+        If grand is set, returns array with shape (G,); else, returns (G x K)
     """
 
     group_mean = np.zeros((Y.shape[-1], X.shape[-1]))
@@ -293,6 +413,16 @@ def get_group_mean(X, Y, grand=True):
 
 def get_mean_norm(X, Y):
     """
+    Parameters
+    ----------
+    X : (N x K) array_like
+    Y : (N x G) array_like
+        Dummy coded group array
+
+    Returns
+    -------
+    X_mean_centered : (N x K) np.ndarray
+        ``X`` centered based on grand mean (i.e., mean of group means)
     """
 
     grand_mean = get_group_mean(X, Y)

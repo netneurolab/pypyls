@@ -264,7 +264,7 @@ def boot_sig(boot):
     return np.sign(boot).sum(axis=-1).astype('bool')
 
 
-def procrustes(self, original, permuted, singular):
+def procrustes(original, permuted, singular):
     """
     Performs Procrustes rotation on ``permuted`` to align with ``original``
 
@@ -336,3 +336,23 @@ def dummy_code(grouping):
     Y = np.column_stack([(grouping == grp).astype(int) for grp in groups])
 
     return Y
+
+
+def reverse_dummy_code(Y):
+    """
+    Reverse engineers input of ``dummy_code()`` from outputs
+
+    Parameters
+    ----------
+    Y : (N x G) array_like
+        Dummy coded grouping array
+
+    Returns
+    -------
+    grouping : (N,) array_like
+        Array with labels separating ``N`` subjects into ``G`` groups
+    """
+
+    grouping = np.row_stack([grp * n for n, grp in enumerate(Y.T, 1)]).sum(0)
+
+    return grouping

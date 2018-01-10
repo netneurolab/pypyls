@@ -16,7 +16,7 @@ class BasePLS():
     n_boot : int, optional
         Number of bootstraps to generate. Default: 1000
     n_split : int, optional
-        Number of split-half resamples during each permutation. Default: 500
+        Number of split-half resamples during each permutation. Default: None
     ci : (0, 100) float, optional
         Confidence interval to calculate from bootstrapped distributions.
         Default: 95
@@ -25,6 +25,8 @@ class BasePLS():
         Default: 1 (no multiprocessing)
     seed : int, optional
         Seed for random number generator. Default: None
+    verbose : bool, optional
+        Print status updates
 
     References
     ----------
@@ -44,24 +46,173 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, n_perm=5000, n_boot=1000, n_split=500,
-                 ci=95, n_proc=1, seed=None):
+    def __init__(self, n_perm=5000, n_boot=1000, n_split=None,
+                 ci=95, n_proc=1, seed=None, verbose=False):
         self.n_perm, self.n_boot, self.n_split = n_perm, n_boot, n_split
         self.ci = ci
         self._n_proc = n_proc
+        self._verbose = verbose
         self._rs = utils.get_seed(seed)
 
-    def _svd(self):
-        """Should compute SVD of cross-covariance matrix of input data."""
+    def _run_pls(self, *args, **kwargs):
+        """
+        Should run entire PLS analysis
+        """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
-    def _run_svd(self):
-        """Should run self._svd() on input data."""
+    def _svd(self, *args, **kwargs):
+        """
+        Should compute SVD of cross-covariance matrix of input data
+        """
 
-        raise NotImplementedError()
+        raise NotImplementedError
 
-    def _split_half(self, X, Y, grouping=None, n_split=500, seed=None):
+    def _gen_permsamp(self, *args, **kwargs):
+        """
+        Generates permutation arrays to be using in ``self._permutation()``
+        """
+
+        raise NotImplementedError
+
+    def _gen_bootsamp(self, *args, **kwargs):
+        """
+        Generates bootstrap arrays to be used in ``self._bootstrap()``
+        """
+
+        raise NotImplementedError
+
+    def _gen_splits(self, *args, **kwargs):
+        """
+        Generates split half arrays to be using in ``self._split_half()``
+        """
+
+        raise NotImplementedError
+
+    def _bootstrap(self, X, Y, grouping=None):
+        """
+        Bootstraps ``X`` and ``Y`` (w/replacement) and recomputes SVD
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        grouping : (N,) array_like, optional
+
+        Returns
+        -------
+        (J[*G] x L x B) ndarray
+            Left singular vectors
+        (K x L x B) ndarray
+            Right singular vectors
+        """
+
+        # generate bootstrap resampled indices
+        if self._verbose: print("Generating bootstrap arrays.")
+        bootsamp = self._gen_bootsamp(X, Y, grouping=grouping)
+
+        # "original_u", "original_v" from Matlab PLS
+        U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
+                                           seed=self._rs)
+        U_boot = np.zeros(shape=U_orig.shape + (self.n_boot,))
+        V_boot = np.zeros(shape=V_orig.shape + (self.n_boot,))
+
+        for i in trange(self.n_boot, desc='Bootstraps'):
+            inds = bootsamp[:, i]
+            U, d, V = self._svd(X[inds], Y[inds], grouping=grouping,
+                                seed=self._rs)
+            U_boot[:, :, i], Q = utils.procrustes(U_orig, U, d)
+            V_boot[:, :, i] = V @ Q
+
+        return U_boot, V_boot
+
+    def _permutation(self, X, Y, grouping=None):
+        """
+        Parallelizes ``single_perm()`` to ``n_procs``
+
+        Uses ``starmap_async`` with ``multiprocessing.Pool()`` to parallelize
+        jobs. Each job will get a unique random seed to avoid re-use.
+
+        Parameters
+        ----------
+        X : (N x K [x G]) array_like
+        Y : (N x J [x G]) array_like
+        grouping : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(grouping))`` is the number of
+            distinct groups in ``X`` and ``Y``. Default: None
+
+        Returns
+        -------
+        permuted_values : np.ndarray
+            Distributions of singular values
+        """
+
+        def callback(result):
+            permuted_values.append(result)
+
+        if self._verbose: print("Generating permutation arrays.")
+        permsamp = self._gen_permsamp(X, Y, grouping=grouping)
+
+        permuted_values = []
+        seeds = self._rs.choice(100000, self.n_perm, replace=False)
+
+        # # to implement multiprocessing at a later date
+        # if self._n_proc > 1:
+        #     pool = mp.Pool(self._n_proc)
+        #     pool.starmap_async(self._single_perm,
+        #                        zip(repeat(X), repeat(Y), repeat(grouping),
+        #                            seeds),
+        #                        callback=callback)
+        #     pool.close()
+        #     pool.join()
+        # else:
+        for i in trange(self.n_perm, desc='Permutations'):
+            permuted_values.append(self._single_perm(X[permsamp[:, i]], Y,
+                                                     grouping=grouping,
+                                                     seed=seeds[i]))
+
+        permuted_values = np.asarray(permuted_values)
+
+        if self.n_split is not None:
+            permuted_values = permuted_values.transpose(0, 2, 1)
+
+        return permuted_values
+
+    def _single_perm(self, X, Y, grouping=None, seed=None):
+        """
+        Permutes ``X`` (w/o replacement) and computes SVD of cross-corr matrix
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        grouping : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(grouping))`` is the number of
+            distinct groups in ``X`` and ``Y``. Default: None
+        n_split : int, optional
+            Number of split-half resamples to run. Default: None
+        seed : int, optional
+            Whether to set random seed for reproducibility. Default: None
+
+        Returns
+        -------
+        ndarray
+            Sum of squared, permuted singular values
+        """
+
+        rs = utils.get_seed(seed)
+
+        if self.n_split is not None:
+            ucorr, vcorr = self._split_half(X, Y,
+                                            grouping=grouping,
+                                            seed=rs)
+            return ucorr, vcorr
+
+        U, d, V = self._svd(X, Y, grouping=grouping, seed=rs)
+
+        return np.sqrt((d**2).sum(axis=0))
+
+    def _split_half(self, X, Y, grouping=None, seed=None):
         """
         Parameters
         ----------
@@ -77,9 +228,6 @@ class BasePLS():
             Grouping array, where ``len(np.unique(grouping))`` is the number of
             distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
             computed separately for each group and are stacked row-wise.
-        n_split : int, optional
-            Number of split-half resamples during permutation testing.
-            Default: 100
         seed : {int, RandomState instance, None}, optional
             The seed of the pseudo random number generator to use when
             shuffling the data.  If int, ``seed`` is the seed used by the
@@ -104,10 +252,10 @@ class BasePLS():
         vd, ud = V @ di, U @ di
 
         # empty arrays to hold split-half correlations
-        ucorr = np.zeros((n_split, U.shape[-1]))
-        vcorr = np.zeros((n_split, V.shape[-1]))
+        ucorr = np.zeros((self.n_split, U.shape[-1]))
+        vcorr = np.zeros((self.n_split, V.shape[-1]))
 
-        for n in range(n_split):
+        for n in range(self.n_split):
             # empty array to determine split halves
             split = np.zeros(len(X), dtype='bool')
             # get indices for splits, respecting groups if needed
@@ -140,188 +288,3 @@ class BasePLS():
 
         # return average correlations for singular vectors across ``n_splits``
         return ucorr.mean(axis=0), vcorr.mean(axis=0)
-
-    def _bootstrap(self, X, Y, grouping=None, n_boot=500):
-        """
-        Bootstraps ``X`` and ``Y`` (w/replace) and computes SE of sing values
-
-        Parameters
-        ----------
-        X : (N x K) array_like
-        Y : (N x J) array_like
-        grouping : (N,) array_like, optional
-        n_boot : int, optional
-            Number of boostraps to run. Default: 500
-
-        Returns
-        -------
-        (J[*G] x L x B) ndarray
-            Left singular vectors, where ``B = n_boot``
-        (K x L x B) ndarray
-            Right singular vectors, where ``B = n_boot``
-        """
-
-        # "original_u", "original_v" from Matlab PLS
-        U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
-                                           seed=self._rs)
-        U_boot = np.zeros(U_orig.shape + (n_boot,))
-        V_boot = np.zeros(V_orig.shape + (n_boot,))
-        bootsamp = np.zeros((len(X), n_boot))
-
-        for i in trange(n_boot, desc='Bootstraps'):
-            if grouping is not None:
-                inds = np.zeros(len(grouping))
-                for grp in np.unique(grouping):
-                    curr_group = np.argwhere(grouping == grp).squeeze()
-                    inds[curr_group] = self._rs.choice(curr_group,
-                                                       size=len(curr_group),
-                                                       replace=True)
-            else:
-                inds = self._rs.choice(np.arange(len(X)), size=len(X),
-                                       replace=True)
-            U, d_boot, V = self._svd(X[inds], Y[inds], grouping=grouping,
-                                     seed=self._rs)
-
-            U_boot[:, :, i], Q = utils.procrustes(U_orig, U, d_boot)
-            V_boot[:, :, i] = V @ Q
-            bootsamp[:, i] = inds
-
-        return U_boot, V_boot, bootsamp
-
-    def _permutation(self, X, Y, grouping=None,
-                     n_perm=1000, n_split=None, n_proc=1):
-        """
-        Parallelizes ``single_perm()`` to ``n_procs``
-
-        Uses ``starmap_async`` with ``multiprocessing.Pool()`` to parallelize
-        jobs. Each job will get a unique random seed to avoid re-use.
-
-        Parameters
-        ----------
-        X : (N x K [x G]) array_like
-        Y : (N x J [x G]) array_like
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
-        n_perm : int, optional
-            Number of permutations to run. Default: 1000
-        n_split : int, optional
-            Number of split-half resamples to run. Default: None
-        n_proc : int, optional
-            Number of processes to use. Default: 1 (no multiprocessing)
-
-        Returns
-        -------
-        ndarray
-            Distributions of singular values
-        """
-
-        def callback(result):
-            permuted_values.append(result)
-
-        permuted_values = []
-        seeds = self._rs.choice(100000, n_perm, replace=False)
-
-        if n_proc > 1:
-            pool = mp.Pool(n_proc)
-            tqdm(pool.starmap_async(self._single_perm,
-                                    zip(repeat(X), repeat(Y), repeat(grouping),
-                                        repeat(n_split), seeds),
-                                    callback=callback),
-                 total=n_perm)
-            pool.close()
-            pool.join()
-        else:
-            for n in trange(n_perm, desc='Permutations'):
-                permuted_values.append(self._single_perm(X, Y,
-                                                         grouping=grouping,
-                                                         n_split=n_split,
-                                                         seed=seeds[n]))
-
-        permuted_values = np.asarray(permuted_values)
-
-        if n_split is not None:
-            permuted_values = permuted_values.transpose(0, 2, 1)
-
-        return permuted_values
-
-    def _single_perm(self, X, Y, grouping=None, n_split=None, seed=None):
-        """
-        Permutes ``X`` (w/o replacement) and computes SVD of cross-corr matrix
-
-        Parameters
-        ----------
-        X : (N x K) array_like
-        Y : (N x J) array_like
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
-        n_split : int, optional
-            Number of split-half resamples to run. Default: None
-        seed : int, optional
-            Whether to set random seed for reproducibility. Default: None
-
-        Returns
-        -------
-        ndarray
-            Sum of squared, permuted singular values
-        """
-
-        rs = utils.get_seed(seed)
-
-        if grouping is not None:
-            X_perm = np.row_stack([rs.permutation(X[grouping == grp])
-                                   for grp in np.unique(grouping)])
-        else:
-            X_perm = rs.permutation(X)
-
-        if n_split is not None:
-            ucorr, vcorr = self._split_half(X_perm, Y,
-                                            grouping=grouping,
-                                            n_split=n_split,
-                                            seed=rs)
-            return ucorr, vcorr
-
-        U, d, V = self._svd(X_perm, Y, grouping=grouping, seed=rs)
-
-        return np.sqrt((d**2).sum(axis=0))
-
-    def _run_perms(self):
-        """
-        """
-
-        perms = self._permutation(self.X, self.Y,
-                                  grouping=self.groups,
-                                  n_perm=self.n_perm,
-                                  n_split=self.n_split,
-                                  n_proc=self._n_proc)
-
-        if self.n_split is not None:
-            self.u_pvals = utils.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
-            self.v_pvals = utils.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
-        else:
-            self.d_pvals = utils.perm_sig(perms, self.d)
-
-    def _run_boots(self):
-        """
-        """
-
-        U_boot, V_boot = self._bootstrap(self.X, self.Y,
-                                         self.U, self.V,
-                                         grouping=self.groups,
-                                         n_boot=self.n_boot)
-        self.U_bci, self.V_bci = utils.boot_ci(U_boot, V_boot, ci=self.ci)
-        self.U_bsr, self.V_bsr = utils.boot_rel(self.U, self.V, U_boot, V_boot)
-
-    def _get_sig(self):
-        """
-        Determines the significance of returned singular vectors using the
-        Kaiser criterion, crossblock covariance, and whether the bootstrap
-        confidence interval crosses zero (boolean).
-        """
-
-        self.U_sig = utils.boot_sig(self.U_bci)
-        self.V_sig = utils.boot_sig(self.V_bci)
-
-        self.d_kaiser = utils.kaiser_criterion(self.d)
-        self.d_varexp = utils.crossblock_cov(self.d)
