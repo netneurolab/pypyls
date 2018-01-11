@@ -41,12 +41,12 @@ class PLSInputs():
 
     @property
     def n_proc(self):
-        """Number of processors (for multiprocessing)"""
+        """Number of processors requested (for multiprocessing)"""
         return self._n_proc
 
     @property
     def seed(self):
-        """Provided pseudo random seed"""
+        """Pseudo random seed"""
         return self._seed
 
     @property
@@ -159,19 +159,21 @@ class BasePLS():
         X : (N x K) array_like
         Y : (N x J) array_like
         grouping : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(grouping))`` is the number of
+            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
-        (J[*G] x L x B) ndarray
+        U_boot : (J[*G] x L x B) np.ndarray
             Left singular vectors
-        (K x L x B) ndarray
+        V_boot : (K x L x B) np.ndarray
             Right singular vectors
         """
 
         # generate bootstrap resampled indices
         self.bootsamp = self._gen_bootsamp(X, Y, grouping=grouping)
 
-        # "original_u", "original_v" from Matlab PLS
+        # get original values
         U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
                                            seed=self._rs)
         U_boot = np.zeros(shape=U_orig.shape + (self.inputs.n_boot,))
@@ -181,8 +183,8 @@ class BasePLS():
             inds = self.bootsamp[:, i]
             U, d, V = self._svd(X[inds], Y[inds], grouping=grouping,
                                 seed=self._rs)
-            U_boot[:, :, i], Q = compute.procrustes(U_orig, U, d)
-            V_boot[:, :, i] = V @ d @ Q
+            U_boot[:, :, i], rotate = compute.procrustes(U_orig, U, d)
+            V_boot[:, :, i] = V @ d @ rotate
 
         return U_boot, V_boot
 
@@ -200,30 +202,38 @@ class BasePLS():
 
         Returns
         -------
-        permuted_values : np.ndarray
-            Distributions of singular values
+        d_perm : (L x P) np.ndarray
+            Permuted singular values, where ``L`` is the number of singular
+            values and ``P`` is the number of permutations
+        ucorrs : (L x P) np.ndarray
+            Split-half correlations of left singular values. Only useful if
+            ``n_split != 0``
+        vcorrs : (L x P) np.ndarray
+            Split-half correlations of right singular values. Only useful if
+            ``n_split != 0``
         """
 
-        def callback(result):
-            permuted_values.append(result)
-
+        # generate permuted indices
         self.permsamp = self._gen_permsamp(X, Y, grouping=grouping)
-        seeds = self._rs.choice(100000, self.inputs.n_perm, replace=False)
 
-        permuted_values = []
+        # get original values
+        U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
+                                           seed=self._rs)
+
+        d_perm = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
+        ucorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
+        vcorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
+
         for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
-            permuted_values.append(self._single_perm(X[self.permsamp[:, i]], Y,
-                                                     grouping=grouping,
-                                                     seed=seeds[i]))
+            inds = self.permsamp[:, i]
+            outputs = self._single_perm(X[inds], Y, grouping=grouping)
+            d_perm[:, i] = outputs[0]
+            if self.inputs.n_split is not None:
+                ucorrs[:, i], vcorrs[:, i] = outputs[1:]
 
-        permuted_values = np.asarray(permuted_values)
+        return d_perm, ucorrs, vcorrs
 
-        if self.inputs.n_split is not None:
-            permuted_values = permuted_values.transpose(0, 2, 1)
-
-        return permuted_values
-
-    def _single_perm(self, X, Y, grouping=None, seed=None):
+    def _single_perm(self, X, Y, grouping=None):
         """
         Permutes ``X`` (w/o replacement) and computes SVD of cross-corr matrix
 
@@ -234,51 +244,44 @@ class BasePLS():
         grouping : (N,) array_like, optional
             Grouping array, where ``len(np.unique(grouping))`` is the number of
             distinct groups in ``X`` and ``Y``. Default: None
-        n_split : int, optional
-            Number of split-half resamples to run. Default: None
-        seed : int, optional
-            Whether to set random seed for reproducibility. Default: None
 
         Returns
         -------
-        ndarray
+        ssd : (L,) np.ndarray
             Sum of squared, permuted singular values
+        ucorr : (L,) np.ndarray
+            Split-half correlations of left singular values. Only useful if
+            ``n_split != 0``
+        vcorr : (L,) np.ndarray
+            Split-half correlations of right singular values. Only useful if
+            ``n_split != 0``
         """
 
-        rs = utils.get_seed(seed)
+        # perform SVD of permuted array and get sum of squared singular values
+        U, d, V = self._svd(X, Y, grouping=grouping, seed=self._rs)
+        ssd = np.sqrt((d**2).sum(axis=0))
 
+        # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
-            ucorr, vcorr = self._split_half(X, Y,
-                                            grouping=grouping,
-                                            seed=rs)
-            return ucorr, vcorr
+            di = np.linalg.inv(d)
+            ud, vd = U @ di, V @ di
+            ucorr, vcorr = self._split_half(X, Y, ud, vd, grouping=grouping)
+        else:
+            ucorr, vcorr = None, None
 
-        U, d, V = self._svd(X, Y, grouping=grouping, seed=rs)
+        return ssd, ucorr, vcorr
 
-        return np.sqrt((d**2).sum(axis=0))
-
-    def _split_half(self, X, Y, grouping=None, seed=None):
+    def _split_half(self, X, Y, ud, vd, grouping=None):
         """
         Parameters
         ----------
         X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects, ``K`` is the
-            number of variables, and ``G`` is a grouping factor (if there are
-            multiple groups)
         Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects, ``J`` is the
-            number of variables, and ``G`` is a grouping factor (if there are
-            multiple groups)
+        ud : (K[*G] x L) array_like
+        vd : (J x L) array_like
         grouping : (N,) array_like, optional
             Grouping array, where ``len(np.unique(grouping))`` is the number of
-            distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
-            computed separately for each group and are stacked row-wise.
-        seed : {int, RandomState instance, None}, optional
-            The seed of the pseudo random number generator to use when
-            shuffling the data.  If int, ``seed`` is the seed used by the
-            random number generator. If RandomState instance, ``seed`` is the
-            random number generator. If None, the random number generator is
-            the RandomState instance used by ``np.random``. Default: None
+            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
@@ -288,35 +291,19 @@ class BasePLS():
             Average correlation of right singular vectors across split-halves
         """
 
-        # RandomState generator
-        rs = utils.get_seed(seed)
-
-        # original SVD for use in later projection
-        U, d, V = self._svd(X, Y, grouping=grouping, seed=rs)
-        di = np.linalg.inv(d)
-        vd, ud = V @ di, U @ di
+        # generate splits
+        splitsamp = self._gen_splits(X, Y, grouping=grouping)
 
         # empty arrays to hold split-half correlations
-        ucorr = np.zeros((self.inputs.n_split, U.shape[-1]))
-        vcorr = np.zeros((self.inputs.n_split, V.shape[-1]))
+        ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
+        vcorr = np.zeros(shape=(vd.shape[-1], self.inputs.n_split))
 
-        for n in range(self.inputs.n_split):
-            # empty array to determine split halves
-            split = np.zeros(len(X), dtype='bool')
-            # get indices for splits, respecting groups if needed
+        for i in utils.trange(self.inputs.n_split, desc='Running splits'):
+            split = splitsamp[:, i]
             if grouping is not None:
-                for n, grp in enumerate(np.unique(grouping)):
-                    take = [np.ceil, np.floor][n % 2]
-                    curr_group = grouping == grp
-                    inds = rs.choice(np.argwhere(curr_group).squeeze(),
-                                     size=int(take(np.sum(curr_group)/2)),
-                                     replace=False)
-                    split[inds] = True
                 D1 = utils.xcorr(X[split], Y[split], grouping[split])
                 D2 = utils.xcorr(X[~split], Y[~split], grouping[~split])
             else:
-                inds = rs.choice(len(X), size=len(X)//2, replace=False)
-                split[inds] = True
                 D1 = utils.xcorr(X[split], Y[split])
                 D2 = utils.xcorr(X[~split], Y[~split])
 
@@ -326,10 +313,10 @@ class BasePLS():
             V1, V2 = D1.T @ ud, D2.T @ ud
 
             # correlate all the singular vectors between split halves
-            ucorr[n] = [np.corrcoef(u1, u2)[0, 1] for (u1, u2) in
-                        zip(U1.T, U2.T)]
-            vcorr[n] = [np.corrcoef(v1, v2)[0, 1] for (v1, v2) in
-                        zip(V1.T, V2.T)]
+            ucorr[:, i] = [np.corrcoef(u1, u2)[0, 1] for (u1, u2) in
+                           zip(U1.T, U2.T)]
+            vcorr[:, i] = [np.corrcoef(v1, v2)[0, 1] for (v1, v2) in
+                           zip(V1.T, V2.T)]
 
-        # return average correlations for singular vectors across ``n_splits``
-        return ucorr.mean(axis=0), vcorr.mean(axis=0)
+        # return average correlations for singular vectors across ``n_split``
+        return ucorr.mean(axis=-1), vcorr.mean(axis=-1)
