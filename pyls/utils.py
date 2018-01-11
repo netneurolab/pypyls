@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import tqdm
+
+
+def trange(n_iter, **kwargs):
+    form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
+    return tqdm.trange(n_iter, ascii=True, leave=False,
+                       bar_format=form, **kwargs)
 
 
 def xcorr(X, Y, grouping=None):

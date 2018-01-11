@@ -2,7 +2,6 @@
 
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
-from tqdm import trange
 from pyls.base import BasePLS
 from pyls import compute, utils
 
@@ -76,6 +75,7 @@ class BehavioralPLS(BasePLS):
     V_sig : (K x L) ndarray
         Significance (by zero-crossing) of right singular vectors
     """
+
     def __init__(self, brain, behav, grouping=None, **kwargs):
         super(BehavioralPLS, self).__init__(**kwargs)
         self.X, self.Y, self.groups = brain, behav, grouping
@@ -248,8 +248,10 @@ class MeanCenteredPLS(BasePLS):
 
     def __init__(self, data, groups, **kwargs):
         super(MeanCenteredPLS, self).__init__(**kwargs)
-        self.data, self.groups = data, groups
-        self._run_pls(data, utils.dummy_code(groups))
+        # for consistency, assign variables to X and Y
+        self.inputs._X, self.inputs._Y = data, utils.dummy_code(groups)
+        # run analysis
+        self._run_pls(self.inputs.X, self.inputs.Y)
 
     def _svd(self, X, Y, seed=None, grouping=None):
         """
@@ -304,33 +306,34 @@ class MeanCenteredPLS(BasePLS):
         bootsamp : (N x B) np.ndarray
         """
 
-        bootsamp = np.zeros(shape=(len(X), self.n_boot), dtype=int)
+        bootsamp = np.zeros(shape=(len(X), self.inputs.n_boot), dtype=int)
         min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
         subj_inds = np.arange(len(X), dtype=int)
 
-        if self._verbose: print('Generating bootstrap arrays:')
-        for i in trange(self.n_boot):
+        for i in utils.trange(self.inputs.n_boot, desc='Generating bootstraps'):
             count, duplicated = 0, True
             while duplicated and count < 500:
                 # empty container to store current bootstrap attempt
-                inds = np.zeros_like(subj_inds)
+                boot = np.zeros_like(subj_inds)
                 count, duplicated = count + 1, False
                 # iterate through and resample from w/i groups
                 for grp in Y.T.astype(bool):
                     curr_grp, all_same = subj_inds[grp], True
                     while all_same:
-                        inds[curr_grp] = self._rs.choice(curr_grp,
+                        boot[curr_grp] = self._rs.choice(curr_grp,
                                                          size=curr_grp.size,
                                                          replace=True)
                         # make sure bootstrap has enough unique subjs
-                        if np.unique(inds[curr_grp]).size >= min_subj:
+                        if np.unique(boot[curr_grp]).size >= min_subj:
                             all_same = False
                 # make sure bootstrap is not a duplicated sequence
-                dupe_seq = np.sort(inds)[:, None] == np.sort(bootsamp[:, :i], axis=0)
+                dupe_seq = np.sort(boot)[:, None] == np.sort(bootsamp[:, :i], axis=0)
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
                 count += 1
-            bootsamp[:, i] = inds
+            if count == 500:
+                print('ERROR: Duplicate boostraps used.')
+            bootsamp[:, i] = boot
 
         return bootsamp
 
@@ -349,11 +352,10 @@ class MeanCenteredPLS(BasePLS):
         permsamp : (N x B) np.ndarray
         """
 
-        permsamp = np.zeros(shape=(len(X), self.n_perm), dtype=int)
+        permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
         subj_inds = np.arange(len(X), dtype=int)
 
-        if self._verbose: print('Generating permutation arrays:')
-        for i in trange(self.n_perm):
+        for i in utils.trange(self.inputs.n_perm, desc='Generating permutations'):
             count, duplicated = 0, True
             while duplicated and count < 500:
                 # initial permutation attempt
@@ -369,7 +371,7 @@ class MeanCenteredPLS(BasePLS):
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
             if count == 500:
-                print('ERROR: Duplicate permutations used')
+                print('ERROR: Duplicate permutations used.')
             permsamp[:, i] = perm
 
         return permsamp
@@ -387,7 +389,7 @@ class MeanCenteredPLS(BasePLS):
         # compute permutations
         perms = self._permutation(X, Y)
         # get split half reliability, if set
-        if self.n_split is not None:
+        if self.inputs.n_split is not None:
             self.ucorr, self.vcorr = self._split_half(X, Y, seed=self._rs)
             self.u_pvals = compute.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
             self.v_pvals = compute.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
@@ -404,10 +406,11 @@ class MeanCenteredPLS(BasePLS):
 
         # bootstrap ratios
         self.U_bsr, self.V_bsr = compute.boot_rel(self.U @ self.d,
-                                                self.V @ self.d,
-                                                U_boot, V_boot)
+                                                  self.V @ self.d,
+                                                  U_boot, V_boot)
 
-        self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot, ci=self.ci)
+        self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot,
+                                                 ci=self.inputs.ci)
         self.U_sig = compute.boot_sig(self.U_bci)
         self.V_sig = compute.boot_sig(self.V_bci)
 

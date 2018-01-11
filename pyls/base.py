@@ -1,8 +1,68 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from tqdm import trange
 from pyls import compute, utils
+
+
+class PLSInputs():
+    """
+    Class to hold PLS input information
+    """
+
+    def __init__(self, n_perm=5000, n_boot=1000, n_split=None,
+                 ci=95, n_proc=1, seed=None, verbose=False):
+        self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
+        self._ci = ci
+        self._n_proc = n_proc
+        self._verbose = verbose
+        self._seed = seed
+        # to be set at a later time and place
+        self._X, self._Y, self._grouping = None, None, None
+
+    @property
+    def n_perm(self):
+        """Number of permutations"""
+        return self._n_perm
+
+    @property
+    def n_boot(self):
+        """Number of bootstraps"""
+        return self._n_boot
+
+    @property
+    def n_split(self):
+        """Number of split-half resamples"""
+        return self._n_split
+
+    @property
+    def ci(self):
+        """Requested confidence interval for bootstrap testing"""
+        return self._ci
+
+    @property
+    def n_proc(self):
+        """Number of processors (for multiprocessing)"""
+        return self._n_proc
+
+    @property
+    def seed(self):
+        """Provided pseudo random seed"""
+        return self._seed
+
+    @property
+    def X(self):
+        """Provided ``X`` data matrix"""
+        return self._X
+
+    @property
+    def Y(self):
+        """Provided ``Y`` data matrix"""
+        return self._Y
+
+    @property
+    def grouping(self):
+        """Provided group labels"""
+        return self._grouping
 
 
 class BasePLS():
@@ -46,11 +106,14 @@ class BasePLS():
 
     def __init__(self, n_perm=5000, n_boot=1000, n_split=None,
                  ci=95, n_proc=1, seed=None, verbose=False):
-        self.n_perm, self.n_boot, self.n_split = n_perm, n_boot, n_split
-        self.ci = ci
-        self._n_proc = n_proc
-        self._verbose = verbose
-        self._rs = utils.get_seed(seed)
+        self.inputs = PLSInputs(n_perm=n_perm,
+                                n_boot=n_boot,
+                                n_split=n_split,
+                                ci=ci,
+                                n_proc=n_proc,
+                                seed=seed,
+                                verbose=verbose)
+        self._rs = utils.get_seed(self.inputs.seed)
 
     def _run_pls(self, *args, **kwargs):
         """
@@ -111,11 +174,10 @@ class BasePLS():
         # "original_u", "original_v" from Matlab PLS
         U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
                                            seed=self._rs)
-        U_boot = np.zeros(shape=U_orig.shape + (self.n_boot,))
-        V_boot = np.zeros(shape=V_orig.shape + (self.n_boot,))
+        U_boot = np.zeros(shape=U_orig.shape + (self.inputs.n_boot,))
+        V_boot = np.zeros(shape=V_orig.shape + (self.inputs.n_boot,))
 
-        if self._verbose: print('Running bootstraps:')
-        for i in trange(self.n_boot):
+        for i in utils.trange(self.inputs.n_boot, desc='Running bootstraps'):
             inds = self.bootsamp[:, i]
             U, d, V = self._svd(X[inds], Y[inds], grouping=grouping,
                                 seed=self._rs)
@@ -126,10 +188,7 @@ class BasePLS():
 
     def _permutation(self, X, Y, grouping=None):
         """
-        Parallelizes ``single_perm()`` to ``n_procs``
-
-        Uses ``starmap_async`` with ``multiprocessing.Pool()`` to parallelize
-        jobs. Each job will get a unique random seed to avoid re-use.
+        Permutes ``X`` and ``Y`` (w/o replacement) and recomputes SVD
 
         Parameters
         ----------
@@ -149,18 +208,17 @@ class BasePLS():
             permuted_values.append(result)
 
         self.permsamp = self._gen_permsamp(X, Y, grouping=grouping)
-        seeds = self._rs.choice(100000, self.n_perm, replace=False)
+        seeds = self._rs.choice(100000, self.inputs.n_perm, replace=False)
 
         permuted_values = []
-        if self._verbose: print('Running permutations:')
-        for i in trange(self.n_perm):
+        for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
             permuted_values.append(self._single_perm(X[self.permsamp[:, i]], Y,
                                                      grouping=grouping,
                                                      seed=seeds[i]))
 
         permuted_values = np.asarray(permuted_values)
 
-        if self.n_split is not None:
+        if self.inputs.n_split is not None:
             permuted_values = permuted_values.transpose(0, 2, 1)
 
         return permuted_values
@@ -189,7 +247,7 @@ class BasePLS():
 
         rs = utils.get_seed(seed)
 
-        if self.n_split is not None:
+        if self.inputs.n_split is not None:
             ucorr, vcorr = self._split_half(X, Y,
                                             grouping=grouping,
                                             seed=rs)
@@ -234,15 +292,15 @@ class BasePLS():
         rs = utils.get_seed(seed)
 
         # original SVD for use in later projection
-        U, d, V = self._svd(X, Y, grouping, seed=rs)
+        U, d, V = self._svd(X, Y, grouping=grouping, seed=rs)
         di = np.linalg.inv(d)
         vd, ud = V @ di, U @ di
 
         # empty arrays to hold split-half correlations
-        ucorr = np.zeros((self.n_split, U.shape[-1]))
-        vcorr = np.zeros((self.n_split, V.shape[-1]))
+        ucorr = np.zeros((self.inputs.n_split, U.shape[-1]))
+        vcorr = np.zeros((self.inputs.n_split, V.shape[-1]))
 
-        for n in range(self.n_split):
+        for n in range(self.inputs.n_split):
             # empty array to determine split halves
             split = np.zeros(len(X), dtype='bool')
             # get indices for splits, respecting groups if needed
