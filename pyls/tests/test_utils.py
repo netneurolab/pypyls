@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import os.path as op
 import numpy as np
 import pytest
 import pyls
@@ -29,9 +28,9 @@ def test_normalize():
 def test_xcorr():
     X = rs.rand(20, 200)
     Y = rs.rand(20, 25)
-    grouping = np.hstack([[1] * 10, [2] * 10])
+    groups = np.hstack([[1] * 10, [2] * 10])
 
     xcorr = pyls.utils.xcorr(X, Y)
     assert xcorr.shape == (25, 200)
-    xcorr = pyls.utils.xcorr(X, Y, grouping)
+    xcorr = pyls.utils.xcorr(X, Y, groups)
     assert xcorr.shape == (25 * 2, 200)

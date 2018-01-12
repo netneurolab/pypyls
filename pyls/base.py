@@ -17,7 +17,7 @@ class PLSInputs():
         self._n_proc = n_proc
         self._seed = seed
         # to be set at a later time and place
-        self._X, self._Y, self._grouping = None, None, None
+        self._X, self._Y, self._groups = None, None, None
 
     @property
     def n_perm(self):
@@ -60,9 +60,9 @@ class PLSInputs():
         return self._Y
 
     @property
-    def grouping(self):
+    def groups(self):
         """Provided group labels"""
-        return self._grouping
+        return self._groups
 
 
 class BasePLS():
@@ -147,7 +147,7 @@ class BasePLS():
 
         raise NotImplementedError
 
-    def _svd(self, X, Y, seed=None, grouping=None):
+    def _svd(self, X, Y, seed=None, groups=None):
         """
         Runs SVD on cross-covariance matrix computed from ``X`` and ``Y``
 
@@ -159,8 +159,8 @@ class BasePLS():
         Y : (N x J) array_like
             Input array, where ``N`` is the number of subjects and ``J`` is The
             number of variables
-        grouping : placeholder
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
+        groups : placeholder
+            Grouping array, where ``len(np.unique(groups))`` is the number of
             distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
@@ -173,14 +173,14 @@ class BasePLS():
             Right singular vectors
         """
 
-        crosscov = self._gen_covcorr(X, Y, grouping=grouping)
+        crosscov = self._gen_covcorr(X, Y, groups=groups)
         U, d, V = randomized_svd(crosscov,
                                  n_components=Y.shape[-1]-1,
                                  random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T
 
-    def _bootstrap(self, X, Y, grouping=None):
+    def _bootstrap(self, X, Y, groups=None):
         """
         Bootstraps ``X`` and ``Y`` (w/replacement) and recomputes SVD
 
@@ -188,8 +188,8 @@ class BasePLS():
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
+        groups : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(groups))`` is the number of
             distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
@@ -201,24 +201,24 @@ class BasePLS():
         """
 
         # generate bootstrap resampled indices
-        self.bootsamp = self._gen_bootsamp(X, Y, grouping=grouping)
+        self.bootsamp = self._gen_bootsamp(X, Y, groups=groups)
 
         # get original values
-        U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
+        U_orig, d_orig, V_orig = self._svd(X, Y, groups=groups,
                                            seed=self._rs)
         U_boot = np.zeros(shape=U_orig.shape + (self.inputs.n_boot,))
         V_boot = np.zeros(shape=V_orig.shape + (self.inputs.n_boot,))
 
         for i in utils.trange(self.inputs.n_boot, desc='Running bootstraps'):
             inds = self.bootsamp[:, i]
-            U, d, V = self._svd(X[inds], Y[inds], grouping=grouping,
+            U, d, V = self._svd(X[inds], Y[inds], groups=groups,
                                 seed=self._rs)
             U_boot[:, :, i], rotate = compute.procrustes(U_orig, U, d)
             V_boot[:, :, i] = V @ d @ rotate
 
         return U_boot, V_boot
 
-    def _permutation(self, X, Y, grouping=None):
+    def _permutation(self, X, Y, groups=None):
         """
         Permutes ``X`` and ``Y`` (w/o replacement) and recomputes SVD
 
@@ -226,8 +226,8 @@ class BasePLS():
         ----------
         X : (N x K [x G]) array_like
         Y : (N x J [x G]) array_like
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
+        groups : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(groups))`` is the number of
             distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
@@ -244,10 +244,10 @@ class BasePLS():
         """
 
         # generate permuted indices
-        self.permsamp = self._gen_permsamp(X, Y, grouping=grouping)
+        self.permsamp = self._gen_permsamp(X, Y, groups=groups)
 
         # get original values
-        U_orig, d_orig, V_orig = self._svd(X, Y, grouping=grouping,
+        U_orig, d_orig, V_orig = self._svd(X, Y, groups=groups,
                                            seed=self._rs)
 
         d_perm = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
@@ -256,14 +256,14 @@ class BasePLS():
 
         for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
             inds = self.permsamp[:, i]
-            outputs = self._single_perm(X[inds], Y, grouping=grouping)
+            outputs = self._single_perm(X[inds], Y, groups=groups)
             d_perm[:, i] = outputs[0]
             if self.inputs.n_split is not None:
                 ucorrs[:, i], vcorrs[:, i] = outputs[1:]
 
         return d_perm, ucorrs, vcorrs
 
-    def _single_perm(self, X, Y, grouping=None):
+    def _single_perm(self, X, Y, groups=None):
         """
         Permutes ``X`` (w/o replacement) and computes SVD of cross-corr matrix
 
@@ -271,8 +271,8 @@ class BasePLS():
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
+        groups : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(groups))`` is the number of
             distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
@@ -288,20 +288,20 @@ class BasePLS():
         """
 
         # perform SVD of permuted array and get sum of squared singular values
-        U, d, V = self._svd(X, Y, grouping=grouping, seed=self._rs)
+        U, d, V = self._svd(X, Y, groups=groups, seed=self._rs)
         ssd = np.sqrt((d**2).sum(axis=0))
 
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
             di = np.linalg.inv(d)
             ud, vd = U @ di, V @ di
-            ucorr, vcorr = self._split_half(X, Y, ud, vd, grouping=grouping)
+            ucorr, vcorr = self._split_half(X, Y, ud, vd, groups=groups)
         else:
             ucorr, vcorr = None, None
 
         return ssd, ucorr, vcorr
 
-    def _split_half(self, X, Y, ud, vd, grouping=None):
+    def _split_half(self, X, Y, ud, vd, groups=None):
         """
         Parameters
         ----------
@@ -309,8 +309,8 @@ class BasePLS():
         Y : (N x J) array_like
         ud : (K[*G] x L) array_like
         vd : (J x L) array_like
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
+        groups : (N,) array_like, optional
+            Grouping array, where ``len(np.unique(groups))`` is the number of
             distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
@@ -322,7 +322,7 @@ class BasePLS():
         """
 
         # generate splits
-        splitsamp = self._gen_splits(X, Y, grouping=grouping)
+        splitsamp = self._gen_splits(X, Y, groups=groups)
 
         # empty arrays to hold split-half correlations
         ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
@@ -330,9 +330,9 @@ class BasePLS():
 
         for i in range(self.inputs.n_split):
             split = splitsamp[:, i]
-            if grouping is not None:
-                D1 = self._gen_covcorr(X[split], Y[split], grouping[split])
-                D2 = self._gen_covcorr(X[~split], Y[~split], grouping[~split])
+            if groups is not None:
+                D1 = self._gen_covcorr(X[split], Y[split], groups[split])
+                D2 = self._gen_covcorr(X[~split], Y[~split], groups[~split])
             else:
                 D1 = self._gen_covcorr(X[split], Y[split])
                 D2 = self._gen_covcorr(X[~split], Y[~split])

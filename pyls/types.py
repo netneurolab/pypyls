@@ -1,29 +1,33 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from sklearn.utils.extmath import randomized_svd
 from pyls.base import BasePLS
 from pyls import compute, utils
 
 
 class BehavioralPLS(BasePLS):
     """
-    Runs PLS on `brain` and `behav` arrays
+    Runs "behavioral" PLS
 
-    Uses singular value decomposition (SVD) to find latent variables from
-    cross-covariance matrix of `brain` and `behav`.
+    Uses singular value decomposition (SVD) to find latent variables (LVs) in
+    the cross-covariance matrix of ``brain`` and ``behav``, two subject (N) by
+    feature (K) arrays, optionally identifying the differences in these LVs
+    between ``groups``. Permutation testing is used to examine statistical
+    significance and split-half resampling is used to assess reliability of
+    LVs. Bootstrap resampling is used to examine reliability of features (K)
+    across LVs.
 
     Parameters
     ----------
-    X : (N x K) array_like
+    brain : (N x K) array_like
         Where ``N`` is the number of subjects and ``K`` is the number of
         observations
-    Y : (N x J) array_like
+    behav : (N x J) array_like
         Where ``N`` is the number of subjects and ``J`` is the number of
         observations
-    grouping : (N,) array_like, optional
+    groups : (N,) array_like, optional
         Array with labels separating ``N`` subjects into ``G`` groups. Default:
-        None
+        None (only one group)
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -34,57 +38,42 @@ class BehavioralPLS(BasePLS):
         Number of split-half resamples for testing reliability of permutations.
         Default: 500
     ci : (0, 100) float, optional
-        Confidence interval to calculate from bootstrapped distributions.
-        Default: 95
+        Confidence interval used to calculate reliability of features across
+        bootstraps. This value approximately corresponds to setting an alpha
+        value, where ``alpha = (100 - ci) / 100``. Default: 95
     n_proc : int, optional
-        Number of processes to use for parallelizing permutation and
-        bootstrapping. Default: 1
+        Number of processors to use for permutation and bootstrapping.
+        Default: 1 (no multiprocessing)
     seed : int, optional
-        Whether to set random seed for reproducibility. Default: None
+        Seed for random number generator. Default: None
     """
 
-    def __init__(self, brain, behav, grouping=None, **kwargs):
+    def __init__(self, brain, behav, groups=None, **kwargs):
         super(BehavioralPLS, self).__init__(**kwargs)
-        self.X, self.Y, self.groups = brain, behav, grouping
-        self._run_pls(brain, behav, grouping=grouping)
+        self.inputs._X, self.inputs._Y = brain, behav
+        self.inputs._groups = groups
+        self._run_pls(brain, behav, groups=groups)
 
-    def _svd(self, X, Y, grouping=None, seed=None):
+    def _gen_covcorr(self, X, Y, groups=None):
         """
-        Runs SVD on the cross-covariance matrix of ``X`` and ``Y``
-
-        Finds ``L`` singular vectors, where ``L`` is the minimum of the
-        dimensions of ``X`` and ``Y`` if ``grouping`` is not provided, or the
-        number of unique values in ``grouping`` if provided.
+        Computed cross-covariance matrix from ``X`` and ``Y``
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is the
-            number of variables
-        grouping : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(grouping))`` is the number of
-            distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
-            computed separately for each group and stacked prior to SVD.
-            Default: None
-        seed : {int, RandomState instance, None}, optional
-            The seed of the pseudo random number generator to use when
-            shuffling the data.  If int, ``seed`` is the seed used by the
-            random number generator. If RandomState instance, ``seed`` is the
-            random number generator. If None, the random number generator is
-            the RandomState instance used by ``np.random``. Default: None
+        brain : (N x K) array_like
+            Where ``N`` is the number of subjects and ``K`` is the
+            number of observations
+        behav : (N x J) array_like
+            Where ``N`` is the number of subjects and ``J`` is the
+            number of observations
+        groups : (N,) array_like, optional
+            Array with labels separating ``N`` subjects into ``G``
+            groups. Default: None (only one group)
 
         Returns
         -------
-        U : (J[*G] x L) ndarray
-            Left singular vectors, where ``G`` is the number of unique values
-            in ``grouping`` if provided
-        d : (L x L) ndarray
-            Diagonal array of singular values
-        V : (K x L) ndarray
-            Right singular vectors
+        cross_cov : (J[*G] x K) np.ndarray
+            Cross-covariance matrix
         """
 
         if X.ndim != Y.ndim:
@@ -96,92 +85,187 @@ class BehavioralPLS(BasePLS):
             raise ValueError('The first dimension of ``X`` and ``Y`` must '
                              'match.')
 
-        if grouping is None:
-            n_comp = min(min(X.shape), min(Y.shape))
-            crosscov = utils.xcorr(utils.normalize(X), utils.normalize(Y))
+        if groups is None:
+            cross_cov = utils.xcorr(utils.normalize(X),
+                                    utils.normalize(Y))
         else:
-            groups = np.unique(grouping)
-            n_comp = len(groups)
-            crosscov = [utils.xcorr(utils.normalize(X[grouping == grp]),
-                                    utils.normalize(Y[grouping == grp]))
-                        for grp in groups]
-            crosscov = np.row_stack(crosscov)
+            cross_cov = [utils.xcorr(utils.normalize(X[groups == grp]),
+                                     utils.normalize(Y[groups == grp]))
+                         for grp in np.unique(groups)]
+            cross_cov = np.row_stack(cross_cov)
 
-        U, d, V = randomized_svd(crosscov, n_components=n_comp,
-                                 random_state=utils.get_seed(seed))
+        return cross_cov
 
-        return U, np.diag(d), V.T
-
-    def _gen_bootsamp(self, X, Y, grouping=None, n_boot=500, seed=None):
+    def _gen_permsamp(self, X, Y, groups=None):
         """
-        Generates bootstrap resample arrays to be used in ``self._bootstrap``
+        Generates permutation arrays to be used in ``self._permutation()``
 
         Parameters
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        grouping : (N,) array_like, optional
-        n_boot : int, optional
-            Number of boostraps to run. Default: 500
+        groups : placeholder
+
+        Returns
+        -------
+        permsamp : (N x P) np.ndarray
+        """
+
+        permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
+        subj_inds = np.arange(len(X), dtype=int)
+
+        for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                # initial permutation attempt
+                perm = self._rs.permutation(subj_inds)
+                count, duplicated = count + 1, False
+                if groups is not None:
+                    # iterate through groups and ensure that we aren't just
+                    # permuting subjects *within* any of the groups
+                    for grp in utils.dummy_code(groups).T.astype(bool):
+                        if np.all(np.sort(perm[grp]) == subj_inds[grp]):
+                            duplicated = True
+                # make sure permutation is not a duplicated sequence
+                dupe_seq = perm[:, None] == permsamp[:, :i]
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            if count == 500:
+                print('ERROR: Duplicate permutations used.')
+            permsamp[:, i] = perm
+
+        return permsamp
+
+    def _gen_bootsamp(self, X, Y, groups=None):
+        """
+        Generates bootstrap resample arrays to be used in ``self._bootstrap()``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        groups : placeholder
 
         Returns
         -------
         bootsamp : (N x B) np.ndarray
         """
 
-        rs = utils.get_seed(seed)
-        bootsamp = np.zeros(shape=(len(X), n_boot), dtype=int)
+        bootsamp = np.zeros(shape=(len(X), self.inputs.n_boot), dtype=int)
+        min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
+        subj_inds = np.arange(len(X), dtype=int)
 
-        for i in range(n_boot):
-            if grouping is not None:
-                inds = np.zeros(shape=len(grouping))
-                for grp in np.unique(grouping):
-                    curr_group = np.argwhere(grouping == grp).squeeze()
-                    inds[curr_group] = rs.choice(curr_group,
-                                                 size=len(curr_group),
-                                                 replace=True)
-            else:
-                inds = rs.choice(np.arange(len(X)), size=len(X), replace=True)
-            bootsamp[i] = inds
+        for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                # empty container to store current bootstrap attempt
+                boot = np.zeros(shape=(subj_inds.size, 1), dtype=int)
+                count, duplicated = count + 1, False
+                if groups is not None:
+                    # iterate through and resample from w/i groups
+                    for grp in utils.dummy_code(groups).T.astype(bool):
+                        curr_grp, all_same = subj_inds[grp], True
+                        while all_same:
+                            boot[curr_grp, 0] = self._rs.choice(curr_grp,
+                                                                size=curr_grp.size,
+                                                                replace=True)
+                            # make sure bootstrap has enough unique subjs
+                            if np.unique(boot[curr_grp]).size >= min_subj:
+                                all_same = False
+                else:
+                    boot[subj_inds, 0] = self._rs.choice(subj_inds,
+                                                         size=subj_inds.size,
+                                                         replace=True)
+                # make sure bootstrap is not a duplicated sequence
+                dupe_seq = np.sort(boot) == np.sort(bootsamp[:, :i], axis=0)
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            if count == 500:
+                print('ERROR: Duplicate boostraps used.')
+            bootsamp[:, i] = boot.squeeze()
 
         return bootsamp
 
-    def _run_pls(self, X, Y, grouping=None):
+    def _gen_splits(self, X, Y, groups=None):
+        """
+        Generates split half arrays to be using in ``self._split_half()``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        groups : placeholder
+
+        Returns
+        -------
+        splitsamp : (N x S) np.ndarray
+        """
+
+        splitsamp = np.zeros(shape=(len(X), self.inputs.n_split), dtype=bool)
+        subj_inds = np.arange(len(X), dtype=int)
+
+        for i in range(self.inputs.n_split):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                # empty containter to store current split half attempt
+                split = np.zeros(shape=(subj_inds.size, 1), dtype=bool)
+                count, duplicated = count + 1, False
+                if groups is not None:
+                    # iterate through and split each group separately
+                    for grp in utils.dummy_code(groups).T.astype(bool):
+                        curr_grp = subj_inds[grp]
+                        take = self._rs.choice([np.ceil, np.floor])
+                        num_subj = int(take(np.sum(curr_grp.size)/2))
+                        inds = self._rs.choice(curr_grp,
+                                               size=num_subj,
+                                               replace=False)
+                        split[inds] = True
+                else:
+                    inds = self._rs.choice(subj_inds,
+                                           size=subj_inds.size // 2,
+                                           replace=False)
+                    split[inds] = True
+                # make sure split half is not a duplicated sequence
+                dupe_seq = split == splitsamp[:, :i]
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            if count == 500:
+                print('ERROR: Duplicate split halves used.')
+            splitsamp[:, i] = split.squeeze()
+
+        return splitsamp
+
+    def _run_pls(self, X, Y, groups=None):
         """
         Runs PLS analysis
         """
 
         # original singular vectors / values
-        self.U, self.d, self.V = self._svd(X, Y, grouping=grouping,
+        self.U, self.d, self.V = self._svd(X, Y, groups=groups,
                                            seed=self._rs)
-        # brain / design scores
-        self.usc, self.vsc = X @ self.V, Y @ self.U
+        # get variance explained by latent variables
+        self.d_varexp = compute.crossblock_cov(self.d)
 
         # compute permutations
-        perms = self._permutation(X, Y, grouping=grouping)
+        d_perm, ucorrs, vcorrs = self._permutation(X, Y, groups=groups)
+        # get LV significance
+        self.d_pvals = compute.perm_sig(self.d, d_perm)
 
         # get split half reliability, if set
-        if self.n_split is not None:
-            self.ucorr, self.vcorr = self._split_half(X, Y, grouping=grouping,
-                                                      seed=self._rs)
-            self.upvals = compute.perm_sig(perms[:, :, 0], np.diag(self.ucorr))
-            self.vpvals = compute.perm_sig(perms[:, :, 1], np.diag(self.vcorr))
-        else:
-            self.d_pvals = compute.perm_sig(perms, self.d)
+        if self.inputs.n_split is not None:
+            di = np.linalg.inv(self.d)
+            ud, vd = self.U @ di, self.V @ di
+            self.U_corr, self.V_corr = self._split_half(X, Y, ud, vd,
+                                                        groups=groups)
+            self.U_pvals = compute.perm_sig(np.diag(self.U_corr), ucorrs)
+            self.V_pvals = compute.perm_sig(np.diag(self.V_corr), vcorrs)
 
         # compute bootstraps
-        U_boot, V_boot = self._bootstrap(X, Y, grouping=grouping)
+        U_boot, V_boot = self._bootstrap(X, Y, groups=groups)
 
-        self.U_bci, self.V_bci = compute.boot_ci(U_boot, V_boot, ci=self.ci)
-        self.U_bsr, self.V_bsr = compute.boot_rel(self.U @ self.d,
-                                                  self.V @ self.d,
-                                                  U_boot, V_boot)
-
-        self.U_sig = compute.boot_sig(self.U_bci)
-        self.V_sig = compute.boot_sig(self.V_bci)
-
-        self.d_kaiser = compute.kaiser_criterion(self.d)
-        self.d_varexp = compute.crossblock_cov(self.d)
+        # compute bootstrap ratios
+        self.U_bsr = compute.boot_rel(self.U @ self.d, U_boot)
+        self.V_bsr = compute.boot_rel(self.V @ self.d, V_boot)
 
 
 class MeanCenteredPLS(BasePLS):
@@ -243,12 +327,13 @@ class MeanCenteredPLS(BasePLS):
         super(MeanCenteredPLS, self).__init__(**kwargs)
         # for consistency, assign variables to X and Y
         self.inputs._X, self.inputs._Y = data, utils.dummy_code(groups)
+        self.inputs._groups = groups
         # run analysis
         self._run_pls(self.inputs.X, self.inputs.Y)
 
-    def _gen_covcorr(self, X, Y, grouping=None):
+    def _gen_covcorr(self, X, Y, groups=None):
         """
-        Computed mean-centered matrix from ``X`` and ``Y``
+        Computes mean-centered matrix from ``X`` and ``Y``
 
         Parameters
         ----------
@@ -275,7 +360,7 @@ class MeanCenteredPLS(BasePLS):
 
         return mean_centered
 
-    def _gen_permsamp(self, X, Y, grouping=None):
+    def _gen_permsamp(self, X, Y, groups=None):
         """
         Generates permutation arrays to be used in ``self._permutation()``
 
@@ -283,7 +368,7 @@ class MeanCenteredPLS(BasePLS):
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        grouping : placeholder
+        groups : placeholder
 
         Returns
         -------
@@ -314,7 +399,7 @@ class MeanCenteredPLS(BasePLS):
 
         return permsamp
 
-    def _gen_bootsamp(self, X, Y, grouping=None):
+    def _gen_bootsamp(self, X, Y, groups=None):
         """
         Generates bootstrap resample arrays to be used in ``self._bootstrap()``
 
@@ -322,7 +407,7 @@ class MeanCenteredPLS(BasePLS):
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        grouping : placeholder
+        groups : placeholder
 
         Returns
         -------
@@ -359,7 +444,7 @@ class MeanCenteredPLS(BasePLS):
 
         return bootsamp
 
-    def _gen_splits(self, X, Y, grouping=None):
+    def _gen_splits(self, X, Y, groups=None):
         """
         Generates split half arrays to be using in ``self._split_half()``
 
@@ -367,7 +452,7 @@ class MeanCenteredPLS(BasePLS):
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        grouping : placeholder
+        groups : placeholder
 
         Returns
         -------

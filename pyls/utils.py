@@ -23,7 +23,7 @@ def trange(n_iter, **kwargs):
                        bar_format=form, **kwargs)
 
 
-def xcorr(X, Y, grouping=None):
+def xcorr(X, Y, groups=None):
     """
     Calculates the cross-covariance matrix of ``X`` and ``Y``
 
@@ -31,8 +31,8 @@ def xcorr(X, Y, grouping=None):
     ----------
     X : (N x J) array_like
     Y : (N x K) array_like
-    grouping : (N,) array_like, optional
-        Grouping array, where ``len(np.unique(grouping))`` is the number of
+    groups : (N,) array_like, optional
+        Grouping array, where ``len(np.unique(groups))`` is the number of
         distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
         computed separately for each group and are stacked row-wise.
 
@@ -42,12 +42,12 @@ def xcorr(X, Y, grouping=None):
         Cross-covariance of ``X`` and ``Y``
     """
 
-    if grouping is None:
+    if groups is None:
         return _compute_xcorr(X, Y)
     else:
-        return np.row_stack([_compute_xcorr(X[grouping == grp],
-                                            Y[grouping == grp])
-                             for grp in np.unique(grouping)])
+        return np.row_stack([_compute_xcorr(X[groups == grp],
+                                            Y[groups == grp])
+                             for grp in np.unique(groups)])
 
 
 def _compute_xcorr(X, Y):
@@ -160,23 +160,23 @@ def get_seed(seed=None):
     return np.random
 
 
-def dummy_code(grouping):
+def dummy_code(groups):
     """
-    Dummy codes ``grouping``
+    Dummy codes ``groups``
 
     Parameters
     ----------
-    grouping : (N,) array_like
+    groups : (N,) array_like
         Array with labels separating ``N`` subjects into ``G`` groups
 
     Returns
     -------
     Y : (N x G) np.ndarray
-        Dummy coded grouping array
+        Dummy coded groups array
     """
 
-    groups = np.unique(grouping)
-    Y = np.column_stack([(grouping == grp).astype(int) for grp in groups])
+    all_grps = np.unique(groups)
+    Y = np.column_stack([(groups == grp).astype(int) for grp in all_grps])
 
     return Y
 
@@ -188,14 +188,14 @@ def reverse_dummy_code(Y):
     Parameters
     ----------
     Y : (N x G) array_like
-        Dummy coded grouping array
+        Dummy coded groups array
 
     Returns
     -------
-    grouping : (N,) array_like
+    groups : (N,) array_like
         Array with labels separating ``N`` subjects into ``G`` groups
     """
 
-    grouping = np.row_stack([grp * n for n, grp in enumerate(Y.T, 1)]).sum(0)
+    groups = np.row_stack([grp * n for n, grp in enumerate(Y.T, 1)]).sum(0)
 
-    return grouping
+    return groups
