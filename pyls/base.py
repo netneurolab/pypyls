@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from sklearn.utils.extmath import randomized_svd
 from pyls import compute, utils
 
 
@@ -10,11 +11,10 @@ class PLSInputs():
     """
 
     def __init__(self, n_perm=5000, n_boot=1000, n_split=None,
-                 ci=95, n_proc=1, seed=None, verbose=False):
+                 ci=95, n_proc=1, seed=None):
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._ci = ci
         self._n_proc = n_proc
-        self._verbose = verbose
         self._seed = seed
         # to be set at a later time and place
         self._X, self._Y, self._grouping = None, None, None
@@ -74,7 +74,7 @@ class BasePLS():
     n_boot : int, optional
         Number of bootstraps to generate. Default: 1000
     n_split : int, optional
-        Number of split-half resamples during each permutation. Default: None
+        Number of split-half resamples during each permutation. Default: 500
     ci : (0, 100) float, optional
         Confidence interval to calculate from bootstrapped distributions.
         Default: 95
@@ -83,8 +83,6 @@ class BasePLS():
         Default: 1 (no multiprocessing)
     seed : int, optional
         Seed for random number generator. Default: None
-    verbose : bool, optional
-        Print status updates
 
     References
     ----------
@@ -104,34 +102,33 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, n_perm=5000, n_boot=1000, n_split=None,
-                 ci=95, n_proc=1, seed=None, verbose=False):
+    def __init__(self, n_perm=5000, n_boot=1000, n_split=500,
+                 ci=95, n_proc=1, seed=None):
         self.inputs = PLSInputs(n_perm=n_perm,
                                 n_boot=n_boot,
                                 n_split=n_split,
                                 ci=ci,
                                 n_proc=n_proc,
-                                seed=seed,
-                                verbose=verbose)
+                                seed=seed)
         self._rs = utils.get_seed(self.inputs.seed)
 
     def _run_pls(self, *args, **kwargs):
         """
-        Should run entire PLS analysis
+        Runs entire PLS analysis
         """
 
         raise NotImplementedError
 
-    def _svd(self, *args, **kwargs):
+    def _gen_covcorr(self, *args, **kwargs):
         """
-        Should compute SVD of cross-covariance matrix of input data
+        Generates cross-covariance array to be used in ``self._svd()``
         """
 
         raise NotImplementedError
 
     def _gen_permsamp(self, *args, **kwargs):
         """
-        Generates permutation arrays to be using in ``self._permutation()``
+        Generates permutation arrays to be used in ``self._permutation()``
         """
 
         raise NotImplementedError
@@ -145,10 +142,43 @@ class BasePLS():
 
     def _gen_splits(self, *args, **kwargs):
         """
-        Generates split half arrays to be using in ``self._split_half()``
+        Generates split-half arrays to be used in ``self._split_half()``
         """
 
         raise NotImplementedError
+
+    def _svd(self, X, Y, seed=None, grouping=None):
+        """
+        Runs SVD on cross-covariance matrix computed from ``X`` and ``Y``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Input array, where ``N`` is the number of subjects and ``J`` is The
+            number of variables
+        grouping : placeholder
+            Grouping array, where ``len(np.unique(grouping))`` is the number of
+            distinct groups in ``X`` and ``Y``. Default: None
+
+        Returns
+        -------
+        U : (J x J-1) ndarray
+            Left singular vectors
+        d : (J-1 x J-1) ndarray
+            Diagonal array of singular values
+        V : (K x J-1) ndarray
+            Right singular vectors
+        """
+
+        crosscov = self._gen_covcorr(X, Y, grouping=grouping)
+        U, d, V = randomized_svd(crosscov,
+                                 n_components=Y.shape[-1]-1,
+                                 random_state=utils.get_seed(seed))
+
+        return U, np.diag(d), V.T
 
     def _bootstrap(self, X, Y, grouping=None):
         """
@@ -298,14 +328,14 @@ class BasePLS():
         ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
         vcorr = np.zeros(shape=(vd.shape[-1], self.inputs.n_split))
 
-        for i in utils.trange(self.inputs.n_split, desc='Running splits'):
+        for i in range(self.inputs.n_split):
             split = splitsamp[:, i]
             if grouping is not None:
-                D1 = utils.xcorr(X[split], Y[split], grouping[split])
-                D2 = utils.xcorr(X[~split], Y[~split], grouping[~split])
+                D1 = self._gen_covcorr(X[split], Y[split], grouping[split])
+                D2 = self._gen_covcorr(X[~split], Y[~split], grouping[~split])
             else:
-                D1 = utils.xcorr(X[split], Y[split])
-                D2 = utils.xcorr(X[~split], Y[~split])
+                D1 = self._gen_covcorr(X[split], Y[split])
+                D2 = self._gen_covcorr(X[~split], Y[~split])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector

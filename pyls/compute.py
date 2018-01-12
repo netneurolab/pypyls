@@ -13,19 +13,18 @@ def perm_sig(orig, perm):
     Parameters
     ----------
     orig : (L x L) array_like
-        Diagonal matrix of singular values from original SVD
+        Diagonal matrix of singular values
     perm : (L x P) array_like
-        Distribution of singular values from permutation testing where ``L`` is
-        the number of components from the SVD and ``P`` is the number of
-        permutations 
+        Distribution of singular values from permutation testing where ```P``
+        is the number of permutations
 
     Returns
     -------
     pvals : (L,) np.ndarray
-        P-values of singular values from original SVD
+        P-values of singular values
     """
 
-    pvals = np.sum(perm > np.diag(orig)[:, None], axis=1) / len(perm)
+    pvals = np.sum(perm > np.diag(orig)[:, None], axis=1) / perm.shape[-1]
 
     return pvals
 

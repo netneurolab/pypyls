@@ -5,6 +5,19 @@ import tqdm
 
 
 def trange(n_iter, **kwargs):
+    """
+    Wrapper for ``tqdm.trange`` with some default options
+
+    Parameters
+    ----------
+    n_iter : int
+        Number of iterations for progress bar
+
+    Returns
+    -------
+    tqdm.tqdm instance
+    """
+
     form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
     return tqdm.trange(n_iter, ascii=True, leave=False,
                        bar_format=form, **kwargs)

@@ -21,8 +21,9 @@ class BehavioralPLS(BasePLS):
     Y : (N x J) array_like
         Where ``N`` is the number of subjects and ``J`` is the number of
         observations
-    grouping : (N,) array_like
-        Array with labels separating ``N`` subjects into ``G`` groups
+    grouping : (N,) array_like, optional
+        Array with labels separating ``N`` subjects into ``G`` groups. Default:
+        None
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -40,40 +41,6 @@ class BehavioralPLS(BasePLS):
         bootstrapping. Default: 1
     seed : int, optional
         Whether to set random seed for reproducibility. Default: None
-
-    Attributes
-    ----------
-    U : (J[*G] x L) ndarray
-        Left singular vectors
-    d : (L x L) ndarray
-        Diagonal matrix of singular values
-    V : (K x L) ndarray
-        Right singular vectors
-    ucorr, vcorr : (L,) ndarray
-        Correlations of split-half resamples of singular vectors. Only present
-        if n_split was specified at instantiation.
-    u_pvals, v_pvals : (L,) ndarray
-        P-values of singular vectors as determined by split-half resampling.
-        Only present if n_split was specified at instantiation.
-    d_pvals : (L,) ndarray
-        P-values of latent variables as determined by permutation testing. Only
-        present if n_split was NOT specified at instantiation.
-    d_kaiser : (L,) ndarray
-        Relevance of latent variables as determined by Kaiser criterion
-    d_varexp : (L,) ndarray
-        Percent variance explained by each latent variable
-    U_bci : (J[*G] x L x 2) ndarray
-        Bootstrapped CI for left singular vectors
-    V_bci : (K x L x 2) ndarray
-        Bootstrapped CI for right singular vectors
-    U_bsr : (J[*G] x L) ndarray
-        Bootstrap ratios for left singular vectors
-    V_bsr : (K x L) ndarray
-        Bootstrap ratios for right singular vectors
-    U_sig : (J[*G] x L) ndarray
-        Significance (by zero-crossing) of left singular vectors
-    V_sig : (K x L) ndarray
-        Significance (by zero-crossing) of right singular vectors
     """
 
     def __init__(self, brain, behav, grouping=None, **kwargs):
@@ -219,35 +186,57 @@ class BehavioralPLS(BasePLS):
 
 class MeanCenteredPLS(BasePLS):
     """
-    Runs PLS on `data` and `groups` arrays
+    Runs "mean-centered" PLS
 
-    Uses singular value decomposition (SVD) to find latent variables from
-    mean-centered matrix generated from `data`
+    Uses singular value decomposition (SVD) to find latent variables (LVs) in
+    ``data``, a subject (N) x feature (K) array, that maximize the difference
+    between ``groups``. Permutation testing is used to examine statistical
+    significance and split-half resampling is used to assess reliability of
+    LVs. Bootstrap resampling is used to examine reliability of features (K)
+    across LVs.
 
     Parameters
     ----------
     data : (N x K) array_like
         Where ``N`` is the number of subjects and ``K`` is the number of
         observations
-    groups : (N x J) array_like
-        Where ``N`` is the number of subjects, ``J`` is the number of groups.
-        Should be a dummy coded matrix (i.e., 1 indicates group membership)
+    groups : (N,) array_like
+        Array with labels separating ``N`` subjects into ``G`` groups
     n_perm : int, optional
-        Number of permutations to generate. Default: 5000
+        Number of permutations for testing statistical significance of singular
+        vectors. Default: 5000
     n_boot : int, optional
-        Number of bootstraps to generate. Default: 1000
+        Number of bootstraps for testing reliability of singular vectors.
+        Default: 1000
     n_split : int, optional
-        Number of split-half resamples during each permutation. Default: None
+        Number of split-half resamples for testing reliability of permutations.
+        Default: 500
     ci : (0, 100) float, optional
-        Confidence interval to calculate from bootstrapped distributions.
-        Default: 95
+        Confidence interval used to calculate reliability of features across
+        bootstraps. This value approximately corresponds to setting an alpha
+        value, where ``alpha = (100 - ci) / 100``. Default: 95
     n_proc : int, optional
         Number of processors to use for permutation and bootstrapping.
         Default: 1 (no multiprocessing)
     seed : int, optional
         Seed for random number generator. Default: None
-    verbose : bool, optional
-        Print status updates
+
+    References
+    ----------
+    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
+       (1996). Spatial pattern analysis of functional brain images using
+       partial least squares. Neuroimage, 3(3), 143-157.
+    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
+       analysis of neuroimaging data: applications and advances. Neuroimage,
+       23, S250-S263.
+    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
+       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
+       review. Neuroimage, 56(2), 455-475.
+    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
+       Revisiting PLS resampling: comparing significance versus reliability
+       across range of simulations. In New Perspectives in Partial Least
+       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
+       Chicago
     """
 
     def __init__(self, data, groups, **kwargs):
@@ -257,9 +246,9 @@ class MeanCenteredPLS(BasePLS):
         # run analysis
         self._run_pls(self.inputs.X, self.inputs.Y)
 
-    def _svd(self, X, Y, seed=None, grouping=None):
+    def _gen_covcorr(self, X, Y, grouping=None):
         """
-        Runs SVD on a mean-centered matrix computed from ``X`` and ``Y``
+        Computed mean-centered matrix from ``X`` and ``Y``
 
         Parameters
         ----------
@@ -270,17 +259,11 @@ class MeanCenteredPLS(BasePLS):
             Dummy coded input array, where ``N`` is the number of subjects and
             ``J`` corresponds to the number of groups. A value of 1 indicates
             that a subject (row) belongs to a group (column).
-        grouping : placeholder
-            Here for compatibility purposes; does nothing.
 
         Returns
         -------
-        U : (J x J-1) ndarray
-            Left singular vectors
-        d : (J-1 x J-1) ndarray
-            Diagonal array of singular values
-        V : (K x J-1) ndarray
-            Right singular vectors
+        mean_centered : (J x K) np.ndarray
+            Mean-centered matrix
         """
 
         iden = np.ones(shape=(len(Y), 1))
@@ -289,11 +272,47 @@ class MeanCenteredPLS(BasePLS):
         L = np.ones(shape=(num_group, 1))
         # effectively the same as M - M.mean(axis=0)...
         mean_centered = grp_means - (L @ (((1/num_group) * L.T) @ grp_means))
-        U, d, V = randomized_svd(mean_centered,
-                                 n_components=Y.shape[-1]-1,
-                                 random_state=utils.get_seed(seed))
 
-        return U, np.diag(d), V.T
+        return mean_centered
+
+    def _gen_permsamp(self, X, Y, grouping=None):
+        """
+        Generates permutation arrays to be used in ``self._permutation()``
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+        Y : (N x J) array_like
+        grouping : placeholder
+
+        Returns
+        -------
+        permsamp : (N x P) np.ndarray
+        """
+
+        permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
+        subj_inds = np.arange(len(X), dtype=int)
+
+        for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                # initial permutation attempt
+                perm = self._rs.permutation(subj_inds)
+                count, duplicated = count + 1, False
+                # iterate through groups and ensure that we aren't just
+                # permuting subjects *within* any of the groups
+                for grp in Y.T.astype(bool):
+                    if np.all(np.sort(perm[grp]) == subj_inds[grp]):
+                        duplicated = True
+                # make sure permutation is not a duplicated sequence
+                dupe_seq = perm[:, None] == permsamp[:, :i]
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            if count == 500:
+                print('ERROR: Duplicate permutations used.')
+            permsamp[:, i] = perm
+
+        return permsamp
 
     def _gen_bootsamp(self, X, Y, grouping=None):
         """
@@ -340,45 +359,6 @@ class MeanCenteredPLS(BasePLS):
 
         return bootsamp
 
-    def _gen_permsamp(self, X, Y, grouping=None):
-        """
-        Generates permutation arrays to be used in ``self._permutation()``
-
-        Parameters
-        ----------
-        X : (N x K) array_like
-        Y : (N x J) array_like
-        grouping : placeholder
-
-        Returns
-        -------
-        permsamp : (N x P) np.ndarray
-        """
-
-        permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
-        subj_inds = np.arange(len(X), dtype=int)
-
-        for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
-            count, duplicated = 0, True
-            while duplicated and count < 500:
-                # initial permutation attempt
-                perm = self._rs.permutation(subj_inds)
-                count, duplicated = count + 1, False
-                # iterate through groups and ensure that we aren't just
-                # permuting subjects *within* any of the groups
-                for grp in Y.T.astype(bool):
-                    if np.all(np.sort(perm[grp]) == subj_inds[grp]):
-                        duplicated = True
-                # make sure permutation is not a duplicated sequence
-                dupe_seq = perm[:, None] == permsamp[:, :i]
-                if dupe_seq.all(axis=0).any():
-                    duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate permutations used.')
-            permsamp[:, i] = perm
-
-        return permsamp
-
     def _gen_splits(self, X, Y, grouping=None):
         """
         Generates split half arrays to be using in ``self._split_half()``
@@ -424,7 +404,7 @@ class MeanCenteredPLS(BasePLS):
 
     def _boot_distrib(self, X, Y, V_boot):
         """
-        Generates bootstrapped distribution
+        Generates bootstrapped distribution for contrast
         """
 
         distrib = np.zeros(shape=(self.U.shape + (self.inputs.n_boot,)))
@@ -444,15 +424,13 @@ class MeanCenteredPLS(BasePLS):
 
         # original singular vectors / values
         self.U, self.d, self.V = self._svd(X, Y, seed=self._rs)
+        # get variance explained by latent variables
+        self.d_varexp = compute.crossblock_cov(self.d)
 
         # compute permutations
         d_perm, ucorrs, vcorrs = self._permutation(X, Y)
-
         # get LV significance
         self.d_pvals = compute.perm_sig(self.d, d_perm)
-
-        # get variance explained by latent variables
-        self.d_varexp = compute.crossblock_cov(self.d)
 
         # get split half reliability, if requested
         if self.inputs.n_split is not None:
