@@ -8,9 +8,30 @@ from pyls import compute, utils
 class PLSInputs():
     """
     Class to hold PLS input information
+
+    Parameters
+    ----------
+    n_perm : int, optional
+        Number of permutations for testing statistical significance of singular
+        vectors. Default: 5000
+    n_boot : int, optional
+        Number of bootstraps for testing reliability of singular vectors.
+        Default: 1000
+    n_split : int, optional
+        Number of split-half resamples for testing reliability of permutations.
+        Default: 500
+    ci : (0, 100) float, optional
+        Confidence interval used to calculate reliability of features across
+        bootstraps. This value approximately corresponds to setting an alpha
+        value, where ``alpha = (100 - ci) / 100``. Default: 95
+    n_proc : int, optional
+        Number of processors to use for permutation and bootstrapping.
+        Default: 1 (no multiprocessing)
+    seed : int, optional
+        Seed for random number generator. Default: None
     """
 
-    def __init__(self, n_perm=5000, n_boot=1000, n_split=None,
+    def __init__(self, n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._ci = ci

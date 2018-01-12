@@ -6,7 +6,7 @@ import tqdm
 
 def trange(n_iter, **kwargs):
     """
-    Wrapper for ``tqdm.trange`` with some default options
+    Wrapper for ``tqdm.trange`` with some default options set
 
     Parameters
     ----------

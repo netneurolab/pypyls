@@ -46,6 +46,66 @@ class BehavioralPLS(BasePLS):
         Default: 1 (no multiprocessing)
     seed : int, optional
         Seed for random number generator. Default: None
+
+    Attributes
+    ----------
+    U : (K[*G] x L) np.ndarray
+        Left singular vectors from decomposition, where ``L`` is the number of
+        latent variables identified in the data
+    d : (L x L) np.ndarray
+        Diagonal array of singular values from decomposition, where ``L`` is
+        the number of latent variables identified in the data
+    V : (J x L) np.ndarray
+        Right singular vectors from decomposition, where ``L`` is the number of
+        latent variables identified in the data
+    d_pvals : (L,) np.ndarray
+        Statistical significance of latent variables as determined by
+        permutation testing
+    d_varexp : (L,) np.ndarray
+        Variance explained by each latent variable
+    U_bsr : (K[*G] x L) np.ndarray
+        Bootstrap ratios of left singular vectors, as determined by bootstrap
+        resampling. Values can be treated as a Z-score, indicating how
+        reliably the given feature contributes to the corresponding latent
+        variable.
+    V_bsr : (J x L) np.ndarray
+        Bootstrap ratios of right singular vectors, as determined by bootstrap
+        resampling. Values can be treated as a Z-score, indicating how
+        reliably the given feature contributes to the corresponding latent
+        variable.
+    U_corr : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. The correlation
+        of left singular vectors across split-half resamples in the original
+        data.
+    V_corr : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. The correlation
+        of left singular vectors across split-half resamples in the original
+        data.
+    U_pvals : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. Statistical
+        significance of the left singular vectors as determined by permutation
+        tests across split-half resamples.
+    V_pvals : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. Statistical
+        significance of the right singular vectors as determined by permutation
+        tests across split-half resamples.
+
+    References
+    ----------
+    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
+       (1996). Spatial pattern analysis of functional brain images using
+       partial least squares. Neuroimage, 3(3), 143-157.
+    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
+       analysis of neuroimaging data: applications and advances. Neuroimage,
+       23, S250-S263.
+    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
+       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
+       review. Neuroimage, 56(2), 455-475.
+    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
+       Revisiting PLS resampling: comparing significance versus reliability
+       across range of simulations. In New Perspectives in Partial Least
+       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
+       Chicago
     """
 
     def __init__(self, brain, behav, groups=None, **kwargs):
@@ -56,19 +116,19 @@ class BehavioralPLS(BasePLS):
 
     def _gen_covcorr(self, X, Y, groups=None):
         """
-        Computed cross-covariance matrix from ``X`` and ``Y``
+        Computes cross-covariance matrix from ``X`` and ``Y``
 
         Parameters
         ----------
-        brain : (N x K) array_like
-            Where ``N`` is the number of subjects and ``K`` is the
-            number of observations
-        behav : (N x J) array_like
-            Where ``N`` is the number of subjects and ``J`` is the
-            number of observations
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables.
         groups : (N,) array_like, optional
-            Array with labels separating ``N`` subjects into ``G``
-            groups. Default: None (only one group)
+            Array with labels separating ``N`` subjects into ``G`` groups.
+            Default: None (only one group)
 
         Returns
         -------
@@ -103,8 +163,14 @@ class BehavioralPLS(BasePLS):
         Parameters
         ----------
         X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
         Y : (N x J) array_like
-        groups : placeholder
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables.
+        groups : (N,) array_like
+            Array with labels separating ``N`` subjects into ``G`` groups.
+            Default: None (only one group)
 
         Returns
         -------
@@ -143,8 +209,14 @@ class BehavioralPLS(BasePLS):
         Parameters
         ----------
         X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
         Y : (N x J) array_like
-        groups : placeholder
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables.
+        groups : (N,) array_like
+            Array with labels separating ``N`` subjects into ``G`` groups.
+            Default: None (only one group)
 
         Returns
         -------
@@ -193,8 +265,14 @@ class BehavioralPLS(BasePLS):
         Parameters
         ----------
         X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
         Y : (N x J) array_like
-        groups : placeholder
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables.
+        groups : (N,) array_like
+            Array with labels separating ``N`` subjects into ``G`` groups.
+            Default: None (only one group)
 
         Returns
         -------
@@ -238,6 +316,18 @@ class BehavioralPLS(BasePLS):
     def _run_pls(self, X, Y, groups=None):
         """
         Runs PLS analysis
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables.
+        groups : (N,) array_like
+            Array with labels separating ``N`` subjects into ``G`` groups.
+            Default: None (only one group)
         """
 
         # original singular vectors / values
@@ -282,8 +372,8 @@ class MeanCenteredPLS(BasePLS):
     Parameters
     ----------
     data : (N x K) array_like
-        Where ``N`` is the number of subjects and ``K`` is the number of
-        observations
+        Original data array where ``N`` is the number of subjects and ``K`` is
+        the number of observations
     groups : (N,) array_like
         Array with labels separating ``N`` subjects into ``G`` groups
     n_perm : int, optional
@@ -304,6 +394,65 @@ class MeanCenteredPLS(BasePLS):
         Default: 1 (no multiprocessing)
     seed : int, optional
         Seed for random number generator. Default: None
+
+    Attributes
+    ----------
+    U : (G x L) np.ndarray
+        Left singular vectors from decomposition, where ``G`` is the number of
+        groups and ``L`` is the number of latent variables identified in the
+        data
+    d : (L x L) np.ndarray
+        Diagonal array of singular values from decomposition, where ``L`` is
+        the number of latent variables identified in the data
+    V : (J x L) np.ndarray
+        Right singular vectors from decomposition, where ``L`` is the number of
+        latent variables identified in the data
+    d_pvals : (L,) np.ndarray
+        Statistical significance of latent variables as determined by
+        permutation testing
+    d_varexp : (L,) np.ndarray
+        Variance explained by each latent variable
+    U_bsr : (G x L) np.ndarray
+        Bootstrap ratios of left singular vectors, as determined by bootstrap
+        resampling. Values can be treated as a Z-score, indicating how
+        reliably the given feature contributes to the corresponding latent
+        variable.
+    V_bsr : (J x L) np.ndarray
+        Bootstrap ratios of right singular vectors, as determined by bootstrap
+        resampling. Values can be treated as a Z-score, indicating how
+        reliably the given feature contributes to the corresponding latent
+        variable.
+    usc : (N x L) np.ndarray
+        "Brainscores" reflecting the extent to which each subject adheres to
+        the identified latent variable.
+    orig_usc : (G x L) np.ndarray
+        Contrast reflecting weighted dissociation of ``groups`` from each other
+        for each identified latent variable.
+    orig_usc_ll : (G x L) np.ndarray
+        Lower bound of confidence interval for ``orig_usc`` as determined by
+        bootstrap resampling. CI set by ``ci`` at instantiation.
+    orig_usc_ul : (G x L) np.ndarray
+        Upper bound of confidence interval for ``orig_usc`` as determined by
+        bootstrap resampling. CI set by ``ci`` at instantiation.
+    distrib : (G x L x B) np.ndarray
+        Distribution of ``orig_usc`` as determined by bootstrap resampling.
+        Used to calculated ``orig_usc_ll` and ``orig_usc_ul``.
+    U_corr : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. The correlation
+        of left singular vectors across split-half resamples in the original
+        data.
+    V_corr : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. The correlation
+        of left singular vectors across split-half resamples in the original
+        data.
+    U_pvals : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. Statistical
+        significance of the left singular vectors as determined by permutation
+        tests across split-half resamples.
+    V_pvals : (L,) np.ndarray
+        Only present if ``n_split`` was set at instantiation. Statistical
+        significance of the right singular vectors as determined by permutation
+        tests across split-half resamples.
 
     References
     ----------
@@ -367,7 +516,12 @@ class MeanCenteredPLS(BasePLS):
         Parameters
         ----------
         X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
         Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
         groups : placeholder
 
         Returns
@@ -406,7 +560,12 @@ class MeanCenteredPLS(BasePLS):
         Parameters
         ----------
         X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
         Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
         groups : placeholder
 
         Returns
@@ -451,7 +610,12 @@ class MeanCenteredPLS(BasePLS):
         Parameters
         ----------
         X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
         Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
         groups : placeholder
 
         Returns
@@ -490,6 +654,24 @@ class MeanCenteredPLS(BasePLS):
     def _boot_distrib(self, X, Y, V_boot):
         """
         Generates bootstrapped distribution for contrast
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
+        V_boot : (K x L x B) array_like
+            Bootstrapped values of the right singular vectors, where ``L`` is
+            the number of latent variables and ``B`` is the number of
+            bootstraps
+
+        Returns
+        -------
+        distrib : (G x L x B) np.ndarray
         """
 
         distrib = np.zeros(shape=(self.U.shape + (self.inputs.n_boot,)))
@@ -505,6 +687,16 @@ class MeanCenteredPLS(BasePLS):
     def _run_pls(self, X, Y):
         """
         Runs PLS analysis
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
         """
 
         # original singular vectors / values
