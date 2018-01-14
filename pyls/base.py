@@ -11,6 +11,15 @@ class PLSInputs():
 
     Parameters
     ----------
+    X : (N x K) array_like, optional
+        Input array, where ``N`` is the number of subjects and ``K`` is the
+        number of variables. Default: None
+    Y : (N x J) array_like
+        Input array, where ``N`` is the number of subjects and ``J`` is the
+        number of variables. Default: None
+    groups : (N,) array_like, optional
+        Array with labels separating ``N`` subjects into ``G`` groups. Default:
+        None
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -31,14 +40,13 @@ class PLSInputs():
         Seed for random number generator. Default: None
     """
 
-    def __init__(self, n_perm=5000, n_boot=1000, n_split=500,
-                 ci=95, n_proc=1, seed=None):
+    def __init__(self, X=None, Y=None, groups=None, n_perm=5000, n_boot=1000,
+                 n_split=500, ci=95, n_proc=1, seed=None):
+        self._X, self._Y, self._groups = X, Y, groups
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._ci = ci
         self._n_proc = n_proc
         self._seed = seed
-        # to be set at a later time and place
-        self._X, self._Y, self._groups = None, None, None
 
     @property
     def n_perm(self):
@@ -123,9 +131,11 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, n_perm=5000, n_boot=1000, n_split=500,
+    def __init__(self, X=None, Y=None, groups=None,
+                 n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
-        self.inputs = PLSInputs(n_perm=n_perm,
+        self.inputs = PLSInputs(X=X, Y=Y, groups=groups,
+                                n_perm=n_perm,
                                 n_boot=n_boot,
                                 n_split=n_split,
                                 ci=ci,

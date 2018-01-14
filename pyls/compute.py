@@ -79,26 +79,6 @@ def boot_rel(orig, boot):
     return bsr
 
 
-def boot_sig(boot):
-    """
-    Determines which entries of ``boot`` are significant via CI crossing
-
-    If CI crosses zero, then bootstrap value is not
-
-    Parameters
-    ----------
-    boot : (F x L x 2) array_like
-        One of the outputs of ``boot_ci()``
-
-    Returns
-    -------
-    (F,) ndarray
-        Boolean array
-    """
-
-    return np.sign(boot).sum(axis=-1).astype('bool')
-
-
 def crossblock_cov(singular):
     """
     Calculates cross-block covariance of ``singular`` values
@@ -119,28 +99,6 @@ def crossblock_cov(singular):
     squared_sing = np.diag(singular)**2
 
     return squared_sing / squared_sing.sum()
-
-
-def kaiser_criterion(singular):
-    """
-    Determines if variance explained by ``singular`` value > Kaiser criterion
-
-    Kaiser criterion is 1/# singular values. If cross-block covariance
-    explained by singular value exceeds criterion, return True; else, return
-    False.
-
-    Parameters
-    ----------
-    singular : (L x L) array_like
-        Diagonal matrix of singular values from original SVD
-
-    Returns
-    -------
-    (L,) np.ndarray
-        Boolean array detailing whether singular value passes Kaiser criterion
-    """
-
-    return crossblock_cov(singular) > (1 / (len(singular) + 1))
 
 
 def procrustes(original, permuted, singular):
