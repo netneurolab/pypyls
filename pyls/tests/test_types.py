@@ -4,67 +4,93 @@ import numpy as np
 import pytest
 import pyls
 
-brain    = 1000
+brain = 1000
 behavior = 100
-subj     = 20
-n_perm   = 50
-n_boot   = 10
-n_split  = 5
-seed     = 1234
+subj = 100
+n_perm = 50
+n_boot = 10
+n_split = 5
+seed = 1234
 
 np.random.rand(seed)
-behavmat  = np.random.rand(subj, behavior)
-braindata = np.random.rand(subj, brain)
-grouping  = np.hstack([[1] * int(np.ceil(subj / 2)),
-                       [2] * int(np.floor(subj / 2))])
+X = np.random.rand(subj, behavior)
+Y = np.random.rand(subj, brain)
+groups = np.hstack([[1] * int(np.ceil(subj / 2)),
+                    [2] * int(np.floor(subj / 2))])
 
-attrs = ['X', 'Y', 'groups',
+attrs = ['inputs',
          'U', 'd', 'V',
-         'd_pvals', 'd_kaiser', 'd_varexp',
-         'U_bci', 'V_bci',
-         'U_bsr', 'V_bsr',
-         'U_sig', 'V_sig']
+         'd_pvals', 'd_varexp',
+         'U_bsr', 'V_bsr']
 
 
-def test_behavioral_pls():
-    o1 = pyls.types.BehavioralPLS(braindata, behavmat,
+def test_BehavioralPLS():
+    o1 = pyls.types.BehavioralPLS(X, Y,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=None, seed=seed)
-    o2 = pyls.types.BehavioralPLS(behavmat, braindata,
+    o2 = pyls.types.BehavioralPLS(Y, X,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=None, seed=seed+1)
-    for f in attrs: assert hasattr(o1, f)
+    for f in attrs:
+        assert hasattr(o1, f)
 
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(behavmat[:, 0], braindata)
+        pyls.types.BehavioralPLS(Y[:, 0], X)
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(behavmat[:, 0], braindata[:, 0])
+        pyls.types.BehavioralPLS(Y[:, 0], X[:, 0])
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(behavmat[:-1], braindata)
+        pyls.types.BehavioralPLS(Y[:-1], X)
+    with pytest.raises(ValueError):
+        pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None])
 
-def test_group_behavioral_pls():
-    pyls.types.BehavioralPLS(braindata, behavmat, grouping=grouping,
+
+def test_BehavioralPLS_groups():
+    pyls.types.BehavioralPLS(X, Y, groups=groups,
                              n_perm=n_perm, n_boot=n_boot,
                              n_split=None,
                              seed=seed)
 
 
-def test_behavioral_split_half():
-    split_attrs = ['ucorr', 'vcorr', 'u_pvals', 'v_pvals']
+def test_BehavioralPLS_splithalf():
+    split_attrs = ['U_corr', 'V_corr', 'U_pvals', 'V_pvals']
 
-    o1 = pyls.types.BehavioralPLS(braindata, behavmat,
+    o1 = pyls.types.BehavioralPLS(X, Y,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=n_split, seed=seed)
-    o2 = pyls.types.BehavioralPLS(braindata, behavmat, grouping=grouping,
+    o2 = pyls.types.BehavioralPLS(X, Y, groups=groups,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=n_split, seed=seed)
-    for f in split_attrs: assert hasattr(o1, f)
+    for f in split_attrs:
+        assert hasattr(o1, f)
 
 
-def test_mean_center_pls():
-    o1 = pyls.types.MeanCenteredPLS(braindata, grouping,
+def test_MeanCenteredPLS():
+    o1 = pyls.types.MeanCenteredPLS(X, groups,
                                     n_perm=n_perm, n_boot=n_boot,
                                     n_split=None, seed=seed)
-    o2 = pyls.types.MeanCenteredPLS(braindata, grouping,
+    o2 = pyls.types.MeanCenteredPLS(X, groups,
                                     n_perm=n_perm, n_boot=n_boot,
-                                    n_split=n_split, seed=seed+1)
+                                    n_split=n_split, seed=seed)
+
+
+def test_duplicatesamp():
+    bpls = pyls.types.BehavioralPLS(X, Y, groups=groups,
+                                    n_perm=n_perm, n_boot=n_boot,
+                                    n_split=n_split, seed=seed)
+    mpls = pyls.types.MeanCenteredPLS(X, groups,
+                                      n_perm=n_perm, n_boot=n_boot,
+                                      n_split=n_split, seed=seed)
+
+    red_grp = np.array([1, 1, 2, 2])
+    with pytest.warns(UserWarning):
+        bpls._gen_permsamp(X[:4], Y[:4], groups=red_grp)
+    with pytest.warns(UserWarning):
+        bpls._gen_splits(X[:4], Y[:4], groups=red_grp)
+    with pytest.warns(UserWarning):
+        bpls._gen_bootsamp(X[:4], Y[:4], groups=red_grp)
+    with pytest.warns(UserWarning):
+        mpls._gen_permsamp(X[:4], pyls.utils.dummy_code(red_grp))
+    with pytest.warns(UserWarning):
+        mpls._gen_splits(X[:4], pyls.utils.dummy_code(red_grp))
+    with pytest.warns(UserWarning):
+        mpls._gen_bootsamp(X[:4], pyls.utils.dummy_code(red_grp))

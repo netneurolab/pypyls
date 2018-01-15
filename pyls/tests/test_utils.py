@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import os.path as op
 import numpy as np
 import pytest
 import pyls
@@ -29,9 +28,19 @@ def test_normalize():
 def test_xcorr():
     X = rs.rand(20, 200)
     Y = rs.rand(20, 25)
-    grouping = np.hstack([[1] * 10, [2] * 10])
+    groups = np.hstack([[1] * 10, [2] * 10])
 
     xcorr = pyls.utils.xcorr(X, Y)
     assert xcorr.shape == (25, 200)
-    xcorr = pyls.utils.xcorr(X, Y, grouping)
+    xcorr = pyls.utils.xcorr(X, Y, groups)
     assert xcorr.shape == (25 * 2, 200)
+
+
+def test_dummycode():
+    groups = np.hstack([[1] * 15,
+                        [2] * 15])
+    dummy = pyls.utils.dummy_code(groups)
+    for n, grp in enumerate(dummy.T.astype('bool'), 1):
+        assert np.all(groups[grp] == n)
+    rev = pyls.utils.reverse_dummy_code(dummy)
+    assert np.all(rev == groups)

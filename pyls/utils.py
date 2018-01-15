@@ -1,10 +1,29 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from scipy.stats import sem
+import tqdm
 
 
-def xcorr(X, Y, grouping=None):
+def trange(n_iter, **kwargs):
+    """
+    Wrapper for ``tqdm.trange`` with some default options set
+
+    Parameters
+    ----------
+    n_iter : int
+        Number of iterations for progress bar
+
+    Returns
+    -------
+    tqdm.tqdm instance
+    """
+
+    form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
+    return tqdm.trange(n_iter, ascii=True, leave=False,
+                       bar_format=form, **kwargs)
+
+
+def xcorr(X, Y, groups=None):
     """
     Calculates the cross-covariance matrix of ``X`` and ``Y``
 
@@ -12,8 +31,8 @@ def xcorr(X, Y, grouping=None):
     ----------
     X : (N x J) array_like
     Y : (N x K) array_like
-    grouping : (N,) array_like, optional
-        Grouping array, where ``len(np.unique(grouping))`` is the number of
+    groups : (N,) array_like, optional
+        Grouping array, where ``len(np.unique(groups))`` is the number of
         distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
         computed separately for each group and are stacked row-wise.
 
@@ -23,12 +42,12 @@ def xcorr(X, Y, grouping=None):
         Cross-covariance of ``X`` and ``Y``
     """
 
-    if grouping is None:
+    if groups is None:
         return _compute_xcorr(X, Y)
     else:
-        return np.row_stack([_compute_xcorr(X[grouping == grp],
-                                            Y[grouping == grp])
-                             for grp in np.unique(grouping)])
+        return np.row_stack([_compute_xcorr(X[groups == grp],
+                                            Y[groups == grp])
+                             for grp in np.unique(groups)])
 
 
 def _compute_xcorr(X, Y):
@@ -115,155 +134,6 @@ def normalize(X, axis=0):
     return normed
 
 
-def perm_sig(permuted_singular, orig_singular):
-    """
-    Calculates significance of ``orig_singular`` values
-
-    Compares amplitude of each singular value to distribution created via
-    permutation in ``permuted_singular``
-
-    Parameters
-    ----------
-    permuted_singular : (P x L) array_like
-        Distribution of singular values from permutation testing where ``P``
-        is the number of permutations and ``L`` is the number of components
-        from the SVD
-    orig_singular : (L x L) array_like
-        Diagonal matrix of singular values from original SVD
-
-    Returns
-    -------
-    pvals : (L,) np.ndarray
-        P-values of singular values from original SVD
-    """
-
-    pvals = np.zeros(len(orig_singular))
-    n_perm = len(permuted_singular)
-
-    for i in range(len(pvals)):
-        top_dist = np.argwhere(permuted_singular[:, i] > orig_singular[i, i])
-        pvals[i] = top_dist.size / n_perm
-
-    return pvals
-
-
-def boot_ci(U_boot, V_boot, ci=95):
-    """
-    Generates CI for bootstrapped values ``U_boot`` and ``V_boot``
-
-    Parameters
-    ----------
-    U_boot : (K[*G] x L x B) array_like
-    V_boot : (J x L x B) array_like
-    ci : (0, 100) float, optional
-        Confidence interval bounds to be calculated. Default: 95
-
-    Returns
-    -------
-    (K[*G] x L x 2) ndarray
-        Bounds of confidence interval for left singular vectors
-    (J x L x 2) array
-        Bounds of confidence interval for right singular vectors
-    """
-
-    low = (100 - ci) / 2
-    prc = [low, 100 - low]
-
-    U_ci = np.percentile(U_boot, prc, axis=2).transpose(1, 2, 0)
-    V_ci = np.percentile(V_boot, prc, axis=2).transpose(1, 2, 0)
-
-    return U_ci, V_ci
-
-
-def boot_rel(U_orig, V_orig, U_boot, V_boot):
-    """
-    Determines bootstrap ratios (BSR) of saliences from bootstrap distributions
-
-    Parameters
-    ----------
-    U_orig : (K[*G] x L) array_like
-    V_orig : (J x L) array_like
-    U_boot : (K[*G] x L x B) array_like
-    V_boot : (J x L x B) array_like
-
-    Returns
-    -------
-    (K[*G] x L) ndarray
-        Bootstrap ratios for left singular vectors
-    (J x L) ndarray
-        Bootstrap ratios for right singular vectors
-    """
-
-    U_rel = U_orig / sem(U_boot, axis=-1)
-    V_rel = V_orig / sem(V_boot, axis=-1)
-
-    return U_rel, V_rel
-
-
-def crossblock_cov(singular):
-    """
-    Calculates cross-block covariance of ``singular`` values
-
-    Cross-block covariances details amount of variance explained
-
-    Parameters
-    ----------
-    singular : (L x L) array_like
-        Diagonal matrix of singular values
-
-    Returns
-    -------
-    (L,) np.ndarray
-        Cross-block covariance
-    """
-
-    squared_sing = np.diag(singular)**2
-
-    return squared_sing / squared_sing.sum()
-
-
-def kaiser_criterion(singular):
-    """
-    Determines if variance explained by ``singular`` value > Kaiser criterion
-
-    Kaiser criterion is 1/# singular values. If cross-block covariance
-    explained by singular value exceeds criterion, return True; else, return
-    False.
-
-    Parameters
-    ----------
-    singular : (L x L) array_like
-        Diagonal matrix of singular values from original SVD
-
-    Returns
-    -------
-    (L,) np.ndarray
-        Boolean array detailing whether singular value passes Kaiser criterion
-    """
-
-    return crossblock_cov(singular) > (1 / len(singular))
-
-
-def boot_sig(boot):
-    """
-    Determines which entries of ``boot`` are significant via CI crossing
-
-    If CI crosses zero, then bootstrap value is not
-
-    Parameters
-    ----------
-    boot : (F x L x 2) array_like
-        One of the outputs of ``boot_ci()``
-
-    Returns
-    -------
-    (F,) ndarray
-        Boolean array
-    """
-
-    return np.sign(boot).sum(axis=-1).astype('bool')
-
-
 def get_seed(seed=None):
     """
     Determines type of ``seed`` and returns RandomState instance
@@ -290,22 +160,42 @@ def get_seed(seed=None):
     return np.random
 
 
-def dummy_code(grouping):
+def dummy_code(groups):
     """
-    Dummy codes ``grouping``
+    Dummy codes ``groups``
 
     Parameters
     ----------
-    grouping : (N,) array_like
+    groups : (N,) array_like
         Array with labels separating ``N`` subjects into ``G`` groups
 
     Returns
     -------
     Y : (N x G) np.ndarray
-        Dummy coded grouping array
+        Dummy coded groups array
     """
 
-    groups = np.unique(grouping)
-    Y = np.column_stack([(grouping==grp).astype(int) for grp in groups])
+    all_grps = np.unique(groups)
+    Y = np.column_stack([(groups == grp).astype(int) for grp in all_grps])
 
     return Y
+
+
+def reverse_dummy_code(Y):
+    """
+    Reverse engineers input of ``dummy_code()`` from outputs
+
+    Parameters
+    ----------
+    Y : (N x G) array_like
+        Dummy coded groups array
+
+    Returns
+    -------
+    groups : (N,) array_like
+        Array with labels separating ``N`` subjects into ``G`` groups
+    """
+
+    groups = np.row_stack([grp * n for n, grp in enumerate(Y.T, 1)]).sum(0)
+
+    return groups
