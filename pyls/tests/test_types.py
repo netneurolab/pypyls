@@ -71,3 +71,26 @@ def test_MeanCenteredPLS():
     o2 = pyls.types.MeanCenteredPLS(X, groups,
                                     n_perm=n_perm, n_boot=n_boot,
                                     n_split=n_split, seed=seed)
+
+
+def test_duplicatesamp():
+    bpls = pyls.types.BehavioralPLS(X, Y, groups=groups,
+                                    n_perm=n_perm, n_boot=n_boot,
+                                    n_split=n_split, seed=seed)
+    mpls = pyls.types.MeanCenteredPLS(X, groups,
+                                      n_perm=n_perm, n_boot=n_boot,
+                                      n_split=n_split, seed=seed)
+
+    red_grp = np.array([1, 1, 2, 2])
+    with pytest.warns(UserWarning):
+        bpls._gen_permsamp(X[:4], Y[:4], groups=red_grp)
+    with pytest.warns(UserWarning):
+        bpls._gen_splits(X[:4], Y[:4], groups=red_grp)
+    with pytest.warns(UserWarning):
+        bpls._gen_bootsamp(X[:4], Y[:4], groups=red_grp)
+    with pytest.warns(UserWarning):
+        mpls._gen_permsamp(X[:4], pyls.utils.dummy_code(red_grp))
+    with pytest.warns(UserWarning):
+        mpls._gen_splits(X[:4], pyls.utils.dummy_code(red_grp))
+    with pytest.warns(UserWarning):
+        mpls._gen_bootsamp(X[:4], pyls.utils.dummy_code(red_grp))

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import warnings
 import numpy as np
 from pyls.base import BasePLS
 from pyls import compute, utils
@@ -110,9 +111,11 @@ class BehavioralPLS(BasePLS):
 
     def __init__(self, brain, behav, groups=None, **kwargs):
         super(BehavioralPLS, self).__init__(**kwargs)
-        self.inputs._X, self.inputs._Y = brain, behav
-        self.inputs._groups = groups
-        self._run_pls(brain, behav, groups=groups)
+        self.inputs._X, self.inputs._Y = np.asarray(brain), np.asarray(behav)
+        if groups is not None:
+            self.inputs._groups = np.asarray(groups)
+        self._run_pls(self.inputs._X, self.inputs._Y,
+                      groups=self.inputs._groups)
 
     def _gen_covcorr(self, X, Y, groups=None):
         """
@@ -179,6 +182,7 @@ class BehavioralPLS(BasePLS):
 
         permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
         subj_inds = np.arange(len(X), dtype=int)
+        warned = False
 
         for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
             count, duplicated = 0, True
@@ -196,8 +200,9 @@ class BehavioralPLS(BasePLS):
                 dupe_seq = perm[:, None] == permsamp[:, :i]
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate permutations used.')
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate permutations used.')
+                warned = True
             permsamp[:, i] = perm
 
         return permsamp
@@ -226,6 +231,7 @@ class BehavioralPLS(BasePLS):
         bootsamp = np.zeros(shape=(len(X), self.inputs.n_boot), dtype=int)
         min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
         subj_inds = np.arange(len(X), dtype=int)
+        warned = False
 
         for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
             count, duplicated = 0, True
@@ -249,11 +255,12 @@ class BehavioralPLS(BasePLS):
                                                          size=subj_inds.size,
                                                          replace=True)
                 # make sure bootstrap is not a duplicated sequence
-                dupe_seq = np.sort(boot) == np.sort(bootsamp[:, :i], axis=0)
+                dupe_seq = np.sort(boot, axis=0) == np.sort(bootsamp[:, :i], axis=0)
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate boostraps used.')
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate bootstraps used.')
+                warned = True
             bootsamp[:, i] = boot.squeeze()
 
         return bootsamp
@@ -281,6 +288,7 @@ class BehavioralPLS(BasePLS):
 
         splitsamp = np.zeros(shape=(len(X), self.inputs.n_split), dtype=bool)
         subj_inds = np.arange(len(X), dtype=int)
+        warned = False
 
         for i in range(self.inputs.n_split):
             count, duplicated = 0, True
@@ -307,8 +315,9 @@ class BehavioralPLS(BasePLS):
                 dupe_seq = split == splitsamp[:, :i]
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate split halves used.')
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate split halves used.')
+                warned = True
             splitsamp[:, i] = split.squeeze()
 
         return splitsamp
@@ -475,8 +484,9 @@ class MeanCenteredPLS(BasePLS):
     def __init__(self, data, groups, **kwargs):
         super(MeanCenteredPLS, self).__init__(**kwargs)
         # for consistency, assign variables to X and Y
-        self.inputs._X, self.inputs._Y = data, utils.dummy_code(groups)
-        self.inputs._groups = groups
+        self.inputs._X = np.asarray(data)
+        self.inputs._Y = utils.dummy_code(groups)
+        self.inputs._groups = np.asarray(groups)
         # run analysis
         self._run_pls(self.inputs.X, self.inputs.Y)
 
@@ -531,6 +541,7 @@ class MeanCenteredPLS(BasePLS):
 
         permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
         subj_inds = np.arange(len(X), dtype=int)
+        warned = False
 
         for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
             count, duplicated = 0, True
@@ -547,8 +558,9 @@ class MeanCenteredPLS(BasePLS):
                 dupe_seq = perm[:, None] == permsamp[:, :i]
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate permutations used.')
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate permutations used.')
+                warned = True
             permsamp[:, i] = perm
 
         return permsamp
@@ -576,6 +588,7 @@ class MeanCenteredPLS(BasePLS):
         bootsamp = np.zeros(shape=(len(X), self.inputs.n_boot), dtype=int)
         min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
         subj_inds = np.arange(len(X), dtype=int)
+        warned = False
 
         for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
             count, duplicated = 0, True
@@ -594,11 +607,12 @@ class MeanCenteredPLS(BasePLS):
                         if np.unique(boot[curr_grp]).size >= min_subj:
                             all_same = False
                 # make sure bootstrap is not a duplicated sequence
-                dupe_seq = np.sort(boot) == np.sort(bootsamp[:, :i], axis=0)
+                dupe_seq = np.sort(boot, axis=0) == np.sort(bootsamp[:, :i], axis=0)
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate boostraps used.')
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate bootstraps used.')
+                warned = True
             bootsamp[:, i] = boot.squeeze()
 
         return bootsamp
@@ -625,6 +639,7 @@ class MeanCenteredPLS(BasePLS):
 
         splitsamp = np.zeros(shape=(len(X), self.inputs.n_split), dtype=bool)
         subj_inds = np.arange(len(X), dtype=int)
+        warned = False
 
         for i in range(self.inputs.n_split):
             count, duplicated = 0, True
@@ -645,8 +660,9 @@ class MeanCenteredPLS(BasePLS):
                 dupe_seq = split == splitsamp[:, :i]
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
-            if count == 500:
-                print('ERROR: Duplicate split halves used.')
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate split halves used.')
+                warned = True
             splitsamp[:, i] = split.squeeze()
 
         return splitsamp
