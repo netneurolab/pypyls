@@ -193,30 +193,3 @@ def dummy_code(grouping, n_conds=1):
         rstart += vals.shape[0]
 
     return Y
-
-
-def reverse_dummy_code(Y):
-    """
-    Reverse engineers input of ``dummy_code()`` from outputs
-
-    Parameters
-    ----------
-    Y : (N x G x C) array_like
-        Dummy coded groups array
-
-    Returns
-    -------
-    groups : (N,) array_like
-        Array with labels separating ``N`` subjects into ``G`` groups
-    n_cond : int
-        Number of conditions, for each subject
-    """
-
-    length, width = Y.shape
-    n_conds = width / (length / width)
-    grouping = []
-
-    for i, grp in enumerate(Y.T[0::n_conds]):
-        grouping.append(sum(grp))
-
-    return grouping, n_conds
