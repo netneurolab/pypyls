@@ -173,7 +173,7 @@ def dummy_code(grouping, n_conds=1):
 
     Returns
     -------
-    Y : (N x G) np.ndarray
+    Y : (N x G x C) np.ndarray
         Dummy coded groups array
     """
 
@@ -201,15 +201,22 @@ def reverse_dummy_code(Y):
 
     Parameters
     ----------
-    Y : (N x G) array_like
+    Y : (N x G x C) array_like
         Dummy coded groups array
 
     Returns
     -------
     groups : (N,) array_like
         Array with labels separating ``N`` subjects into ``G`` groups
+    n_cond : int
+        Number of conditions, for each subject
     """
 
-    groups = np.row_stack([grp * n for n, grp in enumerate(Y.T, 1)]).sum(0)
+    length, width = Y.shape
+    n_conds = width / (length / width)
+    grouping = []
 
-    return groups
+    for i, grp in enumerate(Y.T[0::n_conds]):
+        grouping.append(sum(grp))
+
+    return grouping, n_conds
