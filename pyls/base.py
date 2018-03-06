@@ -40,13 +40,20 @@ class PLSInputs():
         Seed for random number generator. Default: None
     """
 
-    def __init__(self, X=None, Y=None, groups=None, n_perm=5000, n_boot=1000,
-                 n_split=500, ci=95, n_proc=1, seed=None):
-        self._X, self._Y, self._groups = X, Y, groups
+    def __init__(self, X=None, Y=None, groups=None, n_cond=1,
+                 n_perm=5000, n_boot=1000, n_split=500,
+                 ci=95, n_proc=1, seed=None):
+        # important inputs
+        self._X, self._Y, self._groups, self._n_cond = X, Y, groups, n_cond
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._ci = ci
         self._n_proc = n_proc
         self._seed = seed
+
+    @property
+    def n_cond(self):
+        """Number of conditions"""
+        return self._n_cond
 
     @property
     def n_perm(self):
@@ -96,8 +103,15 @@ class PLSInputs():
 
 class BasePLS():
     """
+    Base PLS class
+
+    Implements most of the math required for PLS, leaving a few functions
+    for PLS sub-classes to implement.
+
     Parameters
     ----------
+    n_cond : int, optional
+        Number of conditions. Default: 1
     n_perm : int, optional
         Number of permutations to generate. Default: 5000
     n_boot : int, optional
@@ -131,10 +145,11 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, X=None, Y=None, groups=None,
+    def __init__(self, X=None, Y=None, groups=None, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
         self.inputs = PLSInputs(X=X, Y=Y, groups=groups,
+                                n_cond=n_cond,
                                 n_perm=n_perm,
                                 n_boot=n_boot,
                                 n_split=n_split,
@@ -268,10 +283,10 @@ class BasePLS():
             values and ``P`` is the number of permutations
         ucorrs : (L x P) np.ndarray
             Split-half correlations of left singular values. Only useful if
-            ``n_split != 0``
+            ``self.inputs.n_split != 0``
         vcorrs : (L x P) np.ndarray
             Split-half correlations of right singular values. Only useful if
-            ``n_split != 0``
+            ``self.inputs.n_split != 0``
         """
 
         # generate permuted indices

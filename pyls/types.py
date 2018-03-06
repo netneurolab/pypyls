@@ -110,7 +110,7 @@ class BehavioralPLS(BasePLS):
     """
 
     def __init__(self, brain, behav, groups=None, **kwargs):
-        super(BehavioralPLS, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.inputs._X, self.inputs._Y = np.asarray(brain), np.asarray(behav)
         if groups is not None:
             self.inputs._groups = np.asarray(groups)
@@ -383,8 +383,8 @@ class MeanCenteredPLS(BasePLS):
     data : (N x K) array_like
         Original data array where ``N`` is the number of subjects and ``K`` is
         the number of observations
-    groups : (N,) array_like
-        Array with labels separating ``N`` subjects into ``G`` groups
+    groups : (G,) list
+        List with number of subjects in each of ``G`` groups
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -482,10 +482,10 @@ class MeanCenteredPLS(BasePLS):
     """
 
     def __init__(self, data, groups, **kwargs):
-        super(MeanCenteredPLS, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         # for consistency, assign variables to X and Y
         self.inputs._X = np.asarray(data)
-        self.inputs._Y = utils.dummy_code(groups)
+        self.inputs._Y = utils.dummy_code(groups, self.inputs.n_cond)
         self.inputs._groups = np.asarray(groups)
         # run analysis
         self._run_pls(self.inputs.X, self.inputs.Y)
@@ -500,9 +500,10 @@ class MeanCenteredPLS(BasePLS):
             Input array, where ``N`` is the number of subjects and ``K`` is the
             number of variables.
         Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+            Dummy coded input array, where ``C`` is the number of subjects x
+            the number of conditions, and ``J`` corresponds to the number of
+            groups x conditions. A value of 1 indicates that a subject
+            condition (row) belongs to a specific condition group (column).
 
         Returns
         -------
@@ -530,8 +531,9 @@ class MeanCenteredPLS(BasePLS):
             number of variables.
         Y : (N x J) array_like
             Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+            ``J`` corresponds to the number of groups x conditions. A value of
+            1 indicates that a subject (row) belongs to a specific condition /
+            group (column).
         groups : placeholder
 
         Returns
@@ -540,28 +542,45 @@ class MeanCenteredPLS(BasePLS):
         """
 
         permsamp = np.zeros(shape=(len(X), self.inputs.n_perm), dtype=int)
-        subj_inds = np.arange(len(X), dtype=int)
+        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
         warned = False
+
+        # calculate some variables for permuting conditions within subject
+        # do this here to save on calculation time
+        indices, grps = np.where(Y)
+        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+        to_permute = [np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i in
+                      range(0, len(grp_conds), self.inputs.n_cond)]
+        splitinds = np.cumsum(self.inputs.groups)[:-1]
 
         for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
             count, duplicated = 0, True
             while duplicated and count < 500:
-                # initial permutation attempt
-                perm = self._rs.permutation(subj_inds)
                 count, duplicated = count + 1, False
-                # iterate through groups and ensure that we aren't just
-                # permuting subjects *within* any of the groups
-                for grp in Y.T.astype(bool):
+                # generate conditions permuted w/i subject
+                inds = np.hstack([utils.permute_cols(i, seed=self._rs) for i
+                                  in to_permute])
+                # generate permutation of subjects across groups
+                perm = self._rs.permutation(subj_inds)
+                # confirm subjects *are* mixed across groups
+                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
                     if np.all(np.sort(perm[grp]) == subj_inds[grp]):
                         duplicated = True
-                # make sure permutation is not a duplicated sequence
-                dupe_seq = perm[:, None] == permsamp[:, :i]
+                # permute conditions w/i subjects across groups and stack
+                perminds = np.hstack([f.flatten('F') for f in
+                                      np.split(inds[:, perm].T, splitinds)])
+                # make sure permuted indices are not a duplicate sequence
+                dupe_seq = perminds[:, None] == permsamp[:, :i]
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
+            # if we broke out because we tried 500 permutations and couldn't
+            # generate a new one, just warn that we're using duplicate
+            # permutations and give up
             if count == 500 and not warned:
                 warnings.warn('WARNING: Duplicate permutations used.')
                 warned = True
-            permsamp[:, i] = perm
+            # store the permuted indices
+            permsamp[:, i] = perminds
 
         return permsamp
 
@@ -574,10 +593,11 @@ class MeanCenteredPLS(BasePLS):
         X : (N x K) array_like
             Input array, where ``N`` is the number of subjects and ``K`` is the
             number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+        Y : (C x J) array_like
+            Dummy coded input array, where ``C`` is the number of subjects x
+            the number of conditions, and ``J`` corresponds to the number of
+            groups x conditions. A value of 1 indicates that a subject
+            condition (row) belongs to a specific condition group (column).
         groups : placeholder
 
         Returns
@@ -587,33 +607,50 @@ class MeanCenteredPLS(BasePLS):
 
         bootsamp = np.zeros(shape=(len(X), self.inputs.n_boot), dtype=int)
         min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
-        subj_inds = np.arange(len(X), dtype=int)
+        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
         warned = False
+
+        # calculate some variables for ensuring we resample with replacement
+        # subjects across all their conditions. do this here to save on
+        # calculation time
+        indices, grps = np.where(Y)
+        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+        inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
+                          in range(0, len(grp_conds), self.inputs.n_cond)])
+        splitinds = np.cumsum(self.inputs.groups)[:-1]
 
         for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
             count, duplicated = 0, True
             while duplicated and count < 500:
-                # empty container to store current bootstrap attempt
-                boot = np.zeros(shape=(subj_inds.size, 1), dtype=int)
                 count, duplicated = count + 1, False
+                # empty container to store current bootstrap attempt
+                boot = np.zeros(shape=(subj_inds.size), dtype=int)
                 # iterate through and resample from w/i groups
-                for grp in Y.T.astype(bool):
+                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
                     curr_grp, all_same = subj_inds[grp], True
                     while all_same:
-                        boot[curr_grp, 0] = self._rs.choice(curr_grp,
-                                                            size=curr_grp.size,
-                                                            replace=True)
+                        boot[curr_grp] = self._rs.choice(curr_grp,
+                                                         size=curr_grp.size,
+                                                         replace=True)
                         # make sure bootstrap has enough unique subjs
                         if np.unique(boot[curr_grp]).size >= min_subj:
                             all_same = False
+                # resample subjects (with conditions) and stack groups
+                bootinds = np.hstack([f.flatten('F') for f in
+                                      np.split(inds[:, boot].T, splitinds)])
                 # make sure bootstrap is not a duplicated sequence
-                dupe_seq = np.sort(boot, axis=0) == np.sort(bootsamp[:, :i], axis=0)
+                dupe_seq = (np.sort(bootinds[:, None], axis=0) ==
+                            np.sort(bootsamp[:, :i], axis=0))
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
+            # if we broke out because we tried 500 bootstraps and couldn't
+            # generate a new one, just warn that we're using duplicate
+            # bootstraps and give up
             if count == 500 and not warned:
                 warnings.warn('WARNING: Duplicate bootstraps used.')
                 warned = True
-            bootsamp[:, i] = boot.squeeze()
+            # store the bootstrapped indices
+            bootsamp[:, i] = bootinds
 
         return bootsamp
 
@@ -627,9 +664,10 @@ class MeanCenteredPLS(BasePLS):
             Input array, where ``N`` is the number of subjects and ``K`` is the
             number of variables.
         Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+            Dummy coded input array, where ``C`` is the number of subjects x
+            the number of conditions, and ``J`` corresponds to the number of
+            groups x conditions. A value of 1 indicates that a subject
+            condition (row) belongs to a specific condition group (column).
         groups : placeholder
 
         Returns
@@ -638,32 +676,44 @@ class MeanCenteredPLS(BasePLS):
         """
 
         splitsamp = np.zeros(shape=(len(X), self.inputs.n_split), dtype=bool)
-        subj_inds = np.arange(len(X), dtype=int)
+        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
         warned = False
+
+        # calculate some variables for permuting conditions within subject
+        # do this here to save on calculation time
+        indices, grps = np.where(Y)
+        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+        inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
+                          in range(0, len(grp_conds), self.inputs.n_cond)])
+        splitinds = np.cumsum(self.inputs.groups)[:-1]
 
         for i in range(self.inputs.n_split):
             count, duplicated = 0, True
             while duplicated and count < 500:
-                # empty containter to store current split half attempt
-                split = np.zeros(shape=(subj_inds.size, 1), dtype=bool)
                 count, duplicated = count + 1, False
+                # empty containter to store current split half attempt
+                split = np.zeros(shape=(subj_inds.size), dtype=bool)
                 # iterate through and split each group separately
-                for grp in Y.T.astype(bool):
+                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
                     curr_grp = subj_inds[grp]
                     take = self._rs.choice([np.ceil, np.floor])
-                    num_subj = int(take(np.sum(curr_grp.size)/2))
-                    inds = self._rs.choice(curr_grp,
-                                           size=num_subj,
-                                           replace=False)
-                    split[inds] = True
+                    num_subj = int(take(curr_grp.size/2))
+                    splinds = self._rs.choice(curr_grp,
+                                              size=num_subj,
+                                              replace=False)
+                    split[splinds] = True
+                # split subjects (with conditions) and stack groups
+                half = np.hstack([f.flatten('F') for f in
+                                  np.split((inds.astype(bool) * split[None]).T,
+                                           splitinds)])
                 # make sure split half is not a duplicated sequence
-                dupe_seq = split == splitsamp[:, :i]
+                dupe_seq = half[:, None] == splitsamp[:, :i]
                 if dupe_seq.all(axis=0).any():
                     duplicated = True
             if count == 500 and not warned:
                 warnings.warn('WARNING: Duplicate split halves used.')
                 warned = True
-            splitsamp[:, i] = split.squeeze()
+            splitsamp[:, i] = half
 
         return splitsamp
 

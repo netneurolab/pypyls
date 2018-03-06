@@ -160,36 +160,65 @@ def get_seed(seed=None):
     return np.random
 
 
-def dummy_code(grouping, n_conds=1):
+def dummy_code(groups, n_cond=1):
     """
     Dummy codes ``groups``
 
     Parameters
     ----------
-    grouping : list
-        List with number of ``N`` subjects in each of ``G`` groups
+    groups : (G,) list
+        List with number of subjects in each of ``G`` groups
     n_cond : int
         Number of conditions, for each subject
 
     Returns
     -------
     Y : (N x G x C) np.ndarray
-        Dummy coded groups array
+        Dummy coded group array
     """
 
-    length = sum(grouping) * n_conds
-    width = len(grouping) * n_conds
+    length = sum(groups) * n_cond
+    width = len(groups) * n_cond
     Y = np.zeros((length, width))
 
     cstart = 0  # starting index for columns
     rstart = 0  # starting index for rows
 
-    for i, grp in enumerate(grouping):
-        vals = np.repeat(np.eye(n_conds), grp).reshape(
-            (n_conds, n_conds * grp)).transpose()
-        Y[:, cstart:cstart + n_conds][rstart:rstart + grp * n_conds] = vals
+    for i, grp in enumerate(groups):
+        vals = np.repeat(np.eye(n_cond), grp).reshape(
+            (n_cond, n_cond * grp)).T
+        Y[:, cstart:cstart + n_cond][rstart:rstart + (grp * n_cond)] = vals
 
         cstart += vals.shape[1]
         rstart += vals.shape[0]
 
     return Y
+
+
+def permute_cols(x, seed=None):
+    """
+    Permutes the rows for each column in ``x`` separately
+
+    Taken directly from https://stackoverflow.com/a/27489131
+
+    Parameters
+    ----------
+    x : (N x M) array_like
+        Array to be permuted
+    seed : {int, RandomState instance, None}, optional
+        The seed of the pseudo random number generator to use when shuffling
+        the data.  If int, ``seed`` is the seed used by the random number
+        generator. If RandomState instance, ``seed`` is the random number
+        generator. If None, the random number generator is the RandomState
+        instance used by ``np.random``. Default: None
+
+    Returns
+    -------
+    permuted : np.ndarray
+        Permuted array
+    """
+
+    rs = get_seed(seed)
+    ix_i = rs.random_sample(x.shape).argsort(axis=0)
+    ix_j = np.tile(np.arange(x.shape[1]), (x.shape[0], 1))
+    return x[ix_i, ix_j]

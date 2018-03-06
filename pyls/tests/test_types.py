@@ -15,8 +15,7 @@ seed = 1234
 np.random.rand(seed)
 X = np.random.rand(subj, behavior)
 Y = np.random.rand(subj, brain)
-groups = np.hstack([[1] * int(np.ceil(subj / 2)),
-                    [2] * int(np.floor(subj / 2))])
+groups = [33, 34, 33]
 
 attrs = ['inputs',
          'U', 'd', 'V',
@@ -28,9 +27,9 @@ def test_BehavioralPLS():
     o1 = pyls.types.BehavioralPLS(X, Y,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=None, seed=seed)
-    o2 = pyls.types.BehavioralPLS(Y, X,
-                                  n_perm=n_perm, n_boot=n_boot,
-                                  n_split=None, seed=seed+1)
+    pyls.types.BehavioralPLS(Y, X,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=None, seed=seed+1)
     for f in attrs:
         assert hasattr(o1, f)
 
@@ -57,27 +56,31 @@ def test_BehavioralPLS_splithalf():
     o1 = pyls.types.BehavioralPLS(X, Y,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=n_split, seed=seed)
-    o2 = pyls.types.BehavioralPLS(X, Y, groups=groups,
-                                  n_perm=n_perm, n_boot=n_boot,
-                                  n_split=n_split, seed=seed)
+    pyls.types.BehavioralPLS(X, Y, groups=groups,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=n_split, seed=seed)
     for f in split_attrs:
         assert hasattr(o1, f)
 
 
 def test_MeanCenteredPLS():
-    o1 = pyls.types.MeanCenteredPLS(X, groups,
-                                    n_perm=n_perm, n_boot=n_boot,
-                                    n_split=None, seed=seed)
-    o2 = pyls.types.MeanCenteredPLS(X, groups,
-                                    n_perm=n_perm, n_boot=n_boot,
-                                    n_split=n_split, seed=seed)
+    pyls.types.MeanCenteredPLS(X, groups, n_cond=1,
+                               n_perm=n_perm, n_boot=n_boot,
+                               n_split=None, seed=seed)
+    pyls.types.MeanCenteredPLS(X, groups, n_cond=1,
+                               n_perm=n_perm, n_boot=n_boot,
+                               n_split=n_split, seed=seed)
+
+
+def test_MeanCenteredPLS_conditions():
+    pass
 
 
 def test_duplicatesamp():
     bpls = pyls.types.BehavioralPLS(X, Y, groups=groups,
                                     n_perm=n_perm, n_boot=n_boot,
                                     n_split=n_split, seed=seed)
-    mpls = pyls.types.MeanCenteredPLS(X, groups,
+    mpls = pyls.types.MeanCenteredPLS(X, groups, n_cond=1,
                                       n_perm=n_perm, n_boot=n_boot,
                                       n_split=n_split, seed=seed)
 
