@@ -160,42 +160,36 @@ def get_seed(seed=None):
     return np.random
 
 
-def dummy_code(groups):
+def dummy_code(grouping, n_conds=1):
     """
     Dummy codes ``groups``
 
     Parameters
     ----------
-    groups : (N,) array_like
-        Array with labels separating ``N`` subjects into ``G`` groups
+    grouping : list
+        List with number of ``N`` subjects in each of ``G`` groups
+    n_cond : int
+        Number of conditions, for each subject
 
     Returns
     -------
-    Y : (N x G) np.ndarray
+    Y : (N x G x C) np.ndarray
         Dummy coded groups array
     """
 
-    all_grps = np.unique(groups)
-    Y = np.column_stack([(groups == grp).astype(int) for grp in all_grps])
+    length = sum(grouping) * n_conds
+    width = len(grouping) * n_conds
+    Y = np.zeros((length, width))
+
+    cstart = 0  # starting index for columns
+    rstart = 0  # starting index for rows
+
+    for i, grp in enumerate(grouping):
+        vals = np.repeat(np.eye(n_conds), grp).reshape(
+            (n_conds, n_conds * grp)).transpose()
+        Y[:, cstart:cstart + n_conds][rstart:rstart + grp * n_conds] = vals
+
+        cstart += vals.shape[1]
+        rstart += vals.shape[0]
 
     return Y
-
-
-def reverse_dummy_code(Y):
-    """
-    Reverse engineers input of ``dummy_code()`` from outputs
-
-    Parameters
-    ----------
-    Y : (N x G) array_like
-        Dummy coded groups array
-
-    Returns
-    -------
-    groups : (N,) array_like
-        Array with labels separating ``N`` subjects into ``G`` groups
-    """
-
-    groups = np.row_stack([grp * n for n, grp in enumerate(Y.T, 1)]).sum(0)
-
-    return groups

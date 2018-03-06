@@ -42,5 +42,3 @@ def test_dummycode():
     dummy = pyls.utils.dummy_code(groups)
     for n, grp in enumerate(dummy.T.astype('bool'), 1):
         assert np.all(groups[grp] == n)
-    rev = pyls.utils.reverse_dummy_code(dummy)
-    assert np.all(rev == groups)
