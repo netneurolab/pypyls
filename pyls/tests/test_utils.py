@@ -37,8 +37,12 @@ def test_xcorr():
 
 
 def test_dummycode():
-    groups = np.hstack([[1] * 15,
-                        [2] * 15])
+    groups = [10, 12, 11]
     dummy = pyls.utils.dummy_code(groups)
-    for n, grp in enumerate(dummy.T.astype('bool'), 1):
-        assert np.all(groups[grp] == n)
+    assert dummy.shape == (np.sum(groups), len(groups))
+
+    for n, grp in enumerate(dummy.T.astype(bool)):
+        assert grp.sum() == groups[n]
+
+    dummy_cond = pyls.utils.dummy_code(groups, n_cond=3)
+    assert dummy_cond.shape == (np.sum(groups) * 3, len(groups) * 3)
