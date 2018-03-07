@@ -17,22 +17,65 @@ X = np.random.rand(subj, behavior)
 Y = np.random.rand(subj, brain)
 groups = [33, 34, 33]
 
-attrs = ['inputs',
-         'U', 'd', 'V',
-         'd_pvals', 'd_varexp',
-         'U_bsr', 'V_bsr']
+nosplit_attrs = ['inputs',
+                 'U', 'd', 'V',
+                 'd_pvals', 'd_varexp',
+                 'U_bsr', 'V_bsr']
+split_attrs = nosplit_attrs + ['U_corr', 'V_corr', 'U_pvals', 'V_pvals']
 
 
-def test_BehavioralPLS():
-    o1 = pyls.types.BehavioralPLS(X, Y,
-                                  n_perm=n_perm, n_boot=n_boot,
-                                  n_split=None, seed=seed)
-    pyls.types.BehavioralPLS(Y, X,
+def test_BehavioralPLS_onegroup_onecond():
+    # one group, one condition, without split-half resampling
+    nosplit = pyls.types.BehavioralPLS(X, Y,
+                                       n_perm=n_perm, n_boot=n_boot,
+                                       n_split=None, seed=seed)
+    # one group, one condition, with split-half resampling
+    split = pyls.types.BehavioralPLS(X, Y,
+                                     n_perm=n_perm, n_boot=n_boot,
+                                     n_split=n_split, seed=seed)
+
+    # ensure the outputs have appropriate attributes
+    for f in nosplit_attrs:
+        assert hasattr(nosplit, f)
+    for f in split_attrs:
+        assert hasattr(split, f)
+
+
+def test_BehavioralPLS_multigroup_onecond():
+    # multiple groups, one condition, without split-half resampling
+    pyls.types.BehavioralPLS(X, Y, groups=groups,
                              n_perm=n_perm, n_boot=n_boot,
-                             n_split=None, seed=seed+1)
-    for f in attrs:
-        assert hasattr(o1, f)
+                             n_split=None, seed=seed)
+    # multiple groups, one condition, with split-half resampling
+    pyls.types.BehavioralPLS(X, Y, groups=groups,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=n_split, seed=seed)
 
+
+def test_BehavioralPLS_onegroup_multicond():
+    # one group, multiple conditions, without split-half resampling
+    pyls.types.BehavioralPLS(X, Y, n_cond=4,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=None, seed=seed)
+    # one group, multiple conditions, with split-half resampling
+    pyls.types.BehavioralPLS(X, Y, n_cond=4,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=n_split, seed=seed)
+
+
+def test_BehavioralPLS_multigroup_multicond():
+    # multiple groups, multiple conditions, without split-half resampling
+    pyls.types.BehavioralPLS(X, Y, groups=[25, 25], n_cond=2,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=None, seed=seed)
+    # multiple groups, multiple conditions, with split-half resampling
+    pyls.types.BehavioralPLS(X, Y, groups=[25, 25], n_cond=2,
+                             n_perm=n_perm, n_boot=n_boot,
+                             n_split=n_split, seed=seed)
+
+
+def test_BehavioralPLS_errors():
+    # confirm errors in cross-covariance matrix calculations
     with pytest.raises(ValueError):
         pyls.types.BehavioralPLS(Y[:, 0], X)
     with pytest.raises(ValueError):
@@ -43,34 +86,40 @@ def test_BehavioralPLS():
         pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None])
 
 
-def test_BehavioralPLS_groups():
-    pyls.types.BehavioralPLS(X, Y, groups=groups,
-                             n_perm=n_perm, n_boot=n_boot,
-                             n_split=None,
-                             seed=seed)
+def test_MeanCenteredPLS_multigroup_onecond():
+    # multiple groups, one condition, without split-half resampling
+    nosplit = pyls.types.MeanCenteredPLS(X, groups,
+                                         n_perm=n_perm, n_boot=n_boot,
+                                         n_split=None, seed=seed)
+    # multiple groups, one condition, with split-half resampling
+    split = pyls.types.MeanCenteredPLS(X, groups,
+                                       n_perm=n_perm, n_boot=n_boot,
+                                       n_split=n_split, seed=seed)
 
-
-def test_BehavioralPLS_splithalf():
-    split_attrs = ['U_corr', 'V_corr', 'U_pvals', 'V_pvals']
-
-    o1 = pyls.types.BehavioralPLS(X, Y,
-                                  n_perm=n_perm, n_boot=n_boot,
-                                  n_split=n_split, seed=seed)
-    pyls.types.BehavioralPLS(X, Y, groups=groups,
-                             n_perm=n_perm, n_boot=n_boot,
-                             n_split=n_split, seed=seed)
+    # ensure the outputs have appropriate attributes
+    for f in nosplit_attrs:
+        assert hasattr(nosplit, f)
     for f in split_attrs:
-        assert hasattr(o1, f)
+        assert hasattr(split, f)
 
 
-def test_MeanCenteredPLS():
-    pyls.types.MeanCenteredPLS(X, groups, n_cond=1,
+def test_MeanCenteredPLS_onegroup_multicond():
+    # one group, multiple conditions, without split-half resampling
+    pyls.types.MeanCenteredPLS(X, [subj], n_cond=2,
                                n_perm=n_perm, n_boot=n_boot,
                                n_split=None, seed=seed)
-    pyls.types.MeanCenteredPLS(X, groups, n_cond=1,
+    # one group, multiple conditions, with split-half resampling
+    pyls.types.MeanCenteredPLS(X, [subj], n_cond=2,
                                n_perm=n_perm, n_boot=n_boot,
                                n_split=n_split, seed=seed)
 
 
-def test_MeanCenteredPLS_conditions():
-    pass
+def test_MeanCenteredPLS_multigroup_multicond():
+    # multiple groups, multiple conditions, without split-half resampling
+    pyls.types.MeanCenteredPLS(X, groups=[25, 25], n_cond=2,
+                               n_perm=n_perm, n_boot=n_boot,
+                               n_split=None, seed=seed)
+    # multiple groups, multiple conditions, with split-half resampling
+    pyls.types.MeanCenteredPLS(X, groups=[25, 25], n_cond=2,
+                               n_perm=n_perm, n_boot=n_boot,
+                               n_split=n_split, seed=seed)

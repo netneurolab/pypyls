@@ -12,17 +12,18 @@ n_split = 5
 seed = 1234
 groups = [50, 50]
 
-opts = dict(groups=groups,
-            n_cond=n_cond,
-            n_perm=n_perm,
-            n_boot=n_boot,
-            n_split=n_split,
-            ci=95,
-            n_proc=1,
-            seed=seed)
+np.random.rand(seed)
+X = np.random.rand(100, 1000)
+Y = np.random.rand(100, 100)
 
-attrs = ['n_perm', 'n_boot', 'n_split',
-         'ci', 'n_proc', 'seed', 'n_cond', 'groups']
+opts = dict(X=X, Y=Y,
+            groups=groups, n_cond=n_cond,
+            n_perm=n_perm, n_boot=n_boot, n_split=n_split,
+            ci=95, n_proc=1, seed=seed)
+
+attrs = ['X', 'Y', 'groups', 'n_cond',
+         'n_perm', 'n_boot', 'n_split',
+         'ci', 'n_proc', 'seed']
 
 
 def test_PLSInputs():

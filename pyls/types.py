@@ -110,12 +110,10 @@ class BehavioralPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, brain, behav, groups=None, **kwargs):
-        if groups is None:
-            groups = [len(brain)]
-        super().__init__(groups=np.asarray(groups), **kwargs)
-        self.inputs._X, self.inputs._Y = np.asarray(brain), np.asarray(behav)
-        self._run_pls(self.inputs._X, self.inputs._Y)
+    def __init__(self, brain, behav, groups=None, n_cond=1, **kwargs):
+        X, Y = np.asarray(brain), np.asarray(behav)
+        super().__init__(X=X, Y=Y, groups=groups, n_cond=n_cond, **kwargs)
+        self._run_pls(self.inputs.X, self.inputs.Y)
 
     def _gen_covcorr(self, X, Y, groups):
         """
@@ -148,7 +146,6 @@ class BehavioralPLS(BasePLS):
             raise ValueError('The first dimension of ``X`` and ``Y`` must '
                              'match.')
 
-        # TODO: fix for case of split half resampling
         if groups.shape[-1] == 1:
             cross_cov = utils.xcorr(utils.normalize(X),
                                     utils.normalize(Y))
@@ -319,11 +316,12 @@ class MeanCenteredPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, data, groups, **kwargs):
-        super().__init__(groups=np.asarray(groups), **kwargs)
+    def __init__(self, data, groups, n_cond=1, **kwargs):
+        super().__init__(X=np.asarray(data), groups=groups,
+                         n_cond=n_cond, **kwargs)
         # for consistency, assign variables to X and Y
-        self.inputs._X = np.asarray(data)
-        self.inputs._Y = utils.dummy_code(groups, self.inputs.n_cond)
+        self.inputs._Y = utils.dummy_code(self.inputs.groups,
+                                          self.inputs.n_cond)
         # run analysis
         self._run_pls(self.inputs.X, self.inputs.Y)
 
