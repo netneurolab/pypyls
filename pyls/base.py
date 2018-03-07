@@ -163,9 +163,20 @@ class BasePLS():
 
         raise NotImplementedError
 
-    def _gen_covcorr(self, *args, **kwargs):
+    def _gen_covcorr(self, X, Y, groups):
         """
         Generates cross-covariance array to be used in ``self._svd()``
+
+        Parameters
+        ----------
+        X : (N x M) array_like
+        Y : (N x F) array_like
+        groups : (N x Y) array_like, optional
+
+        Returns
+        -------
+        crosscov : np.ndarray
+            Covariance array for decomposition
         """
 
         raise NotImplementedError
@@ -185,8 +196,9 @@ class BasePLS():
         indices, grps = np.where(Y)
         grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
         to_permute = [np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i in
-                      range(0, len(grp_conds), self.inputs.n_cond)]
+                      range(0, Y.shape[-1], self.inputs.n_cond)]
         splitinds = np.cumsum(self.inputs.groups)[:-1]
+        check_grps = utils.dummy_code(self.inputs.groups).T.astype(bool)
 
         for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
             count, duplicated = 0, True
@@ -198,10 +210,10 @@ class BasePLS():
                 # generate permutation of subjects across groups
                 perm = self._rs.permutation(subj_inds)
                 # confirm subjects *are* mixed across groups
-                # TODO: fix for case of one group, one condition
-                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
-                    if np.all(np.sort(perm[grp]) == subj_inds[grp]):
-                        duplicated = True
+                if len(self.inputs.groups) > 1:
+                    for grp in check_grps:
+                        if np.all(np.sort(perm[grp]) == subj_inds[grp]):
+                            duplicated = True
                 # permute conditions w/i subjects across groups and stack
                 perminds = np.hstack([f.flatten('F') for f in
                                       np.split(inds[:, perm].T, splitinds)])
@@ -228,7 +240,7 @@ class BasePLS():
         Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         bootsamp = np.zeros(shape=(len(Y), self.inputs.n_boot), dtype=int)
         min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
-        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
+        subj_inds = np.arange(np.sum(self.inputs.groups), dtype=int)
         warned = False
 
         # calculate some variables for ensuring we resample with replacement
@@ -239,6 +251,7 @@ class BasePLS():
         inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
                           in range(0, len(grp_conds), self.inputs.n_cond)])
         splitinds = np.cumsum(self.inputs.groups)[:-1]
+        check_grps = utils.dummy_code(self.inputs.groups).T.astype(bool)
 
         for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
             count, duplicated = 0, True
@@ -247,7 +260,7 @@ class BasePLS():
                 # empty container to store current bootstrap attempt
                 boot = np.zeros(shape=(subj_inds.size), dtype=int)
                 # iterate through and resample from w/i groups
-                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
+                for grp in check_grps:
                     curr_grp, all_same = subj_inds[grp], True
                     while all_same:
                         boot[curr_grp] = self._rs.choice(curr_grp,
@@ -275,14 +288,14 @@ class BasePLS():
 
         return bootsamp
 
-    def _gen_splits(self, *args, **kwargs):
+    def _gen_splits(self):
         """
         Generates split-half arrays to be used in ``self._split_half()``
         """
 
         Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         splitsamp = np.zeros(shape=(len(Y), self.inputs.n_split), dtype=bool)
-        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
+        subj_inds = np.arange(np.sum(self.inputs.groups), dtype=int)
         warned = False
 
         # calculate some variables for permuting conditions within subject
@@ -292,6 +305,7 @@ class BasePLS():
         inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
                           in range(0, len(grp_conds), self.inputs.n_cond)])
         splitinds = np.cumsum(self.inputs.groups)[:-1]
+        check_grps = utils.dummy_code(self.inputs.groups).T.astype(bool)
 
         for i in range(self.inputs.n_split):
             count, duplicated = 0, True
@@ -300,7 +314,7 @@ class BasePLS():
                 # empty containter to store current split half attempt
                 split = np.zeros(shape=(subj_inds.size), dtype=bool)
                 # iterate through and split each group separately
-                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
+                for grp in check_grps:
                     curr_grp = subj_inds[grp]
                     take = self._rs.choice([np.ceil, np.floor])
                     num_subj = int(take(curr_grp.size/2))
@@ -346,7 +360,9 @@ class BasePLS():
             Right singular vectors
         """
 
-        crosscov = self._gen_covcorr(X, Y)
+        crosscov = self._gen_covcorr(X, Y,
+                                     utils.dummy_code(self.inputs.groups,
+                                                      self.inputs.n_cond))
         U, d, V = randomized_svd(crosscov,
                                  n_components=Y.shape[-1]-1,
                                  random_state=utils.get_seed(seed))
@@ -487,9 +503,13 @@ class BasePLS():
         vcorr = np.zeros(shape=(vd.shape[-1], self.inputs.n_split))
 
         for i in range(self.inputs.n_split):
-            split = splitsamp[:, i]
-            D1 = self._gen_covcorr(X[split], Y[split])
-            D2 = self._gen_covcorr(X[~split], Y[~split])
+            spl = splitsamp[:, i]
+            D1 = self._gen_covcorr(X[spl], Y[spl],
+                                   utils.dummy_code(self.inputs.groups,
+                                                    self.inputs.n_cond)[spl])
+            D2 = self._gen_covcorr(X[~spl], Y[~spl],
+                                   utils.dummy_code(self.inputs.groups,
+                                                    self.inputs.n_cond)[~spl])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector

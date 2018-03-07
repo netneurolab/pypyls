@@ -24,23 +24,23 @@ attrs = ['inputs',
 
 
 def test_BehavioralPLS():
-    o1 = pyls.types.BehavioralPLS(X, Y, groups=[subj],
+    o1 = pyls.types.BehavioralPLS(X, Y,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=None, seed=seed)
-    pyls.types.BehavioralPLS(Y, X, groups=[subj],
+    pyls.types.BehavioralPLS(Y, X,
                              n_perm=n_perm, n_boot=n_boot,
                              n_split=None, seed=seed+1)
     for f in attrs:
         assert hasattr(o1, f)
 
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:, 0], X, [subj])
+        pyls.types.BehavioralPLS(Y[:, 0], X)
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:, 0], X[:, 0], [subj])
+        pyls.types.BehavioralPLS(Y[:, 0], X[:, 0])
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:-1], X, [subj])
+        pyls.types.BehavioralPLS(Y[:-1], X)
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None], [subj])
+        pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None])
 
 
 def test_BehavioralPLS_groups():
@@ -53,7 +53,7 @@ def test_BehavioralPLS_groups():
 def test_BehavioralPLS_splithalf():
     split_attrs = ['U_corr', 'V_corr', 'U_pvals', 'V_pvals']
 
-    o1 = pyls.types.BehavioralPLS(X, Y, groups=[subj],
+    o1 = pyls.types.BehavioralPLS(X, Y,
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=n_split, seed=seed)
     pyls.types.BehavioralPLS(X, Y, groups=groups,
