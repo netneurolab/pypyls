@@ -35,11 +35,11 @@ class PLSInputs():
         Seed for random number generator. Default: None
     """
 
-    def __init__(self, groups=None, n_cond=1,
+    def __init__(self, X=None, Y=None, groups=None, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
         # important inputs
-        self._X, self._Y = None, None
+        self._X, self._Y = X, Y
         self._groups, self._n_cond = groups, n_cond
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._ci = ci
@@ -143,17 +143,19 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, groups, n_cond=1,
+    def __init__(self, X, Y=None, groups=None, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
-        self.inputs = PLSInputs(groups=groups,
-                                n_cond=n_cond,
-                                n_perm=n_perm,
-                                n_boot=n_boot,
-                                n_split=n_split,
-                                ci=ci,
-                                n_proc=n_proc,
-                                seed=seed)
+        # if groups aren't provided but conditions are, use groups instead
+        # otherwise, just get number of subjects
+        if groups is None:
+            groups = [len(X)]
+        if len(groups) == 1 and n_cond > 1:
+            groups, n_cond = [len(X) // n_cond] * n_cond, 1
+        self.inputs = PLSInputs(X=X, Y=Y,
+                                groups=groups, n_cond=n_cond,
+                                n_perm=n_perm, n_boot=n_boot, n_split=n_split,
+                                ci=ci, n_proc=n_proc, seed=seed)
         self._rs = utils.get_seed(self.inputs.seed)
 
     def _run_pls(self, *args, **kwargs):
