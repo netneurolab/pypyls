@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import warnings
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from pyls import compute, utils
@@ -11,12 +12,6 @@ class PLSInputs():
 
     Parameters
     ----------
-    X : (N x K) array_like, optional
-        Input array, where ``N`` is the number of subjects and ``K`` is the
-        number of variables. Default: None
-    Y : (N x J) array_like
-        Input array, where ``N`` is the number of subjects and ``J`` is the
-        number of variables. Default: None
     groups : (N,) array_like, optional
         Array with labels separating ``N`` subjects into ``G`` groups. Default:
         None
@@ -40,11 +35,12 @@ class PLSInputs():
         Seed for random number generator. Default: None
     """
 
-    def __init__(self, X=None, Y=None, groups=None, n_cond=1,
+    def __init__(self, groups=None, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
         # important inputs
-        self._X, self._Y, self._groups, self._n_cond = X, Y, groups, n_cond
+        self._X, self._Y = None, None
+        self._groups, self._n_cond = groups, n_cond
         self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
         self._ci = ci
         self._n_proc = n_proc
@@ -110,6 +106,8 @@ class BasePLS():
 
     Parameters
     ----------
+    groups : (G,) list
+        List with number of subjects in each of ``G`` groups.
     n_cond : int, optional
         Number of conditions. Default: 1
     n_perm : int, optional
@@ -145,10 +143,10 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, X=None, Y=None, groups=None, n_cond=1,
+    def __init__(self, groups, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
-        self.inputs = PLSInputs(X=X, Y=Y, groups=groups,
+        self.inputs = PLSInputs(groups=groups,
                                 n_cond=n_cond,
                                 n_perm=n_perm,
                                 n_boot=n_boot,
@@ -172,28 +170,160 @@ class BasePLS():
 
         raise NotImplementedError
 
-    def _gen_permsamp(self, *args, **kwargs):
+    def _gen_permsamp(self):
         """
         Generates permutation arrays to be used in ``self._permutation()``
         """
 
-        raise NotImplementedError
+        Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        permsamp = np.zeros(shape=(len(Y), self.inputs.n_perm), dtype=int)
+        subj_inds = np.arange(np.sum(self.inputs.groups), dtype=int)
+        warned = False
 
-    def _gen_bootsamp(self, *args, **kwargs):
+        # calculate some variables for permuting conditions within subject
+        # do this here to save on calculation time
+        indices, grps = np.where(Y)
+        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+        to_permute = [np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i in
+                      range(0, len(grp_conds), self.inputs.n_cond)]
+        splitinds = np.cumsum(self.inputs.groups)[:-1]
+
+        for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                count, duplicated = count + 1, False
+                # generate conditions permuted w/i subject
+                inds = np.hstack([utils.permute_cols(i, seed=self._rs) for i
+                                  in to_permute])
+                # generate permutation of subjects across groups
+                perm = self._rs.permutation(subj_inds)
+                # confirm subjects *are* mixed across groups
+                # TODO: fix for case of one group, one condition
+                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
+                    if np.all(np.sort(perm[grp]) == subj_inds[grp]):
+                        duplicated = True
+                # permute conditions w/i subjects across groups and stack
+                perminds = np.hstack([f.flatten('F') for f in
+                                      np.split(inds[:, perm].T, splitinds)])
+                # make sure permuted indices are not a duplicate sequence
+                dupe_seq = perminds[:, None] == permsamp[:, :i]
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            # if we broke out because we tried 500 permutations and couldn't
+            # generate a new one, just warn that we're using duplicate
+            # permutations and give up
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate permutations used.')
+                warned = True
+            # store the permuted indices
+            permsamp[:, i] = perminds
+
+        return permsamp
+
+    def _gen_bootsamp(self):
         """
         Generates bootstrap arrays to be used in ``self._bootstrap()``
         """
 
-        raise NotImplementedError
+        Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        bootsamp = np.zeros(shape=(len(Y), self.inputs.n_boot), dtype=int)
+        min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
+        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
+        warned = False
+
+        # calculate some variables for ensuring we resample with replacement
+        # subjects across all their conditions. do this here to save on
+        # calculation time
+        indices, grps = np.where(Y)
+        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+        inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
+                          in range(0, len(grp_conds), self.inputs.n_cond)])
+        splitinds = np.cumsum(self.inputs.groups)[:-1]
+
+        for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                count, duplicated = count + 1, False
+                # empty container to store current bootstrap attempt
+                boot = np.zeros(shape=(subj_inds.size), dtype=int)
+                # iterate through and resample from w/i groups
+                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
+                    curr_grp, all_same = subj_inds[grp], True
+                    while all_same:
+                        boot[curr_grp] = self._rs.choice(curr_grp,
+                                                         size=curr_grp.size,
+                                                         replace=True)
+                        # make sure bootstrap has enough unique subjs
+                        if np.unique(boot[curr_grp]).size >= min_subj:
+                            all_same = False
+                # resample subjects (with conditions) and stack groups
+                bootinds = np.hstack([f.flatten('F') for f in
+                                      np.split(inds[:, boot].T, splitinds)])
+                # make sure bootstrap is not a duplicated sequence
+                dupe_seq = (np.sort(bootinds[:, None], axis=0) ==
+                            np.sort(bootsamp[:, :i], axis=0))
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            # if we broke out because we tried 500 bootstraps and couldn't
+            # generate a new one, just warn that we're using duplicate
+            # bootstraps and give up
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate bootstraps used.')
+                warned = True
+            # store the bootstrapped indices
+            bootsamp[:, i] = bootinds
+
+        return bootsamp
 
     def _gen_splits(self, *args, **kwargs):
         """
         Generates split-half arrays to be used in ``self._split_half()``
         """
 
-        raise NotImplementedError
+        Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        splitsamp = np.zeros(shape=(len(Y), self.inputs.n_split), dtype=bool)
+        subj_inds = np.arange(np.sum(Y) / self.inputs.n_cond, dtype=int)
+        warned = False
 
-    def _svd(self, X, Y, seed=None, groups=None):
+        # calculate some variables for permuting conditions within subject
+        # do this here to save on calculation time
+        indices, grps = np.where(Y)
+        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+        inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
+                          in range(0, len(grp_conds), self.inputs.n_cond)])
+        splitinds = np.cumsum(self.inputs.groups)[:-1]
+
+        for i in range(self.inputs.n_split):
+            count, duplicated = 0, True
+            while duplicated and count < 500:
+                count, duplicated = count + 1, False
+                # empty containter to store current split half attempt
+                split = np.zeros(shape=(subj_inds.size), dtype=bool)
+                # iterate through and split each group separately
+                for grp in utils.dummy_code(self.inputs.groups).T.astype(bool):
+                    curr_grp = subj_inds[grp]
+                    take = self._rs.choice([np.ceil, np.floor])
+                    num_subj = int(take(curr_grp.size/2))
+                    splinds = self._rs.choice(curr_grp,
+                                              size=num_subj,
+                                              replace=False)
+                    split[splinds] = True
+                # split subjects (with conditions) and stack groups
+                half = np.hstack([f.flatten('F') for f in
+                                  np.split((inds.astype(bool) * split[None]).T,
+                                           splitinds)])
+                # make sure split half is not a duplicated sequence
+                dupe_seq = half[:, None] == splitsamp[:, :i]
+                if dupe_seq.all(axis=0).any():
+                    duplicated = True
+            if count == 500 and not warned:
+                warnings.warn('WARNING: Duplicate split halves used.')
+                warned = True
+            splitsamp[:, i] = half
+
+        return splitsamp
+
+    def _svd(self, X, Y, seed=None):
         """
         Runs SVD on cross-covariance matrix computed from ``X`` and ``Y``
 
@@ -205,9 +335,6 @@ class BasePLS():
         Y : (N x J) array_like
             Input array, where ``N`` is the number of subjects and ``J`` is The
             number of variables
-        groups : placeholder
-            Grouping array, where ``len(np.unique(groups))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
@@ -219,14 +346,14 @@ class BasePLS():
             Right singular vectors
         """
 
-        crosscov = self._gen_covcorr(X, Y, groups=groups)
+        crosscov = self._gen_covcorr(X, Y)
         U, d, V = randomized_svd(crosscov,
                                  n_components=Y.shape[-1]-1,
                                  random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T
 
-    def _bootstrap(self, X, Y, groups=None):
+    def _bootstrap(self, X, Y):
         """
         Bootstraps ``X`` and ``Y`` (w/replacement) and recomputes SVD
 
@@ -234,9 +361,6 @@ class BasePLS():
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        groups : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(groups))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
@@ -247,24 +371,22 @@ class BasePLS():
         """
 
         # generate bootstrap resampled indices
-        self.bootsamp = self._gen_bootsamp(X, Y, groups=groups)
+        self.bootsamp = self._gen_bootsamp()
 
         # get original values
-        U_orig, d_orig, V_orig = self._svd(X, Y, groups=groups,
-                                           seed=self._rs)
+        U_orig, d_orig, V_orig = self._svd(X, Y, seed=self._rs)
         U_boot = np.zeros(shape=U_orig.shape + (self.inputs.n_boot,))
         V_boot = np.zeros(shape=V_orig.shape + (self.inputs.n_boot,))
 
         for i in utils.trange(self.inputs.n_boot, desc='Running bootstraps'):
             inds = self.bootsamp[:, i]
-            U, d, V = self._svd(X[inds], Y[inds], groups=groups,
-                                seed=self._rs)
+            U, d, V = self._svd(X[inds], Y[inds], seed=self._rs)
             U_boot[:, :, i], rotate = compute.procrustes(U_orig, U, d)
             V_boot[:, :, i] = V @ d @ rotate
 
         return U_boot, V_boot
 
-    def _permutation(self, X, Y, groups=None):
+    def _permutation(self, X, Y):
         """
         Permutes ``X`` and ``Y`` (w/o replacement) and recomputes SVD
 
@@ -272,9 +394,6 @@ class BasePLS():
         ----------
         X : (N x K [x G]) array_like
         Y : (N x J [x G]) array_like
-        groups : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(groups))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
@@ -290,11 +409,10 @@ class BasePLS():
         """
 
         # generate permuted indices
-        self.permsamp = self._gen_permsamp(X, Y, groups=groups)
+        self.permsamp = self._gen_permsamp()
 
         # get original values
-        U_orig, d_orig, V_orig = self._svd(X, Y, groups=groups,
-                                           seed=self._rs)
+        U_orig, d_orig, V_orig = self._svd(X, Y, seed=self._rs)
 
         d_perm = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
         ucorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
@@ -302,14 +420,14 @@ class BasePLS():
 
         for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
             inds = self.permsamp[:, i]
-            outputs = self._single_perm(X[inds], Y, groups=groups)
+            outputs = self._single_perm(X[inds], Y)
             d_perm[:, i] = outputs[0]
             if self.inputs.n_split is not None:
                 ucorrs[:, i], vcorrs[:, i] = outputs[1:]
 
         return d_perm, ucorrs, vcorrs
 
-    def _single_perm(self, X, Y, groups=None):
+    def _single_perm(self, X, Y):
         """
         Permutes ``X`` (w/o replacement) and computes SVD of cross-corr matrix
 
@@ -317,9 +435,6 @@ class BasePLS():
         ----------
         X : (N x K) array_like
         Y : (N x J) array_like
-        groups : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(groups))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
@@ -334,20 +449,20 @@ class BasePLS():
         """
 
         # perform SVD of permuted array and get sum of squared singular values
-        U, d, V = self._svd(X, Y, groups=groups, seed=self._rs)
+        U, d, V = self._svd(X, Y, seed=self._rs)
         ssd = np.sqrt((d**2).sum(axis=0))
 
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
             di = np.linalg.inv(d)
             ud, vd = U @ di, V @ di
-            ucorr, vcorr = self._split_half(X, Y, ud, vd, groups=groups)
+            ucorr, vcorr = self._split_half(X, Y, ud, vd)
         else:
             ucorr, vcorr = None, None
 
         return ssd, ucorr, vcorr
 
-    def _split_half(self, X, Y, ud, vd, groups=None):
+    def _split_half(self, X, Y, ud, vd):
         """
         Parameters
         ----------
@@ -355,9 +470,6 @@ class BasePLS():
         Y : (N x J) array_like
         ud : (K[*G] x L) array_like
         vd : (J x L) array_like
-        groups : (N,) array_like, optional
-            Grouping array, where ``len(np.unique(groups))`` is the number of
-            distinct groups in ``X`` and ``Y``. Default: None
 
         Returns
         -------
@@ -368,7 +480,7 @@ class BasePLS():
         """
 
         # generate splits
-        splitsamp = self._gen_splits(X, Y, groups=groups)
+        splitsamp = self._gen_splits()
 
         # empty arrays to hold split-half correlations
         ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
@@ -376,12 +488,8 @@ class BasePLS():
 
         for i in range(self.inputs.n_split):
             split = splitsamp[:, i]
-            if groups is not None:
-                D1 = self._gen_covcorr(X[split], Y[split], groups[split])
-                D2 = self._gen_covcorr(X[~split], Y[~split], groups[~split])
-            else:
-                D1 = self._gen_covcorr(X[split], Y[split])
-                D2 = self._gen_covcorr(X[~split], Y[~split])
+            D1 = self._gen_covcorr(X[split], Y[split])
+            D2 = self._gen_covcorr(X[~split], Y[~split])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector

@@ -24,23 +24,23 @@ attrs = ['inputs',
 
 
 def test_BehavioralPLS():
-    o1 = pyls.types.BehavioralPLS(X, Y,
+    o1 = pyls.types.BehavioralPLS(X, Y, groups=[subj],
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=None, seed=seed)
-    pyls.types.BehavioralPLS(Y, X,
+    pyls.types.BehavioralPLS(Y, X, groups=[subj],
                              n_perm=n_perm, n_boot=n_boot,
                              n_split=None, seed=seed+1)
     for f in attrs:
         assert hasattr(o1, f)
 
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:, 0], X)
+        pyls.types.BehavioralPLS(Y[:, 0], X, [subj])
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:, 0], X[:, 0])
+        pyls.types.BehavioralPLS(Y[:, 0], X[:, 0], [subj])
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:-1], X)
+        pyls.types.BehavioralPLS(Y[:-1], X, [subj])
     with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None])
+        pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None], [subj])
 
 
 def test_BehavioralPLS_groups():
@@ -53,7 +53,7 @@ def test_BehavioralPLS_groups():
 def test_BehavioralPLS_splithalf():
     split_attrs = ['U_corr', 'V_corr', 'U_pvals', 'V_pvals']
 
-    o1 = pyls.types.BehavioralPLS(X, Y,
+    o1 = pyls.types.BehavioralPLS(X, Y, groups=[subj],
                                   n_perm=n_perm, n_boot=n_boot,
                                   n_split=n_split, seed=seed)
     pyls.types.BehavioralPLS(X, Y, groups=groups,
@@ -74,26 +74,3 @@ def test_MeanCenteredPLS():
 
 def test_MeanCenteredPLS_conditions():
     pass
-
-
-def test_duplicatesamp():
-    bpls = pyls.types.BehavioralPLS(X, Y, groups=groups,
-                                    n_perm=n_perm, n_boot=n_boot,
-                                    n_split=n_split, seed=seed)
-    mpls = pyls.types.MeanCenteredPLS(X, groups, n_cond=1,
-                                      n_perm=n_perm, n_boot=n_boot,
-                                      n_split=n_split, seed=seed)
-
-    red_grp = np.array([1, 1, 2, 2])
-    with pytest.warns(UserWarning):
-        bpls._gen_permsamp(X[:4], Y[:4], groups=red_grp)
-    with pytest.warns(UserWarning):
-        bpls._gen_splits(X[:4], Y[:4], groups=red_grp)
-    with pytest.warns(UserWarning):
-        bpls._gen_bootsamp(X[:4], Y[:4], groups=red_grp)
-    with pytest.warns(UserWarning):
-        mpls._gen_permsamp(X[:4], pyls.utils.dummy_code(red_grp))
-    with pytest.warns(UserWarning):
-        mpls._gen_splits(X[:4], pyls.utils.dummy_code(red_grp))
-    with pytest.warns(UserWarning):
-        mpls._gen_bootsamp(X[:4], pyls.utils.dummy_code(red_grp))
