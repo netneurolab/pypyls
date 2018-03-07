@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import warnings
 import numpy as np
 from pyls.base import BasePLS
 from pyls import compute, utils
@@ -29,6 +28,8 @@ class BehavioralPLS(BasePLS):
     groups : (N,) array_like, optional
         Array with labels separating ``N`` subjects into ``G`` groups. Default:
         None (only one group)
+    n_cond : int, optional
+        Number of conditions. Default: 1
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -109,12 +110,14 @@ class BehavioralPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, brain, behav, groups, **kwargs):
+    def __init__(self, brain, behav, groups=None, **kwargs):
+        if groups is None:
+            groups = [len(brain)]
         super().__init__(groups=np.asarray(groups), **kwargs)
         self.inputs._X, self.inputs._Y = np.asarray(brain), np.asarray(behav)
         self._run_pls(self.inputs._X, self.inputs._Y)
 
-    def _gen_covcorr(self, X, Y):
+    def _gen_covcorr(self, X, Y, groups):
         """
         Computes cross-covariance matrix from ``X`` and ``Y``
 
@@ -146,11 +149,10 @@ class BehavioralPLS(BasePLS):
                              'match.')
 
         # TODO: fix for case of split half resampling
-        if self.inputs.groups.size == 1:
+        if groups.shape[-1] == 1:
             cross_cov = utils.xcorr(utils.normalize(X),
                                     utils.normalize(Y))
         else:
-            groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
             cross_cov = [utils.xcorr(utils.normalize(X[grp]),
                                      utils.normalize(Y[grp]))
                          for grp in groups.T.astype(bool)]
@@ -219,6 +221,8 @@ class MeanCenteredPLS(BasePLS):
         the number of observations
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
+    n_cond : int, optional
+        Number of conditions. Default: 1
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -323,7 +327,7 @@ class MeanCenteredPLS(BasePLS):
         # run analysis
         self._run_pls(self.inputs.X, self.inputs.Y)
 
-    def _gen_covcorr(self, X, Y):
+    def _gen_covcorr(self, X, Y, groups=None):
         """
         Computes mean-centered matrix from ``X`` and ``Y``
 
