@@ -38,3 +38,8 @@ def test_BasePLS():
     for key in attrs:
         assert hasattr(basepls.inputs, key)
         assert np.all(getattr(basepls.inputs, key) == opts[key])
+
+    with pytest.raises(NotImplementedError):
+        basepls._run_pls()
+    with pytest.raises(NotImplementedError):
+        basepls._gen_covcorr(X, Y, groups)
