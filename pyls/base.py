@@ -41,7 +41,10 @@ class PLSInputs():
         # important inputs
         self._X, self._Y = X, Y
         self._groups, self._n_cond = groups, n_cond
-        self._n_perm, self._n_boot, self._n_split = n_perm, n_boot, n_split
+        self._n_perm, self._n_boot = n_perm, n_boot
+        if n_split == 0:  # we'll accept this too, jic
+            n_split = None
+        self._n_split = n_split
         self._ci = ci
         self._n_proc = n_proc
         self._seed = seed
@@ -167,7 +170,9 @@ class BasePLS():
 
     def _gen_covcorr(self, X, Y, groups):
         """
-        Generates cross-covariance array to be used in ``self._svd()``
+        Should generate cross-covariance array to be used in ``self._svd()``
+
+        Must accept the listed parameters and return one array
 
         Parameters
         ----------
