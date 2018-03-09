@@ -12,9 +12,14 @@ class PLSInputs():
 
     Parameters
     ----------
-    groups : (N,) array_like, optional
-        Array with labels separating ``N`` subjects into ``G`` groups. Default:
-        None
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is samples and ``B`` is features.
+    groups : (G,) array_like
+        Array with number of subjects in each of ``G`` groups
+    Y : (S x T) array_like, optional
+        Behavioral matrix. Default: None
+    n_cond : int, optional
+        Number of conditions. Default: 1
     n_perm : int, optional
         Number of permutations for testing statistical significance of singular
         vectors. Default: 5000
@@ -35,7 +40,7 @@ class PLSInputs():
         Seed for random number generator. Default: None
     """
 
-    def __init__(self, X=None, Y=None, groups=None, n_cond=1,
+    def __init__(self, X, groups, Y=None, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
         # important inputs
@@ -100,6 +105,19 @@ class PLSInputs():
         return self._groups
 
 
+class PLSResults():
+    """
+    Class to hold PLS results
+
+    Parameters
+    ----------
+    struct : PLS-like-class
+    """
+
+    def __init__(self, struct):
+        pass
+
+
 class BasePLS():
     """
     Base PLS class
@@ -109,8 +127,12 @@ class BasePLS():
 
     Parameters
     ----------
-    groups : (G,) list
-        List with number of subjects in each of ``G`` groups.
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is samples and ``B`` is features.
+    groups : (G,) array_like
+        Array with number of subjects in each of ``G`` groups
+    Y : (S x T) array_like, optional
+        Behavioral matrix. Default: None
     n_cond : int, optional
         Number of conditions. Default: 1
     n_perm : int, optional
@@ -146,7 +168,7 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, X, Y=None, groups=None, n_cond=1,
+    def __init__(self, X, groups, Y=None, n_cond=1,
                  n_perm=5000, n_boot=1000, n_split=500,
                  ci=95, n_proc=1, seed=None):
         # if groups aren't provided but conditions are, use groups instead
