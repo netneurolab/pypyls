@@ -52,6 +52,7 @@ A member of the development team will review your changes to confirm that they c
 ## Recognizing contributions
 
 We welcome and recognize all contributions from documentation to testing to code development.
+You can see a list of our current contributors in the [contributors tab][link_contributors].
 
 ## Thank you!
 
@@ -78,4 +79,5 @@ You're awesome. :wave::smiley:
 [link_pushpullblog]: https://www.igvita.com/2011/12/19/dont-push-your-pull-requests/
 [link_branches]: https://help.github.com/articles/creating-and-deleting-branches-within-your-repository/
 [link_updateupstreamwiki]: https://help.github.com/articles/syncing-a-fork/
+[link_contributors]: https://github.com/rmarkello/pyls/graphs/contributors
 [link_stemmrolemodels]: https://github.com/KirstieJane/STEMMRoleModels
