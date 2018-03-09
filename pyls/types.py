@@ -22,7 +22,7 @@ class BehavioralPLS(BasePLS):
     brain : (N x K) array_like
         Where ``N`` is the number of subjects and ``K`` is the number of
         observations
-    behav : (N x J) array_like
+    behavior : (N x J) array_like
         Where ``N`` is the number of subjects and ``J`` is the number of
         observations
     groups : (N,) array_like, optional
@@ -110,9 +110,9 @@ class BehavioralPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, brain, behav, groups=None, n_cond=1, **kwargs):
-        X, Y = np.asarray(brain), np.asarray(behav)
-        super().__init__(X=X, Y=Y, groups=groups, n_cond=n_cond, **kwargs)
+    def __init__(self, brain, behavior, **kwargs):
+        X, Y = np.asarray(brain), np.asarray(behavior)
+        super().__init__(X=X, Y=Y, **kwargs)
         self._run_pls(self.inputs.X, self.inputs.Y)
 
     def _gen_covcorr(self, X, Y, groups):
@@ -316,13 +316,10 @@ class MeanCenteredPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, data, groups, n_cond=1, **kwargs):
-        super().__init__(X=np.asarray(data), groups=groups,
-                         n_cond=n_cond, **kwargs)
-        # for consistency, assign variables to X and Y
-        self.inputs._Y = utils.dummy_code(self.inputs.groups,
-                                          self.inputs.n_cond)
-        # run analysis
+    def __init__(self, data, groups, **kwargs):
+        super().__init__(X=np.array(data), groups=groups, **kwargs)
+        self.inputs.Y = utils.dummy_code(self.inputs.groups,
+                                         self.inputs.n_cond)
         self._run_pls(self.inputs.X, self.inputs.Y)
 
     def _gen_covcorr(self, X, Y, groups=None):

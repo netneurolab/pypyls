@@ -97,7 +97,7 @@ def test_BehavioralPLS_onegroup_onecond():
 
     # ensure the outputs have appropriate attributes
     nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
+                                              min([subj, brain, behavior]))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)
 
@@ -113,7 +113,7 @@ def test_BehavioralPLS_multigroup_onecond():
                                      n_split=n_split, seed=seed)
 
     nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
+                                              min([subj, brain, behavior]))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)
 
@@ -129,7 +129,7 @@ def test_BehavioralPLS_onegroup_multicond():
                                      n_split=n_split, seed=seed)
 
     nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
+                                              min([subj, brain, behavior]))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)
 
@@ -145,7 +145,7 @@ def test_BehavioralPLS_multigroup_multicond():
                                      n_split=n_split, seed=seed)
 
     nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
+                                              min([subj, brain, behavior]))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)
 
@@ -161,7 +161,7 @@ def test_MeanCenteredPLS_multigroup_onecond():
                                        n_split=n_split, seed=seed)
 
     nosplit_attrs, split_attrs = make_outputs(len(groups) * n_cond,
-                                              (len(groups) * n_cond) - 1)
+                                              (len(groups) * n_cond))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)
 
@@ -177,7 +177,7 @@ def test_MeanCenteredPLS_onegroup_multicond():
                                        n_split=n_split, seed=seed)
 
     nosplit_attrs, split_attrs = make_outputs(len(groups) * n_cond,
-                                              (len(groups) * n_cond) - 1)
+                                              (len(groups) * n_cond))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)
 
@@ -193,6 +193,6 @@ def test_MeanCenteredPLS_multigroup_multicond():
                                        n_split=n_split, seed=seed)
 
     nosplit_attrs, split_attrs = make_outputs(len(groups) * n_cond,
-                                              (len(groups) * n_cond) - 1)
+                                              (len(groups) * n_cond))
     confirm_outputs(nosplit, nosplit_attrs)
     confirm_outputs(split, split_attrs)

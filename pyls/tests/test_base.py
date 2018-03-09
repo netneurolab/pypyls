@@ -32,6 +32,8 @@ def test_PLSInputs():
         assert hasattr(pls_inputs, key)
         assert np.all(getattr(pls_inputs, key) == opts[key])
 
+    assert pyls.base.PLSInputs(n_split=0).n_split is None
+
 
 def test_BasePLS():
     basepls = pyls.base.BasePLS(**opts)

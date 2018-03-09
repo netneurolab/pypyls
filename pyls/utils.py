@@ -4,6 +4,21 @@ import numpy as np
 import tqdm
 
 
+class DefDict(dict):
+    defaults = {}
+
+    def __init__(self, **kwargs):
+        i = {key: kwargs.get(key, val) for key, val in self.defaults.items()}
+        super().__init__(**i)
+        self.__dict__ = self
+
+    def __str__(self):
+        return '{name}({keys})'.format(name=self.__class__.__name__,
+                                       keys=', '.join(self.defaults.keys()))
+
+    __repr__ = __str__
+
+
 def trange(n_iter, **kwargs):
     """
     Wrapper for ``tqdm.trange`` with some default options set

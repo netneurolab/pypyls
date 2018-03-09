@@ -6,116 +6,145 @@ from sklearn.utils.extmath import randomized_svd
 from pyls import compute, utils
 
 
-class PLSInputs():
+class PLSInputs(utils.DefDict):
     """
-    Class to hold PLS input information
+    PLS input information
 
-    Parameters
+    Attributes
     ----------
-    X : (S x B) array_like
+    X : (S x B) np.ndarray
         Input data matrix, where ``S`` is samples and ``B`` is features.
-    groups : (G,) array_like
-        Array with number of subjects in each of ``G`` groups
-    Y : (S x T) array_like, optional
-        Behavioral matrix. Default: None
-    n_cond : int, optional
-        Number of conditions. Default: 1
-    n_perm : int, optional
-        Number of permutations for testing statistical significance of singular
-        vectors. Default: 5000
-    n_boot : int, optional
-        Number of bootstraps for testing reliability of singular vectors.
-        Default: 1000
-    n_split : int, optional
-        Number of split-half resamples for testing reliability of permutations.
-        Default: 500
-    ci : (0, 100) float, optional
-        Confidence interval used to calculate reliability of features across
-        bootstraps. This value approximately corresponds to setting an alpha
-        value, where ``alpha = (100 - ci) / 100``. Default: 95
-    n_proc : int, optional
-        Number of processors to use for permutation and bootstrapping.
-        Default: 1 (no multiprocessing)
-    seed : int, optional
-        Seed for random number generator. Default: None
+    Y : (S x T) np.ndarray
+        Behavioral matrix, where ``S`` is samples and ``T`` is features.
+        Default: None
+    groups : (G,) list
+        List with number of subjects in each of ``G`` groups
+    n_cond : int
+        Number of conditions
+    n_perm : int
+        Number of permutations generated
+    n_boot : int
+        Number of bootstraps generated
+    n_split : int
+        Number of split-half resamples draw in each permutation
+    ci : float
+        Confidence interval requested for bootstrap resampling results
+    n_proc : int
+        Number of processors used.
+    seed : {int, RandomState, None}
+        Seed for pseudo-random number generation
     """
+    defaults = dict(
+        X=None, Y=None, groups=None, n_cond=1,
+        n_perm=5000, n_boot=5000, n_split=500,
+        ci=95, n_proc=1, seed=None
+    )
 
-    def __init__(self, X, groups, Y=None, n_cond=1,
-                 n_perm=5000, n_boot=1000, n_split=500,
-                 ci=95, n_proc=1, seed=None):
-        # important inputs
-        self._X, self._Y = X, Y
-        self._groups, self._n_cond = groups, n_cond
-        self._n_perm, self._n_boot = n_perm, n_boot
-        if n_split == 0:  # we'll accept this too, jic
-            n_split = None
-        self._n_split = n_split
-        self._ci = ci
-        self._n_proc = n_proc
-        self._seed = seed
-
-    @property
-    def n_cond(self):
-        """Number of conditions"""
-        return self._n_cond
-
-    @property
-    def n_perm(self):
-        """Number of permutations"""
-        return self._n_perm
-
-    @property
-    def n_boot(self):
-        """Number of bootstraps"""
-        return self._n_boot
-
-    @property
-    def n_split(self):
-        """Number of split-half resamples"""
-        return self._n_split
-
-    @property
-    def ci(self):
-        """Requested confidence interval for bootstrap testing"""
-        return self._ci
-
-    @property
-    def n_proc(self):
-        """Number of processors requested (for multiprocessing)"""
-        return self._n_proc
-
-    @property
-    def seed(self):
-        """Pseudo random seed"""
-        return self._seed
-
-    @property
-    def X(self):
-        """Provided ``X`` data matrix"""
-        return self._X
-
-    @property
-    def Y(self):
-        """Provided ``Y`` data matrix"""
-        return self._Y
-
-    @property
-    def groups(self):
-        """Provided group labels"""
-        return self._groups
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.n_split == 0:
+            self.n_split = None
 
 
-class PLSResults():
+class PLSResults(utils.DefDict):
     """
-    Class to hold PLS results
+    PLS results information
 
-    Parameters
+    Attributes
     ----------
-    struct : PLS-like-class
+    u : (M x L) np.ndarray
+        Left singular vectors from SVD
+    s : (L x L) np.ndarray
+        Diagonal array of singular values from SVD
+    v : (J x L) np.ndarray
+        Right singular vectors from SVD
+    usc : (S x L) np.ndarray
+        Brain scores (``inputs.X @ v``)
+    vsc : (S x L) np.ndarray
+        Design scores (``inputs.Y @ u``)
+    lvcorrs : () np.ndarray
+        Correlation of ``usc`` with ``inputs.Y``. Only present if
+        obtained from ``BehavioralPLS``
+    perm_result : object
+        Contains results of permutation testing
+    boot_result : object
+        Contains results of bootstrap resampling
+    perm_splithalf : object
+        Contains results of split-half resampling. Only present if
+        ``inputs.n_split`` is not ``None``
     """
 
-    def __init__(self, struct):
-        pass
+    class PLSBootResult(utils.DefDict):
+        """
+        PLS bootstrap results
+
+        Attributes
+        ----------
+        compare_u : (M x L) np.ndarray
+        u_se : (M x L) np.ndarray
+        distrib : (J x L x B) np.ndarray
+        usc2 : () np.ndarray
+        orig_usc : () np.ndarray
+        ulusc : () np.ndarray
+        llusc : () np.ndarray
+        orig_corr : () np.ndarray
+        ulcorr : () np.ndarray
+        llcorr : () np.ndarray
+        """
+        defaults = dict(
+            compare_u=None, u_se=None, distrib=None, usc2=None,
+            orig_usc=None, ulusc=None, llusc=None,
+            orig_corr=None, ulcorr=None, llcorr=None,
+        )
+
+    class PLSPermResult(utils.DefDict):
+        """
+        PLS permutation results
+
+        Attributes
+        ----------
+        sp : (L,) np.ndarray
+            Number of permutations where singular values exceeded original data
+            decomposition for each of ``L`` latent variables
+        sprob : (L,) np.ndarray
+            ``sp`` normalized by the total number of permutations. Can be
+            interpreted as the statistical significance of the latent variables
+        """
+        defaults = dict(
+            sp=None, sprob=None
+        )
+
+    class PLSSplitHalfResult(utils.DefDict):
+        """
+        PLS split-half resampling results
+
+        Attributes
+        ----------
+        orig_ucorr
+        orig_vcorr
+        ucorr_prob
+        vcorr_prob
+        ucorr_ul
+        ucorr_ll
+        vcorr_ul
+        vcorr_ll
+        """
+        defaults = dict(
+            orig_ucorr=None, orig_vcorr=None, ucorr_prob=None, vcorr_prob=None,
+            ucorr_ul=None, ucorr_ll=None, vcorr_ul=None, vcorr_ll=None
+        )
+
+    defaults = dict(
+        u=None, s=None, v=None, usc=None, vsc=None, lvcorrs=None,
+        boot_result={}, perm_result={}, perm_splithalf={}, inputs={}
+    )
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.inputs = PLSInputs(**self.inputs)
+        self.boot_result = self.PLSBootResult(**self.boot_result)
+        self.perm_result = self.PLSPermResult(**self.perm_result)
+        self.perm_splithalf = self.PLSSplitHalfResult(**self.perm_splithalf)
 
 
 class BasePLS():
@@ -129,16 +158,16 @@ class BasePLS():
     ----------
     X : (S x B) array_like
         Input data matrix, where ``S`` is samples and ``B`` is features.
-    groups : (G,) array_like
-        Array with number of subjects in each of ``G`` groups
     Y : (S x T) array_like, optional
         Behavioral matrix. Default: None
+    groups : (G,) array_like, optional
+        Array with number of subjects in each of ``G`` groups. Default: ``[S]``
     n_cond : int, optional
         Number of conditions. Default: 1
     n_perm : int, optional
         Number of permutations to generate. Default: 5000
     n_boot : int, optional
-        Number of bootstraps to generate. Default: 1000
+        Number of bootstraps to generate. Default: 5000
     n_split : int, optional
         Number of split-half resamples during each permutation. Default: 500
     ci : (0, 100) float, optional
@@ -168,19 +197,15 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, X, groups, Y=None, n_cond=1,
-                 n_perm=5000, n_boot=1000, n_split=500,
-                 ci=95, n_proc=1, seed=None):
+    def __init__(self, X, Y=None, groups=None, n_cond=1, **kwargs):
         # if groups aren't provided but conditions are, use groups instead
         # otherwise, just get number of subjects
         if groups is None:
             groups = [len(X)]
         if len(groups) == 1 and n_cond > 1:
             groups, n_cond = [len(X) // n_cond] * n_cond, 1
-        self.inputs = PLSInputs(X=X, Y=Y,
-                                groups=groups, n_cond=n_cond,
-                                n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                                ci=ci, n_proc=n_proc, seed=seed)
+        self.inputs = PLSInputs(X=X, Y=Y, groups=groups, n_cond=n_cond,
+                                **kwargs)
         self._rs = utils.get_seed(self.inputs.seed)
 
     def _run_pls(self, *args, **kwargs):
@@ -393,7 +418,7 @@ class BasePLS():
                                      utils.dummy_code(self.inputs.groups,
                                                       self.inputs.n_cond))
         U, d, V = randomized_svd(crosscov,
-                                 n_components=Y.shape[-1]-1,
+                                 n_components=Y.shape[-1],
                                  random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T
