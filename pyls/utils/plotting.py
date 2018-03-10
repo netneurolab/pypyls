@@ -87,31 +87,24 @@ def define_vars(result_dict, cond_lvls=None, grp_lvls=None):
     -------
     pd.DataFrame
         A pandas series with derived estimates (and upper- and lower-
-          estimated error) for all significant latent variables
+          estimated error) for all latent variables
     """
     estimate = result_dict['boot_result']['orig_usc']
     ul = result_dict['boot_result']['ulusc']
     ll = result_dict['boot_result']['llusc']
+
     n_grps = result_dict['num_subj_lst'].shape[1]
     n_conds = int(estimate.shape[1]/n_grps)
-
-    signif = result_dict['perm_result']['sprob']
-    mask = signif < 0.05
-    sigLV = mask.T[0]
-    sigEstimate = estimate[sigLV].T
-    sigUL = ul[sigLV].T
-    sigLL = ll[sigLV].T
-
     cond = set_cond_lvls(n_conds, n_grps, cond_lvls=grp_lvls)
     grp = set_group_lvls(n_conds, n_grps, grp_lvls=grp_lvls)
 
-    num_sig = sum(sigLV) + 1  # for 1-based indexing in plots
+    num_est = sum(estimate.shape[1]) + 1  # for 1-based indexing in plots
     colnames = []
     for itm in ['Estimate_LV', 'UL_LV', 'LL_LV']:
-        for i in range(1, num_sig):
+        for i in range(1, num_est):
             colnames.append(itm+str(i))
 
-    df = pd.DataFrame(np.hstack((sigEstimate, sigUL, sigLL)), columns=colnames)
+    df = pd.DataFrame(np.hstack((estimate, ul, ll)), columns=colnames)
     df = pd.concat([df, cond, grp], axis=1)
     return df
 
@@ -127,7 +120,7 @@ def rearrange_df(df, plot_order=None):
     ----------
     df
         A pandas DataFrame containing condition, group labels and
-          PLS results for significant latent variables
+          PLS results for latent variables
     (Optional) plot_order
         User-defined order in which to plot conditions
 
@@ -144,16 +137,16 @@ def rearrange_df(df, plot_order=None):
 
 def plot_bargraphs(df, idx):
     """
-    Plots bargraphs for each of the significant latent variables
-    in a provided PLS results data frame.
+    Plots bargraphs for latent variables specified by ``idx``
+    in a provided PLS results data frame
 
     Parameters
     ----------
     df
         A pandas DataFrame containing condition, group labels and
-          PLS results for significant latent variables
+          PLS results for latent variables
     idx
-        Index of desired (significant) latent variable to plot
+        Index of desired latent variable to plot
 
     Returns
     -------
