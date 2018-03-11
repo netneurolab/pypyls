@@ -28,12 +28,11 @@ def test_normalize():
 def test_xcorr():
     X = rs.rand(20, 200)
     Y = rs.rand(20, 25)
-    groups = np.hstack([[1] * 10, [2] * 10])
 
     xcorr = pyls.utils.xcorr(X, Y)
     assert xcorr.shape == (25, 200)
-    xcorr = pyls.utils.xcorr(X, Y, groups)
-    assert xcorr.shape == (25 * 2, 200)
+    xcorr = pyls.utils.xcorr(X, Y, norm=False)
+    assert xcorr.shape == (25, 200)
 
 
 def test_dummycode():

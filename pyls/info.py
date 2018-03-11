@@ -20,4 +20,5 @@ TESTS_REQUIRE = [
 ]
 
 PACKAGE_DATA = {
+    'pyls': ['tests/data']
 }

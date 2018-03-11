@@ -15,8 +15,9 @@ class PLSInputs(utils.DefDict):
     X : (S x B) np.ndarray
         Input data matrix, where ``S`` is samples and ``B`` is features.
     Y : (S x T) np.ndarray
-        Behavioral matrix, where ``S`` is samples and ``T`` is features.
-        Default: None
+        Behavioral matrix, where ``S`` is samples and ``T`` is features. If
+        from a behavioral PLS, this is the provided behavior matrix; if from
+        a mean centered PLS, this is the dummy-coded group/condition matrix.
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
     n_cond : int
@@ -26,7 +27,7 @@ class PLSInputs(utils.DefDict):
     n_boot : int
         Number of bootstraps generated
     n_split : int
-        Number of split-half resamples draw in each permutation
+        Number of split-half resamples drawn in each of ``n_perm`` permutations
     ci : float
         Confidence interval requested for bootstrap resampling results
     n_proc : int
@@ -52,7 +53,7 @@ class PLSResults(utils.DefDict):
 
     Attributes
     ----------
-    u : (M x L) np.ndarray
+    u : (B x L) np.ndarray
         Left singular vectors from SVD
     s : (L x L) np.ndarray
         Diagonal array of singular values from SVD
@@ -62,39 +63,54 @@ class PLSResults(utils.DefDict):
         Brain scores (``inputs.X @ v``)
     vsc : (S x L) np.ndarray
         Design scores (``inputs.Y @ u``)
-    lvcorrs : () np.ndarray
-        Correlation of ``usc`` with ``inputs.Y``. Only present if
-        obtained from ``BehavioralPLS``
-    perm_result : object
+    lvcorrs : (J x L) np.ndarray
+        Correlation of ``usc`` with ``inputs.Y``
+    perm_result : dict-like
         Contains results of permutation testing
-    boot_result : object
+    boot_result : dict-like
         Contains results of bootstrap resampling
-    perm_splithalf : object
-        Contains results of split-half resampling. Only present if
-        ``inputs.n_split`` is not ``None``
+    perm_splithalf : dict-like
+        Contains results of split-half resampling
+    inputs : dict-likes
+        Contains inputs provided to PLS analysis. See ``pyls.base.PLSInputs``
     """
 
     class PLSBootResult(utils.DefDict):
         """
-        PLS bootstrap results
+        PLS bootstrap resampling results
 
         Attributes
         ----------
-        compare_u : (M x L) np.ndarray
-        u_se : (M x L) np.ndarray
-        distrib : (J x L x B) np.ndarray
-        usc2 : () np.ndarray
-        orig_usc : () np.ndarray
-        ulusc : () np.ndarray
-        llusc : () np.ndarray
-        orig_corr : () np.ndarray
-        ulcorr : () np.ndarray
-        llcorr : () np.ndarray
+        compare_u : (B x L) np.ndarray
+            Left singular vectors normalized by standard errors in ``u_se``.
+            Often referred to as "bootstrap ratios" or "BSRs", can usually be
+            interpreted as a z-score
+        u_se : (B x L) np.ndarray
+            Standard error of bootstrapped distribution of left singular
+            vectors
+        distrib : (J x L x R) np.ndarray
+            Bootstrapped distribution of either ``orig_usc`` or ``orig_corr``
+        usc2 : (S x L) np.ndarray
+            Mean-centered brain scores (``meancenter(inputs.X) @ v``)
+        orig_usc : (J x L) np.ndarray
+            Group x condition averages of ``usc2``. Can be treated as a
+            contrast indicating group x condition differences
+        ulusc : (J x L) np.ndarray
+            Upper bound of confidence interval for ``orig_usc``
+        llusc : (J x L) np.ndarray
+            Lower bound of confidence interval for ``orig_usc``
+        orig_corr : (J x L) np.ndarray
+            Correlation of ``usc`` with ``inputs.Y``
+        ulcorr : (J x L) np.ndarray
+            Upper bound of confidence interval for ``orig_corr``
+        llcorr : (J x L) np.ndarray
+            Lower bound of confidence interval for ``orig_corr``
         """
         defaults = dict(
             compare_u=None, u_se=None, distrib=None, usc2=None,
             orig_usc=None, ulusc=None, llusc=None,
             orig_corr=None, ulcorr=None, llcorr=None,
+            bootsamp=None
         )
 
     class PLSPermResult(utils.DefDict):
@@ -111,7 +127,7 @@ class PLSResults(utils.DefDict):
             interpreted as the statistical significance of the latent variables
         """
         defaults = dict(
-            sp=None, sprob=None
+            sp=None, sprob=None, permsamp=None
         )
 
     class PLSSplitHalfResult(utils.DefDict):
@@ -120,14 +136,21 @@ class PLSResults(utils.DefDict):
 
         Attributes
         ----------
-        orig_ucorr
-        orig_vcorr
-        ucorr_prob
-        vcorr_prob
-        ucorr_ul
-        ucorr_ll
-        vcorr_ul
-        vcorr_ll
+        orig_ucorr, orig_vcorr : (L,) np.ndarray
+            Average correlations between split-half resamples in original (non-
+            permuted) data for left/right singular vectors. Can be interpreted
+            as reliability of ``L`` latent variables
+        ucorr_prob, vcorr_prob : (L,) np.ndarray
+            Number of permutations where correlation between split-half
+            resamples exceeded original correlations, normalized by the total
+            number of permutations. Can be interpreted as the statistical
+            significance of the reliability of ``L`` latent variables
+        ucorr_ul, vcorr_ul : (L,) np.ndarray
+            Upper bound of confidence interval for correlations between split
+            halves for left/right singular vectors
+        ucorr_ll, vcorr_ll : (L,) np.ndarray
+            Lower bound of confidence interval for correlations between split
+            halves for left/right singular vectors
         """
         defaults = dict(
             orig_ucorr=None, orig_vcorr=None, ucorr_prob=None, vcorr_prob=None,
@@ -159,25 +182,12 @@ class BasePLS():
     X : (S x B) array_like
         Input data matrix, where ``S`` is samples and ``B`` is features.
     Y : (S x T) array_like, optional
-        Behavioral matrix. Default: None
+        Behavioral matrix, where ``S`` is samples and ``T`` is features.
+        Default: None
     groups : (G,) array_like, optional
         Array with number of subjects in each of ``G`` groups. Default: ``[S]``
     n_cond : int, optional
         Number of conditions. Default: 1
-    n_perm : int, optional
-        Number of permutations to generate. Default: 5000
-    n_boot : int, optional
-        Number of bootstraps to generate. Default: 5000
-    n_split : int, optional
-        Number of split-half resamples during each permutation. Default: 500
-    ci : (0, 100) float, optional
-        Confidence interval to calculate from bootstrapped distributions.
-        Default: 95
-    n_proc : int, optional
-        Number of processors to use for permutation and bootstrapping.
-        Default: 1 (no multiprocessing)
-    seed : int, optional
-        Seed for random number generator. Default: None
 
     References
     ----------
@@ -206,16 +216,9 @@ class BasePLS():
             groups, n_cond = [len(X) // n_cond] * n_cond, 1
         self.inputs = PLSInputs(X=X, Y=Y, groups=groups, n_cond=n_cond,
                                 **kwargs)
-        self._rs = utils.get_seed(self.inputs.seed)
+        self.rs = utils.get_seed(self.inputs.seed)
 
-    def _run_pls(self, *args, **kwargs):
-        """
-        Runs entire PLS analysis
-        """
-
-        raise NotImplementedError
-
-    def _gen_covcorr(self, X, Y, groups):
+    def gen_covcorr(self, X, Y, groups):
         """
         Should generate cross-covariance array to be used in ``self._svd()``
 
@@ -223,9 +226,12 @@ class BasePLS():
 
         Parameters
         ----------
-        X : (N x M) array_like
-        Y : (N x F) array_like
-        groups : (N x Y) array_like, optional
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is samples and ``B`` is features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is samples and ``T`` is features
+        groups : (G,) array_like
+            Array with number of subjects in each of ``G`` groups
 
         Returns
         -------
@@ -235,10 +241,60 @@ class BasePLS():
 
         raise NotImplementedError
 
-    def _gen_permsamp(self):
+    def run_pls(self, X, Y):
         """
-        Generates permutation arrays to be used in ``self._permutation()``
+        Runs PLS analysis
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Input array, where ``N`` is the number of subjects and ``J`` is the
+            number of variables.
+        groups : (N,) array_like
+            Array with labels separating ``N`` subjects into ``G`` groups.
+            Default: None (only one group)
         """
+
+        res = PLSResults(inputs=self.inputs)
+
+        # get original singular vectors / values and variance explained
+        res.u, res.s, res.v = self.svd(X, Y, seed=self.rs)
+        res.s_varexp = compute.crossblock_cov(res.s)
+
+        # compute permutations and get LV significance; store permsamp
+        d_perm, ucorrs, vcorrs = self.permutation(X, Y)
+        res.perm_result.sp, res.perm_result.sprob = compute.perm_sig(res.s,
+                                                                     d_perm)
+        res.perm_result.permsamp = self.permsamp
+
+        # get split half reliability results
+        if self.inputs.n_split is not None:
+            di = np.linalg.inv(res.s)
+            ud, vd = res.u @ di, res.v @ di
+            orig_ucorr, orig_vcorr = self.split_half(X, Y, ud, vd)
+            # get probabilties for ucorr/vcorr
+            ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)[-1]
+            vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)[-1]
+            # get confidence intervals for ucorr/vcorr
+            ucorr_ll, ucorr_ul = compute.boot_ci(ucorrs, ci=self.inputs.ci)
+            vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
+            # update results object
+            res.perm_splithalf.update(dict(orig_ucorr=orig_ucorr,
+                                           orig_vcorr=orig_vcorr,
+                                           ucorr_prob=ucorr_prob,
+                                           vcorr_prob=vcorr_prob,
+                                           ucorr_ll=ucorr_ll,
+                                           vcorr_ll=vcorr_ll,
+                                           ucorr_ul=ucorr_ul,
+                                           vcorr_ul=vcorr_ul))
+
+        return res
+
+    def gen_permsamp(self):
+        """ Generates permutation arrays for ``self._permutation()`` """
 
         Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         permsamp = np.zeros(shape=(len(Y), self.inputs.n_perm), dtype=int)
@@ -259,10 +315,10 @@ class BasePLS():
             while duplicated and count < 500:
                 count, duplicated = count + 1, False
                 # generate conditions permuted w/i subject
-                inds = np.hstack([utils.permute_cols(i, seed=self._rs) for i
+                inds = np.hstack([utils.permute_cols(i, seed=self.rs) for i
                                   in to_permute])
                 # generate permutation of subjects across groups
-                perm = self._rs.permutation(subj_inds)
+                perm = self.rs.permutation(subj_inds)
                 # confirm subjects *are* mixed across groups
                 if len(self.inputs.groups) > 1:
                     for grp in check_grps:
@@ -286,10 +342,8 @@ class BasePLS():
 
         return permsamp
 
-    def _gen_bootsamp(self):
-        """
-        Generates bootstrap arrays to be used in ``self._bootstrap()``
-        """
+    def gen_bootsamp(self):
+        """ Generates bootstrap arrays for ``self._bootstrap()`` """
 
         Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         bootsamp = np.zeros(shape=(len(Y), self.inputs.n_boot), dtype=int)
@@ -317,9 +371,11 @@ class BasePLS():
                 for grp in check_grps:
                     curr_grp, all_same = subj_inds[grp], True
                     while all_same:
-                        boot[curr_grp] = self._rs.choice(curr_grp,
-                                                         size=curr_grp.size,
-                                                         replace=True)
+                        num_subj = curr_grp.size
+                        boot[curr_grp] = np.sort(self.rs.choice(curr_grp,
+                                                                size=num_subj,
+                                                                replace=True),
+                                                 axis=0)
                         # make sure bootstrap has enough unique subjs
                         if np.unique(boot[curr_grp]).size >= min_subj:
                             all_same = False
@@ -327,10 +383,11 @@ class BasePLS():
                 bootinds = np.hstack([f.flatten('F') for f in
                                       np.split(inds[:, boot].T, splitinds)])
                 # make sure bootstrap is not a duplicated sequence
-                dupe_seq = (np.sort(bootinds[:, None], axis=0) ==
-                            np.sort(bootsamp[:, :i], axis=0))
-                if dupe_seq.all(axis=0).any():
-                    duplicated = True
+                for grp in check_grps:
+                    curr_grp = subj_inds[grp]
+                    check = bootinds[curr_grp, None] == bootsamp[curr_grp, :i]
+                    if check.all(axis=0).any():
+                        duplicated = True
             # if we broke out because we tried 500 bootstraps and couldn't
             # generate a new one, just warn that we're using duplicate
             # bootstraps and give up
@@ -342,10 +399,8 @@ class BasePLS():
 
         return bootsamp
 
-    def _gen_splits(self):
-        """
-        Generates split-half arrays to be used in ``self._split_half()``
-        """
+    def gen_splits(self):
+        """ Generates split-half arrays for ``self._split_half()`` """
 
         Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         splitsamp = np.zeros(shape=(len(Y), self.inputs.n_split), dtype=bool)
@@ -370,11 +425,11 @@ class BasePLS():
                 # iterate through and split each group separately
                 for grp in check_grps:
                     curr_grp = subj_inds[grp]
-                    take = self._rs.choice([np.ceil, np.floor])
+                    take = self.rs.choice([np.ceil, np.floor])
                     num_subj = int(take(curr_grp.size/2))
-                    splinds = self._rs.choice(curr_grp,
-                                              size=num_subj,
-                                              replace=False)
+                    splinds = self.rs.choice(curr_grp,
+                                             size=num_subj,
+                                             replace=False)
                     split[splinds] = True
                 # split subjects (with conditions) and stack groups
                 half = np.hstack([f.flatten('F') for f in
@@ -391,79 +446,83 @@ class BasePLS():
 
         return splitsamp
 
-    def _svd(self, X, Y, seed=None):
+    def svd(self, X, Y, seed=None):
         """
         Runs SVD on cross-covariance matrix computed from ``X`` and ``Y``
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is The
-            number of variables
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is samples and ``B`` is features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is samples and ``T`` is features
+        seed : {int, RandomState instance, None}, optional
+            Seed for pseudo-random number generation. Default: None
 
         Returns
         -------
-        U : (J x J-1) ndarray
+        U : (B x L) ndarray
             Left singular vectors
-        d : (J-1 x J-1) ndarray
+        d : (L x L) ndarray
             Diagonal array of singular values
-        V : (K x J-1) ndarray
+        V : (J x L) ndarray
             Right singular vectors
         """
 
-        crosscov = self._gen_covcorr(X, Y,
-                                     utils.dummy_code(self.inputs.groups,
-                                                      self.inputs.n_cond))
-        U, d, V = randomized_svd(crosscov,
-                                 n_components=Y.shape[-1],
+        crosscov = self.gen_covcorr(X, Y,
+                                    utils.dummy_code(self.inputs.groups,
+                                                     self.inputs.n_cond))
+        U, d, V = randomized_svd(crosscov.T,
+                                 n_components=min(crosscov.shape),
                                  random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T
 
-    def _bootstrap(self, X, Y):
+    def bootstrap(self, X, Y):
         """
         Bootstraps ``X`` and ``Y`` (w/replacement) and recomputes SVD
 
         Parameters
         ----------
-        X : (N x K) array_like
-        Y : (N x J) array_like
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is samples and ``B`` is features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is samples and ``T`` is features
 
         Returns
         -------
-        U_boot : (J[*G] x L x B) np.ndarray
-            Left singular vectors
-        V_boot : (K x L x B) np.ndarray
-            Right singular vectors
+        U_boot : (B x L x R) np.ndarray
+            Left singular vectors, where ``R`` is the number of bootstraps
+        V_boot : (J x L x R) np.ndarray
+            Right singular vectors, where ``R`` is the number of bootstraps
         """
 
         # generate bootstrap resampled indices
-        self.bootsamp = self._gen_bootsamp()
+        self.bootsamp = self.gen_bootsamp()
 
         # get original values
-        U_orig, d_orig, V_orig = self._svd(X, Y, seed=self._rs)
+        U_orig, d_orig, V_orig = self.svd(X, Y, seed=self.rs)
         U_boot = np.zeros(shape=U_orig.shape + (self.inputs.n_boot,))
         V_boot = np.zeros(shape=V_orig.shape + (self.inputs.n_boot,))
 
         for i in utils.trange(self.inputs.n_boot, desc='Running bootstraps'):
             inds = self.bootsamp[:, i]
-            U, d, V = self._svd(X[inds], Y[inds], seed=self._rs)
+            U, d, V = self.svd(X[inds], Y[inds], seed=self.rs)
             U_boot[:, :, i], rotate = compute.procrustes(U_orig, U, d)
             V_boot[:, :, i] = V @ d @ rotate
 
         return U_boot, V_boot
 
-    def _permutation(self, X, Y):
+    def permutation(self, X, Y):
         """
         Permutes ``X`` and ``Y`` (w/o replacement) and recomputes SVD
 
         Parameters
         ----------
-        X : (N x K [x G]) array_like
-        Y : (N x J [x G]) array_like
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is samples and ``B`` is features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is samples and ``T`` is features
 
         Returns
         -------
@@ -471,75 +530,82 @@ class BasePLS():
             Permuted singular values, where ``L`` is the number of singular
             values and ``P`` is the number of permutations
         ucorrs : (L x P) np.ndarray
-            Split-half correlations of left singular values. Only useful if
+            Split-half correlations of left singular values. Only set if
             ``self.inputs.n_split != 0``
         vcorrs : (L x P) np.ndarray
-            Split-half correlations of right singular values. Only useful if
+            Split-half correlations of right singular values. Only set if
             ``self.inputs.n_split != 0``
         """
 
         # generate permuted indices
-        self.permsamp = self._gen_permsamp()
+        self.permsamp = self.gen_permsamp()
 
         # get original values
-        U_orig, d_orig, V_orig = self._svd(X, Y, seed=self._rs)
+        U_orig, d_orig, V_orig = self.svd(X, Y, seed=self.rs)
 
         d_perm = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
         ucorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
         vcorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
 
         for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
-            inds = self.permsamp[:, i]
-            outputs = self._single_perm(X[inds], Y)
+            outputs = self.single_perm(X, Y[self.permsamp[:, i]], V_orig)
             d_perm[:, i] = outputs[0]
             if self.inputs.n_split is not None:
                 ucorrs[:, i], vcorrs[:, i] = outputs[1:]
 
         return d_perm, ucorrs, vcorrs
 
-    def _single_perm(self, X, Y):
+    def single_perm(self, X, Y, original):
         """
         Permutes ``X`` (w/o replacement) and computes SVD of cross-corr matrix
 
         Parameters
         ----------
-        X : (N x K) array_like
-        Y : (N x J) array_like
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is samples and ``B`` is features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is samples and ``T`` is features
+        original : array_like
 
         Returns
         -------
         ssd : (L,) np.ndarray
             Sum of squared, permuted singular values
         ucorr : (L,) np.ndarray
-            Split-half correlations of left singular values. Only useful if
-            ``n_split != 0``
+            Split-half correlations of left singular values. Only set if
+            ``self.inputs.n_split != 0``; otherwise, None
         vcorr : (L,) np.ndarray
-            Split-half correlations of right singular values. Only useful if
-            ``n_split != 0``
+            Split-half correlations of right singular values. Only set if
+            ``self.inputs.n_split != 0``; otherwise, None
         """
 
-        # perform SVD of permuted array and get sum of squared singular values
-        U, d, V = self._svd(X, Y, seed=self._rs)
-        ssd = np.sqrt((d**2).sum(axis=0))
+        # perform SVD of permuted array and get procrustes-rotated sing values
+        U, d, V = self.svd(X, Y, seed=self.rs)
+        out = compute.procrustes(original, V, d)[0]
+        ssd = np.sqrt(np.sum(out**2, axis=0))
 
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
             di = np.linalg.inv(d)
             ud, vd = U @ di, V @ di
-            ucorr, vcorr = self._split_half(X, Y, ud, vd)
+            ucorr, vcorr = self.split_half(X, Y, ud, vd)
         else:
             ucorr, vcorr = None, None
 
         return ssd, ucorr, vcorr
 
-    def _split_half(self, X, Y, ud, vd):
+    def split_half(self, X, Y, ud, vd):
         """
         Parameters
         ----------
-        X : (N x K) array_like
-        Y : (N x J) array_like
-        ud : (K[*G] x L) array_like
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is samples and ``B`` is features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is samples and ``T`` is features
+        ud : (B x L) array_like
+            Left singular vectors scaled by singular values
         vd : (J x L) array_like
+            Right singular vectors scaled by singular values
 
         Returns
         -------
@@ -550,7 +616,7 @@ class BasePLS():
         """
 
         # generate splits
-        splitsamp = self._gen_splits()
+        splitsamp = self.gen_splits()
 
         # empty arrays to hold split-half correlations
         ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
@@ -558,12 +624,12 @@ class BasePLS():
 
         for i in range(self.inputs.n_split):
             spl = splitsamp[:, i]
-            D1 = self._gen_covcorr(X[spl], Y[spl],
-                                   utils.dummy_code(self.inputs.groups,
-                                                    self.inputs.n_cond)[spl])
-            D2 = self._gen_covcorr(X[~spl], Y[~spl],
-                                   utils.dummy_code(self.inputs.groups,
-                                                    self.inputs.n_cond)[~spl])
+            D1 = self.gen_covcorr(X[spl], Y[spl],
+                                  utils.dummy_code(self.inputs.groups,
+                                                   self.inputs.n_cond)[spl])
+            D2 = self.gen_covcorr(X[~spl], Y[~spl],
+                                  utils.dummy_code(self.inputs.groups,
+                                                   self.inputs.n_cond)[~spl])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector

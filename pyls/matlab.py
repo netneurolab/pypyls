@@ -33,6 +33,11 @@ def import_matlab_result(fname):
         Matlab results in a Python-friendly format
     """
 
+    def get_labels(fields):
+        labels = [k for k, v in sorted(fields.items(),
+                                       key=lambda x: x[-1][-1])]
+        return labels
+
     # load mat file using scipy.io
     matfile = sio.loadmat(fname)
     # if 'result' key is missing then consider a malformed input
@@ -42,13 +47,13 @@ def import_matlab_result(fname):
         raise ValueError('Cannot get result struct from provided mat file')
 
     # convert result structure to a dictionary using dtypes as keys
-    labels = list(result.dtype.fields.keys())
+    labels = get_labels(result.dtype.fields)
     result = {labels[n]: value for n, value in enumerate(result)}
 
     # convert sub-structures to dictionaries using dtypes as keys
     for attr in ['boot_result', 'perm_result', 'perm_splithalf']:
         if result.get(attr) is not None:
-            labels = list(result[attr].dtype.fields.keys())
+            labels = get_labels(result[attr].dtype.fields)
             result[attr] = {labels[n]: np.squeeze(value) for n, value in
                             enumerate(result[attr][0, 0])}
 
@@ -67,3 +72,17 @@ def import_matlab_result(fname):
 
     # pack it into a pyls.base.PLSResults class instance for attribute access
     return PLSResults(**result)
+
+
+def comp_python_matlab(python, matlab, rtol=1e-4):
+    """
+    Compares ``python`` and ``matlab`` PLS results
+    """
+
+    diff = np.abs(python / matlab)
+    if diff.ndim > 1:
+        diff = diff[:, :-1]
+    else:
+        diff = diff[:-1]
+
+    return np.allclose(diff, 1, rtol=rtol), np.abs(1 - diff).max()

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from sklearn.utils.extmath import randomized_svd
 
 
 def perm_sig(orig, perm):
     """
-    Calculates significance of ``orig`` values by permutation
+    Calculates significance of ``orig`` values agains ``perm`` distributions
 
     Compares amplitude of each singular value to distribution created via
     permutation in ``perm``
@@ -13,20 +14,25 @@ def perm_sig(orig, perm):
     Parameters
     ----------
     orig : (L x L) array_like
-        Diagonal matrix of singular values
+        Diagonal matrix of singular values for ``L`` latent variables
     perm : (L x P) array_like
         Distribution of singular values from permutation testing where ```P``
         is the number of permutations
 
     Returns
     -------
-    pvals : (L,) np.ndarray
-        P-values of singular values
+    sp : (L,) np.ndarray
+        Number of permutations where singular values exceeded original data
+        decomposition for each of ``L`` latent variables
+    sprob : (L,) np.ndarray
+        ``sp`` normalized by the total number of permutations. Can be
+        interpreted as the statistical significance of the latent variables
     """
 
-    pvals = np.sum(perm > np.diag(orig)[:, None], axis=1) / perm.shape[-1]
+    sp = np.sum(perm > np.diag(orig)[:, None], axis=1)
+    sprob = sp / (perm.shape[-1] + 1)
 
-    return pvals
+    return sp, sprob
 
 
 def boot_ci(boot, ci=95):
@@ -74,9 +80,10 @@ def boot_rel(orig, boot):
         Bootstrap ratios for provided singular vectors
     """
 
-    bsr = orig / boot.std(axis=-1, ddof=1)
+    u_se = boot.std(axis=-1, ddof=1)  # matlab PLS doesn't use stderr
+    bsr = orig / u_se
 
-    return bsr
+    return bsr, u_se
 
 
 def crossblock_cov(singular):
@@ -123,8 +130,9 @@ def procrustes(original, permuted, singular):
         Matrix for rotating ``permuted`` to ``original``
     """
 
-    N, _, P = np.linalg.svd(original.T @ permuted)
-    rotate = N @ P
+    temp = original.T @ permuted
+    N, _, P = randomized_svd(temp, n_components=min(temp.shape))
+    rotate = P.T @ N.T
     resamp = permuted @ singular @ rotate
 
     return resamp, rotate

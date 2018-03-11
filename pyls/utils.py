@@ -13,8 +13,9 @@ class DefDict(dict):
         self.__dict__ = self
 
     def __str__(self):
+        items = [k for k in self.defaults.keys() if self.get(k) is not None]
         return '{name}({keys})'.format(name=self.__class__.__name__,
-                                       keys=', '.join(self.defaults.keys()))
+                                       keys=', '.join(items))
 
     __repr__ = __str__
 
@@ -30,7 +31,7 @@ def trange(n_iter, **kwargs):
 
     Returns
     -------
-    tqdm.tqdm instance
+    progbar : tqdm.tqdm instance
     """
 
     form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
@@ -38,50 +39,25 @@ def trange(n_iter, **kwargs):
                        bar_format=form, **kwargs)
 
 
-def xcorr(X, Y, groups=None):
+def xcorr(X, Y, norm=True):
     """
     Calculates the cross-covariance matrix of ``X`` and ``Y``
 
     Parameters
     ----------
-    X : (N x J) array_like
-    Y : (N x K) array_like
-    groups : (N,) array_like, optional
-        Grouping array, where ``len(np.unique(groups))`` is the number of
-        distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
-        computed separately for each group and are stacked row-wise.
+    X : (S x B) array_like
+    Y : (S x T) array_like
 
     Returns
     -------
-    (K[*G] x J) np.ndarray
+    xprod : (T x B) np.ndarray
         Cross-covariance of ``X`` and ``Y``
     """
 
-    if groups is None:
-        return _compute_xcorr(X, Y)
-    else:
-        return np.row_stack([_compute_xcorr(X[groups == grp],
-                                            Y[groups == grp])
-                             for grp in np.unique(groups)])
-
-
-def _compute_xcorr(X, Y):
-    """
-    Calculates the cross-covariance matrix of ``X`` and ``Y``
-
-    Parameters
-    ----------
-    X : (N x J) array_like
-    Y : (N x K) array_like
-
-    Returns
-    -------
-    xprod : (K x J) np.ndarray
-        Cross-covariance of ``X`` and ``Y``
-    """
-
-    Xnz, Ynz = normalize(zscore(X)), normalize(zscore(Y))
-    xprod = (Ynz.T @ Xnz) / (Xnz.shape[0] - 1)
+    Xn, Yn = zscore(X), zscore(Y)
+    if norm:
+        Xn, Yn = normalize(Xn), normalize(Yn)
+    xprod = (Yn.T @ Xn) / (len(Xn) - 1)
 
     return xprod
 
@@ -104,13 +80,11 @@ def zscore(X):
     """
 
     arr = np.array(X)
-
-    avg, stdev = arr.mean(axis=0), arr.std(axis=0)
+    avg, stdev = arr.mean(axis=0), arr.std(axis=0, ddof=1)
     zero_items = np.where(stdev == 0)[0]
 
     if zero_items.size > 0:
         avg[zero_items], stdev[zero_items] = 0, 1
-
     zarr = (arr - avg) / stdev
     zarr[:, zero_items] = 0
 
@@ -138,7 +112,6 @@ def normalize(X, axis=0):
 
     normed = np.array(X)
     normal_base = np.linalg.norm(normed, axis=axis, keepdims=True)
-
     # avoid DivideByZero errors
     zero_items = np.where(normal_base == 0)
     normal_base[zero_items] = 1
@@ -195,7 +168,6 @@ def dummy_code(groups, n_cond=1):
     length = sum(groups) * n_cond
     width = len(groups) * n_cond
     Y = np.zeros((length, width))
-
     cstart = 0  # starting index for columns
     rstart = 0  # starting index for rows
 

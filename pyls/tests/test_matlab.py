@@ -6,13 +6,13 @@ import pytest
 import pyls
 
 data_dir = pkg_resources.resource_filename('pyls', 'tests/data')
-fnames = ['meancenteredpls.mat',
-          'meancenteredpls_splithalf.mat',
-          'behavioralpls.mat',
-          'behavioralpls_splithalf.mat']
+EXAMPLES = ['meancenteredpls.mat',
+            'meancenteredpls_splithalf.mat',
+            'behavioralpls.mat',
+            'behavioralpls_splithalf.mat']
 
 
 def test_import_matlab():
-    for fname in fnames:
+    for fname in EXAMPLES:
         res = pyls.matlab.import_matlab_result(op.join(data_dir, fname))
         assert isinstance(res, pyls.base.PLSResults)

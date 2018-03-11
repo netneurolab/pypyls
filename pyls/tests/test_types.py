@@ -39,9 +39,10 @@ def make_outputs(behavior, num_lv):
 
     nosplit_attrs = [
         ('U', (behavior, num_lv)),
-        ('d', (num_lv, num_lv)),
+        ('s', (num_lv, num_lv)),
         ('V', (brain, num_lv)),
-        ('d_pvals', (num_lv,)),
+        ('sp', (num_lv,)),
+        ('sprob', (num_lv,)),
         ('d_varexp', (num_lv,)),
         ('U_bsr', (behavior, num_lv)),
         ('V_bsr', (brain, num_lv))
