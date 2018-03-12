@@ -88,6 +88,40 @@ class BehavioralPLS(BasePLS):
 
         return cross_cov
 
+    def boot_distrib(self, X, Y, U_boot, groups):
+        """
+        Generates bootstrapped distribution for contrast
+
+        Parameters
+        ----------
+        X : (N x K) array_like
+            Input array, where ``N`` is the number of subjects and ``K`` is the
+            number of variables.
+        Y : (N x J) array_like
+            Dummy coded input array, where ``N`` is the number of subjects and
+            ``J`` corresponds to the number of groups. A value of 1 indicates
+            that a subject (row) belongs to a group (column).
+        U_boot : (K x L x B) array_like
+            Bootstrapped values of the right singular vectors, where ``L`` is
+            the number of latent variables and ``B`` is the number of
+            bootstraps
+
+        Returns
+        -------
+        distrib : (G x L x B) np.ndarray
+        """
+
+        distrib = np.zeros(shape=(groups.shape[-1] * Y.shape[-1],
+                                  U_boot.shape[1],
+                                  self.inputs.n_boot,))
+
+        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
+            boot = self.bootsamp[:, i]
+            tusc, yboot = X[boot] @ utils.normalize(U_boot[:, :, i]), Y[boot]
+            distrib[:, :, i] = self.gen_covcorr(tusc, yboot, groups)
+
+        return distrib
+
     def run_pls(self, X, Y):
         """
         Runs PLS analysis
@@ -104,6 +138,7 @@ class BehavioralPLS(BasePLS):
             Array with labels separating ``N`` subjects into ``G`` groups.
             Default: None (only one group)
         """
+
         res = super().run_pls(X, Y)
         res.usc = X @ res.u
         res.vsc = np.vstack([y @ v for (y, v) in
@@ -115,6 +150,17 @@ class BehavioralPLS(BasePLS):
         compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
         res.boot_result.compare_u, res.boot_result.u_se = compare_u, u_se
         res.boot_result.bootsamp = self.bootsamp
+
+        # get lvcorrs
+        groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        lvcorrs = self.gen_covcorr(res.usc, Y, groups)
+        res.lvcorrs, res.boot_result.orig_corr = lvcorrs, lvcorrs
+
+        # generate distribution / confidence intervals for lvcorrs
+        res.boot_result.distrib = self.boot_distrib(X, Y, U_boot, groups)
+        llcorr, ulcorr = compute.boot_ci(res.boot_result.distrib,
+                                         ci=self.inputs.ci)
+        res.boot_result.llcorr, res.boot_result.ulcorr = llcorr, ulcorr
 
         return res
 
@@ -220,8 +266,8 @@ class MeanCenteredPLS(BasePLS):
         normed_U_boot = utils.normalize(U_boot)
 
         for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
-            boot, V = self.bootsamp[:, i], normed_U_boot[:, :, i]
-            usc = compute.get_mean_norm(X[boot], Y) @ V
+            boot, U = self.bootsamp[:, i], normed_U_boot[:, :, i]
+            usc = compute.get_mean_norm(X[boot], Y) @ U
             distrib[:, :, i] = compute.get_group_mean(usc, Y, grand=False)
 
         return distrib

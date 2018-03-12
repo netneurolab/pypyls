@@ -212,6 +212,8 @@ class BasePLS():
         # otherwise, just get number of subjects
         if groups is None:
             groups = [len(X)]
+        elif not isinstance(groups, (list, np.ndarray)):
+                groups = [groups]
         if len(groups) == 1 and n_cond > 1:
             groups, n_cond = [len(X) // n_cond] * n_cond, 1
         self.inputs = PLSInputs(X=X, Y=Y, groups=groups, n_cond=n_cond,
@@ -469,11 +471,10 @@ class BasePLS():
             Right singular vectors
         """
 
-        crosscov = self.gen_covcorr(X, Y,
-                                    utils.dummy_code(self.inputs.groups,
-                                                     self.inputs.n_cond))
+        dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        crosscov = self.gen_covcorr(X, Y, dummy)
         U, d, V = randomized_svd(crosscov.T,
-                                 n_components=min(crosscov.shape),
+                                 n_components=min(dummy.squeeze().shape),
                                  random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T

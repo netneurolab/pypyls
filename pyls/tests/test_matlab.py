@@ -6,10 +6,10 @@ import pytest
 import pyls
 
 data_dir = pkg_resources.resource_filename('pyls', 'tests/data')
-EXAMPLES = ['meancenteredpls.mat',
-            'meancenteredpls_splithalf.mat',
-            'behavioralpls.mat',
-            'behavioralpls_splithalf.mat']
+EXAMPLES = ['mpls_multigroup_onecond_nosplit.mat',
+            'mpls_multigroup_onecond_split.mat',
+            'bpls_onegroup_onecond_nosplit.mat',
+            'bpls_onegroup_onecond_split.mat']
 
 
 def test_import_matlab():

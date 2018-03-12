@@ -17,6 +17,13 @@ _result_mapping = (
 )
 
 
+def coerce_void(value):
+    if np.squeeze(value).ndim == 0:
+        return value.dtype.type(value.squeeze())
+    else:
+        return np.squeeze(value)
+
+
 def import_matlab_result(fname):
     """
     Imports ``fname`` PLS result from Matlab
@@ -51,19 +58,23 @@ def import_matlab_result(fname):
     result = {labels[n]: value for n, value in enumerate(result)}
 
     # convert sub-structures to dictionaries using dtypes as keys
-    for attr in ['boot_result', 'perm_result', 'perm_splithalf']:
+    structs = ['boot_result', 'perm_result', 'perm_splithalf', 'other_input']
+    for attr in structs:
         if result.get(attr) is not None:
             labels = get_labels(result[attr].dtype.fields)
-            result[attr] = {labels[n]: np.squeeze(value) for n, value in
-                            enumerate(result[attr][0, 0])}
+            result[attr] = {labels[n]: coerce_void(value) for n, value
+                            in enumerate(result[attr][0, 0])}
 
     # squeeze all the values so they're a bit more interpretable
     for key, val in result.items():
         if isinstance(val, np.ndarray):
-            result[key] = np.squeeze(val)
+            result[key] = coerce_void(val)
 
     # add an inputs dictionary baesd on ``_result_mapping``
-    result['inputs'] = dict(X=np.vstack(matfile.get('datamat_lst').squeeze()))
+    try:
+        result['inputs'] = dict(X=np.vstack(matfile.get('datamat_lst')[:, 0]))
+    except TypeError:
+        result['inputs'] = dict()
     for key, val in _result_mapping:
         if isinstance(val, tuple):
             result['inputs'][key] = result.get(val[0], {}).get(val[1])
