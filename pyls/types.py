@@ -84,16 +84,17 @@ class BehavioralPLS(BasePLS):
             raise ValueError('The first dimension of ``X`` and ``Y`` must '
                              'match.')
 
+        # TODO: get rid of if ? else should probably do this
         if groups.shape[-1] == 1:
             cross_cov = utils.xcorr(X, Y, norm=False)
         else:
-            cross_cov = [utils.xcorr(X[grp], Y[grp], norm=False)
-                         for grp in groups.T.astype(bool)]
-            cross_cov = np.row_stack(cross_cov)
+            cross_cov = np.row_stack([utils.xcorr(X[grp], Y[grp], norm=False)
+                                      for grp in groups.T.astype(bool)])
 
         return cross_cov
 
     def gen_permsamp(self):
+        """ Need to flip permutation (i.e., permute Y, not X) """
         Y_perms, X_perms = super().gen_permsamp()
 
         return X_perms, Y_perms
@@ -242,18 +243,14 @@ class MeanCenteredPLS(BasePLS):
             Mean-centered matrix
         """
 
-        # equivalent to meancentering_type = 1 in Matlab
-        # TODO : add other mean centering types???
+        # currently equivalent to meancentering_type = 3 in Matlab (I think)
+        # TODO: fix mean centering to appropriately handle # of conditions
+        # TODO: this should NOT be calculated from the permuted values
         grand_mean = compute.get_group_mean(X, Y)
         mean_centered = np.vstack([(X[grp].mean(axis=0) - grand_mean) for grp
                                    in Y.T.astype(bool)])
 
         return mean_centered
-
-    def gen_permsamp(self):
-        X_perms, Y_perms = super().gen_permsamp()[0]
-
-        return X_perms, Y_perms
 
     def boot_distrib(self, X, Y, U_boot):
         """

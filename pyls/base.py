@@ -320,8 +320,9 @@ class BasePLS():
 
         dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         crosscov = self.gen_covcorr(X, Y, dummy)
+        n_comp = min(min(dummy.squeeze().shape), min(crosscov.shape))
         U, d, V = randomized_svd(crosscov.T,
-                                 n_components=min(dummy.squeeze().shape),
+                                 n_components=n_comp,
                                  random_state=utils.get_seed(seed))
 
         return U, np.diag(d), V.T

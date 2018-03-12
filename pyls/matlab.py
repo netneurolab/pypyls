@@ -85,18 +85,17 @@ def import_matlab_result(fname):
     return PLSResults(**result)
 
 
-def comp_python_matlab(python, matlab, rtol=1e-4):
+def comp_python_matlab(python, matlab, atol=1e-4):
     """
     Compares ``python`` and ``matlab`` PLS results
     """
 
-    # signs may be flipped so we divide and then take the absolute value
-    # this, ideally, should be as close to 1 as possible
-    diff = np.abs(python / matlab)
-    # fix dimensions, if needed
+    # signs may be flipped so just take difference of absolute values
+    diff = np.abs(python) - np.abs(matlab)
+    # the last LV is always screwed up so ignore it
     if diff.ndim > 1:
         diff = diff[:, :-1]
     else:
         diff = diff[:-1]
 
-    return np.allclose(diff, 1, rtol=rtol), np.abs(1 - diff).max()
+    return np.allclose(diff, 0, atol=atol), np.abs(diff).max()
