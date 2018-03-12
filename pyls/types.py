@@ -4,6 +4,9 @@ import numpy as np
 from pyls.base import BasePLS
 from pyls import compute, utils
 
+import IPython
+import warnings
+
 
 class BehavioralPLS(BasePLS):
     """
@@ -25,6 +28,8 @@ class BehavioralPLS(BasePLS):
     Y : (N x J) array_like
         Where ``N`` is the number of subjects and ``J`` is the number of
         observations
+    **kwargs : dict, optional
+        See ``pyls.base.PLSInputs`` for more information
 
     References
     ----------
@@ -80,13 +85,18 @@ class BehavioralPLS(BasePLS):
                              'match.')
 
         if groups.shape[-1] == 1:
-            cross_cov = utils.xcorr(X, Y)
+            cross_cov = utils.xcorr(X, Y, norm=False)
         else:
             cross_cov = [utils.xcorr(X[grp], Y[grp], norm=False)
                          for grp in groups.T.astype(bool)]
             cross_cov = np.row_stack(cross_cov)
 
         return cross_cov
+
+    def gen_permsamp(self):
+        Y_perms, X_perms = super().gen_permsamp()
+
+        return X_perms, Y_perms
 
     def boot_distrib(self, X, Y, U_boot, groups):
         """
@@ -140,6 +150,7 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
+        res.perm_result.permsamp = self.Y_perms
         res.usc = X @ res.u
         res.vsc = np.vstack([y @ v for (y, v) in
                              zip(np.split(Y, len(res.inputs.groups)),
@@ -183,6 +194,8 @@ class MeanCenteredPLS(BasePLS):
         the number of observations
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
+    **kwargs : dict, optional
+        See ``pyls.base.PLSInputs`` for more information
 
     References
     ----------
@@ -229,14 +242,18 @@ class MeanCenteredPLS(BasePLS):
             Mean-centered matrix
         """
 
-        iden = np.ones(shape=(len(Y), 1))
-        grp_means = np.linalg.inv(np.diag((iden.T @ Y).flatten())) @ Y.T @ X
-        num_group = len(grp_means)
-        L = np.ones(shape=(num_group, 1))
-        # effectively the same as M - M.mean(axis=0)...
-        mean_centered = grp_means - (L @ (((1/num_group) * L.T) @ grp_means))
+        # equivalent to meancentering_type = 1 in Matlab
+        # TODO : add other mean centering types???
+        grand_mean = compute.get_group_mean(X, Y)
+        mean_centered = np.vstack([(X[grp].mean(axis=0) - grand_mean) for grp
+                                   in Y.T.astype(bool)])
 
         return mean_centered
+
+    def gen_permsamp(self):
+        X_perms, Y_perms = super().gen_permsamp()[0]
+
+        return X_perms, Y_perms
 
     def boot_distrib(self, X, Y, U_boot):
         """
@@ -287,6 +304,7 @@ class MeanCenteredPLS(BasePLS):
             that a subject (row) belongs to a group (column).
         """
         res = super().run_pls(X, Y)
+        res.perm_result.permsamp = self.X_perms
         res.usc, res.vsc = X @ res.u, Y @ res.v
 
         # compute bootstraps and BSRs; store bootsamp

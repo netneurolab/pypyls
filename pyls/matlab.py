@@ -90,7 +90,10 @@ def comp_python_matlab(python, matlab, rtol=1e-4):
     Compares ``python`` and ``matlab`` PLS results
     """
 
+    # signs may be flipped so we divide and then take the absolute value
+    # this, ideally, should be as close to 1 as possible
     diff = np.abs(python / matlab)
+    # fix dimensions, if needed
     if diff.ndim > 1:
         diff = diff[:, :-1]
     else:
