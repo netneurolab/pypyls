@@ -4,9 +4,6 @@ import numpy as np
 from pyls.base import BasePLS
 from pyls import compute, utils
 
-import IPython
-import warnings
-
 
 class BehavioralPLS(BasePLS):
     """
@@ -22,12 +19,10 @@ class BehavioralPLS(BasePLS):
 
     Parameters
     ----------
-    X : (N x K) array_like
-        Where ``N`` is the number of subjects and ``K`` is the number of
-        observations
-    Y : (N x J) array_like
-        Where ``N`` is the number of subjects and ``J`` is the number of
-        observations
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is observations and ``B`` is features
+    Y : (S x T) array_like
+        Behavioral matrix, where ``S`` is observations and ``T`` is features
     **kwargs : dict, optional
         See ``pyls.base.PLSInputs`` for more information
 
@@ -59,39 +54,28 @@ class BehavioralPLS(BasePLS):
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is the
-            number of variables.
-        groups : (N,) array_like, optional
-            Array with labels separating ``N`` subjects into ``G`` groups.
-            Default: None (only one group)
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
+        groups : (S x J) array_like
+            Dummy coded input array, where ``S`` is observations and ``J``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
 
         Returns
         -------
-        cross_cov : (J[*G] x K) np.ndarray
+        crosscov : (J*T x B) np.ndarray
             Cross-covariance matrix
         """
 
-        if X.ndim != Y.ndim:
-            raise ValueError('Number of dimensions of ``X`` and ``Y`` must '
-                             'match.')
-        if X.ndim != 2:
-            raise ValueError('``X`` and ``Y`` must each have 2 dimensions.')
-        if X.shape[0] != Y.shape[0]:
-            raise ValueError('The first dimension of ``X`` and ``Y`` must '
-                             'match.')
+        crosscov = np.row_stack([utils.xcorr(X[grp], Y[grp], norm=False)
+                                 for grp in groups.T.astype(bool)])
 
-        # TODO: get rid of if ? else should probably do this
-        if groups.shape[-1] == 1:
-            cross_cov = utils.xcorr(X, Y, norm=False)
-        else:
-            cross_cov = np.row_stack([utils.xcorr(X[grp], Y[grp], norm=False)
-                                      for grp in groups.T.astype(bool)])
-
-        return cross_cov
+        return crosscov
 
     def gen_permsamp(self):
         """ Need to flip permutation (i.e., permute Y, not X) """
@@ -105,17 +89,21 @@ class BehavioralPLS(BasePLS):
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         U_boot : (K x L x B) array_like
             Bootstrapped values of the right singular vectors, where ``L`` is
             the number of latent variables and ``B`` is the number of
             bootstraps
+        groups : (S x J) array_like
+            Dummy coded input array, where ``S`` is observations and ``J``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
 
         Returns
         -------
@@ -139,15 +127,12 @@ class BehavioralPLS(BasePLS):
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is the
-            number of variables.
-        groups : (N,) array_like
-            Array with labels separating ``N`` subjects into ``G`` groups.
-            Default: None (only one group)
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         """
 
         res = super().run_pls(X, Y)
@@ -190,9 +175,8 @@ class MeanCenteredPLS(BasePLS):
 
     Parameters
     ----------
-    X : (N x K) array_like
-        Original data array where ``N`` is the number of subjects and ``K`` is
-        the number of observations
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is observations and ``B`` is features
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
     **kwargs : dict, optional
@@ -222,24 +206,24 @@ class MeanCenteredPLS(BasePLS):
                                          self.inputs.n_cond)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
-    def gen_covcorr(self, X, Y, groups=None):
+    def gen_covcorr(self, X, Y, **kwargs):
         """
         Computes mean-centered matrix from ``X`` and ``Y``
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``C`` is the number of subjects x
-            the number of conditions, and ``J`` corresponds to the number of
-            groups x conditions. A value of 1 indicates that a subject
-            condition (row) belongs to a specific condition group (column).
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Dummy coded input array, where ``S`` is observations and ``T``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
 
         Returns
         -------
-        mean_centered : (J x K) np.ndarray
+        mean_centered : (T x B) np.ndarray
             Mean-centered matrix
         """
 
@@ -258,21 +242,22 @@ class MeanCenteredPLS(BasePLS):
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
-        U_boot : (K x L x B) array_like
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Dummy coded input array, where ``S`` is observations and ``T``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
+        U_boot : (B x L x R) array_like
             Bootstrapped values of the right singular vectors, where ``L`` is
             the number of latent variables and ``B`` is the number of
             bootstraps
 
         Returns
         -------
-        distrib : (G x L x B) np.ndarray
+        distrib : (T x L x R) np.ndarray
         """
 
         distrib = np.zeros(shape=(Y.shape[-1], U_boot.shape[1],
@@ -292,13 +277,14 @@ class MeanCenteredPLS(BasePLS):
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like, optional
+            Dummy coded input array, where ``S`` is observations and ``T``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
         """
         res = super().run_pls(X, Y)
         res.perm_result.permsamp = self.X_perms

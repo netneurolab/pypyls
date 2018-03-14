@@ -20,6 +20,24 @@ class DefDict(dict):
     __repr__ = __str__
 
 
+def check_xcorr_inputs(X, Y):
+    """
+    Parameters
+    ----------
+    X : (S x B) array_like
+        Input matrix, where ``S`` is samples and ``B`` is features.
+    Y : (S x T) array_like, optional
+        Input matrix, where ``S`` is samples and ``T`` is features.
+    """
+
+    if X.ndim != Y.ndim:
+        raise ValueError('Number of dims of ``X`` and ``Y`` must match.')
+    if X.ndim != 2:
+        raise ValueError('``X`` and ``Y`` must each have 2 dims.')
+    if X.shape[0] != Y.shape[0]:
+        raise ValueError('The first dim of ``X`` and ``Y`` must match.')
+
+
 def trange(n_iter, **kwargs):
     """
     Wrapper for ``tqdm.trange`` with some default options set
@@ -54,6 +72,7 @@ def xcorr(X, Y, norm=True):
         Cross-covariance of ``X`` and ``Y``
     """
 
+    check_xcorr_inputs(X, Y)
     Xn, Yn = zscore(X), zscore(Y)
     if norm:
         Xn, Yn = normalize(Xn), normalize(Yn)

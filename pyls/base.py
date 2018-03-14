@@ -13,32 +13,35 @@ class PLSInputs(utils.DefDict):
     Attributes
     ----------
     X : (S x B) np.ndarray
-        Input data matrix, where ``S`` is samples and ``B`` is features.
+        Input data matrix, where ``S`` is observations and ``B`` is features
     Y : (S x T) np.ndarray
-        Behavioral matrix, where ``S`` is samples and ``T`` is features. If
-        from a behavioral PLS, this is the provided behavior matrix; if from
+        Behavioral matrix, where ``S`` is observations and ``T`` is features
+        If from a behavioral PLS, this is the provided behavior matrix; if from
         a mean centered PLS, this is the dummy-coded group/condition matrix.
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
     n_cond : int
-        Number of conditions
+        Number of conditions observed in data
     n_perm : int
-        Number of permutations generated
+        Number of permutations generated for testing significance of PLS
     n_boot : int
-        Number of bootstraps generated
+        Number of bootstraps generated for testing reliability of features
     n_split : int
         Number of split-half resamples drawn in each of ``n_perm`` permutations
+    rotate : bool
+        Whether to perform procrustes rotations during permutations. Can
+        inflate false-positive rate (see Kovacevic et al., 2013)
     ci : float
-        Confidence interval requested for bootstrap resampling results
+        Confidence interval to assess bootstrap resampling results
     n_proc : int
-        Number of processors used.
+        Multiprocessing not implemented yet
     seed : {int, RandomState, None}
         Seed for pseudo-random number generation
     """
     defaults = dict(
         X=None, Y=None, groups=None, n_cond=1,
-        n_perm=5000, n_boot=5000, n_split=500,
-        ci=95, n_proc=1, seed=None
+        n_perm=5000, n_boot=5000, n_split=None,
+        rotate=True, ci=95, n_proc=1, seed=None
     )
 
     def __init__(self, **kwargs):
@@ -180,9 +183,9 @@ class BasePLS():
     Parameters
     ----------
     X : (S x B) array_like
-        Input data matrix, where ``S`` is samples and ``B`` is features.
+        Input data matrix, where ``S`` is observations and ``B`` is features
     Y : (S x T) array_like, optional
-        Behavioral matrix, where ``S`` is samples and ``T`` is features.
+        Behavioral matrix, where ``S`` is observations and ``T`` is features
         Default: None
     groups : (G,) array_like, optional
         Array with number of subjects in each of ``G`` groups. Default: ``[S]``
@@ -230,9 +233,11 @@ class BasePLS():
         Parameters
         ----------
         X : (S x B) array_like
-            Input data matrix, where ``S`` is samples and ``B`` is features
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
         Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is samples and ``T`` is features
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         groups : (G,) array_like
             Array with number of subjects in each of ``G`` groups
 
@@ -250,15 +255,14 @@ class BasePLS():
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is the
-            number of variables.
-        groups : (N,) array_like
-            Array with labels separating ``N`` subjects into ``G`` groups.
-            Default: None (only one group)
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
+        groups : (G,) array_like
+            Array with number of subjects in each of ``G`` groups
         """
 
         res = PLSResults(inputs=self.inputs)
@@ -302,9 +306,11 @@ class BasePLS():
         Parameters
         ----------
         X : (S x B) array_like
-            Input data matrix, where ``S`` is samples and ``B`` is features
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
         Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is samples and ``T`` is features
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         seed : {int, RandomState instance, None}, optional
             Seed for pseudo-random number generation. Default: None
 
@@ -334,9 +340,11 @@ class BasePLS():
         Parameters
         ----------
         X : (S x B) array_like
-            Input data matrix, where ``S`` is samples and ``B`` is features
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
         Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is samples and ``T`` is features
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
 
         Returns
         -------
@@ -369,9 +377,11 @@ class BasePLS():
         Parameters
         ----------
         X : (S x B) array_like
-            Input data matrix, where ``S`` is samples and ``B`` is features
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
         Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is samples and ``T`` is features
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
 
         Returns
         -------
@@ -412,12 +422,14 @@ class BasePLS():
         Parameters
         ----------
         X : (S x B) array_like
-            Input data matrix, where ``S`` is samples and ``B`` is features
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
         Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is samples and ``T`` is features
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         original : array_like
-            Rigth singular vectors from non-permuted SVD for use in procrustes
-            rotation
+            Right singular vectors from non-permuted SVD for use in procrustes
+            rotation (if applicable)
 
         Returns
         -------
@@ -431,9 +443,15 @@ class BasePLS():
             ``self.inputs.n_split != 0``; otherwise, None
         """
 
-        # perform SVD of permuted array and get procrustes-rotated sing values
+        # perform SVD of permuted array
         U, d, V = self.svd(X, Y, seed=self.rs)
-        ssd = np.sqrt(np.sum(compute.procrustes(original, V, d)[0]**2, axis=0))
+
+        # optionally get rotated/rescaled singular values (or not)
+        if self.inputs.rotate:
+            ssd = np.sqrt(np.sum(compute.procrustes(original, V, d)[0]**2,
+                          axis=0))
+        else:
+            ssd = np.diag(d)
 
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
@@ -449,13 +467,15 @@ class BasePLS():
         Parameters
         ----------
         X : (S x B) array_like
-            Input data matrix, where ``S`` is samples and ``B`` is features
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
         Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is samples and ``T`` is features
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         ud : (B x L) array_like
-            Left singular vectors scaled by singular values
+            Left singular vectors, scaled by singular values
         vd : (J x L) array_like
-            Right singular vectors scaled by singular values
+            Right singular vectors, scaled by singular values
 
         Returns
         -------
