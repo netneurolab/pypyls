@@ -227,9 +227,7 @@ class MeanCenteredPLS(BasePLS):
             Mean-centered matrix
         """
 
-        # currently equivalent to meancentering_type = 3 in Matlab (I think)
-        # TODO: fix mean centering to appropriately handle # of conditions
-        # TODO: this should NOT be calculated from the permuted values
+        # TODO: integrate new mean center functions and ``mctype``
         grand_mean = compute.get_group_mean(X, Y)
         mean_centered = np.vstack([(X[grp].mean(axis=0) - grand_mean) for grp
                                    in Y.T.astype(bool)])
@@ -251,9 +249,9 @@ class MeanCenteredPLS(BasePLS):
             of 1 indicates that an observation belongs to a specific group or
             condition.
         U_boot : (B x L x R) array_like
-            Bootstrapped values of the right singular vectors, where ``L`` is
-            the number of latent variables and ``B`` is the number of
-            bootstraps
+            Bootstrapped values of the right singular vectors, where ``B`` is
+            the same as in ``X``, `L`` is the number of latent variables and
+            ``R`` is the number of bootstraps
 
         Returns
         -------
@@ -266,6 +264,7 @@ class MeanCenteredPLS(BasePLS):
 
         for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
             boot, U = self.bootsamp[:, i], normed_U_boot[:, :, i]
+            # TODO: integrate new mean center functions and ``mctype``
             usc = compute.get_mean_norm(X[boot], Y) @ U
             distrib[:, :, i] = compute.get_group_mean(usc, Y, grand=False)
 
@@ -297,6 +296,7 @@ class MeanCenteredPLS(BasePLS):
         res.boot_result.bootsamp = self.bootsamp
 
         # get normalized brain scores and contrast
+        # TODO: integrate new mean center functions and ``mctype``
         res.boot_result.usc2 = compute.get_mean_norm(X, Y) @ res.u
         res.boot_result.orig_usc = compute.get_group_mean(res.boot_result.usc2,
                                                           Y, grand=False)

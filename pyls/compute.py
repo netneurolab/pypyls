@@ -2,7 +2,7 @@
 
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
-
+from pyls import utils
 
 def perm_sig(orig, perm):
     """
@@ -138,47 +138,92 @@ def procrustes(original, permuted, singular):
     return resamp, rotate
 
 
-def get_group_mean(X, Y, grand=True):
+def get_group_mean(X, Y, n_cond=1, mctype=0):
     """
     Parameters
     ----------
-    X : (N x K) array_like
-    Y : (N x G) array_like
-        Dummy coded group array
-    grand : bool, optional
-        Default : True
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is observations and ``B`` is features
+    Y : (S x T) array_like, optional
+        Dummy coded input array, where ``S`` is observations and ``T``
+        corresponds to the number of different groups x conditions. A value
+        of 1 indicates that an observation belongs to a specific group or
+        condition.
+    n_cond : int ,optional
+        Number of conditions in dummy coded ``Y`` array. Default: 1
+    mctype : int, optional
+        Mean centering type. Must be in [0, 1, 2]. Default: 0
 
     Returns
     -------
-    group_mean : {(G,) or (G x K)} np.ndarray
-        If grand is set, returns array with shape (G,); else, returns (G x K)
+    group_mean : (T x B) np.ndarray
+        Means to be removed from ``X`` during centering
     """
 
-    group_mean = np.zeros((Y.shape[-1], X.shape[-1]))
-
-    for n, grp in enumerate(Y.T.astype('bool')):
-        group_mean[n] = X[grp].mean(axis=0)
-
-    if grand:
-        return group_mean.sum(axis=0) / Y.shape[-1]
+    if mctype == 0:
+        # we want means of GROUPS, collapsing across conditions
+        inds = slice(0, Y.shape[-1], n_cond)
+        groups = utils.dummy_code(Y[:, inds].sum(axis=0).astype(int) * n_cond)
+    elif mctype == 1:
+        # we want means of CONDITIONS, collapsing across groups
+        groups = Y.copy()
+    elif mctype == 2:
+        # we want the overall mean of the entire dataset
+        groups = np.ones((len(X), 1))
     else:
-        return group_mean
+        raise ValueError("Mean centering type must be in [0, 1, 2].")
+
+    # get mean of data over grouping variable
+    group_mean = np.row_stack([X[grp].mean(axis=0)[None] for grp in
+                               groups.T.astype(bool)])
+
+    # we want group_mean to have the same number of rows as Y does columns
+    # that way, we can easily subtract it for mean centering the data
+    # and generating the matrix for SVD
+    if mctype == 0:
+        group_mean = np.repeat(group_mean, n_cond, axis=0)
+    elif mctype == 1:
+        group_mean = group_mean.reshape(-1, n_cond, X.shape[-1]).mean(axis=0)
+        group_mean = np.tile(group_mean.T, int(Y.shape[-1] / n_cond)).T
+    else:
+        group_mean = np.repeat(group_mean, Y.shape[-1], axis=0)
+
+    return group_mean
 
 
-def get_mean_norm(X, Y):
+def get_mean_center(X, Y, n_cond=1, mctype=0, means=True):
     """
     Parameters
     ----------
-    X : (N x K) array_like
-    Y : (N x G) array_like
-        Dummy coded group array
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is observations and ``B`` is features
+    Y : (S x T) array_like, optional
+        Dummy coded input array, where ``S`` is observations and ``T``
+        corresponds to the number of different groups x conditions. A value
+        of 1 indicates that an observation belongs to a specific group or
+        condition.
+    n_cond : int ,optional
+        Number of conditions in dummy coded ``Y`` array. Default: 1
+    mctype : int, optional
+        Mean centering type. Must be in [0, 1, 2]. Default: 0
+    means : bool, optional
+        Whether to return demeaned averages instead of demeaned data. Default:
+        True
 
     Returns
     -------
-    X_mean_centered : (N x K) np.ndarray
-        ``X`` centered based on grand mean (i.e., mean of group means)
+    mean_centered : {(T x B) or (S x B)} np.ndarray
+        If ``means`` is True, returns array with shape (T x B); else, returns
+        (S x B)
     """
 
-    X_mean_centered = X - get_group_mean(X, Y)
+    mc = get_group_mean(X, Y, n_cond=n_cond, mctype=mctype)
 
-    return X_mean_centered
+    if means:
+        mean_centered = np.row_stack([X[grp].mean(axis=0) - mc[n] for (n, grp)
+                                      in enumerate(Y.T.astype(bool))])
+    else:
+        mean_centered = np.row_stack([X[grp] - mc[n][None] for (n, grp)
+                                      in enumerate(Y.T.astype(bool))])
+
+    return mean_centered

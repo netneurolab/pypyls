@@ -325,7 +325,7 @@ class BasePLS():
         """
 
         dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        crosscov = self.gen_covcorr(X, Y, dummy)
+        crosscov = self.gen_covcorr(X, Y, groups=dummy)
         n_comp = min(min(dummy.squeeze().shape), min(crosscov.shape))
         U, d, V = randomized_svd(crosscov.T,
                                  n_components=n_comp,
@@ -496,11 +496,11 @@ class BasePLS():
             spl = splitsamp[:, i]
 
             D1 = self.gen_covcorr(X[spl], Y[spl],
-                                  utils.dummy_code(self.inputs.groups,
-                                                   self.inputs.n_cond)[spl])
+                                  groups=utils.dummy_code(self.inputs.groups,
+                                                          self.inputs.n_cond)[spl])
             D2 = self.gen_covcorr(X[~spl], Y[~spl],
-                                  utils.dummy_code(self.inputs.groups,
-                                                   self.inputs.n_cond)[~spl])
+                                  groups=utils.dummy_code(self.inputs.groups,
+                                                          self.inputs.n_cond)[~spl])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector
