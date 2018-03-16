@@ -138,6 +138,7 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
+        res.perm_result.permsamp = self.Y_perms
         res.usc = X @ res.u
         res.vsc = np.vstack([y @ v for (y, v) in
                              zip(np.split(Y, len(res.inputs.groups)),
@@ -181,6 +182,8 @@ class MeanCenteredPLS(BasePLS):
         Input data matrix, where ``S`` is observations and ``B`` is features
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
+    n_cond : int, optional
+        Number of conditions. Default: 1
     mean_centering : int, optional
         Mean centering type. Must be in [0, 1, 2]. Default: 0
     **kwargs : optional
@@ -204,13 +207,24 @@ class MeanCenteredPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, X, groups, mean_centering=0, **kwargs):
-        if kwargs.get('n_cond', 1) == 1:
-            warnings.warn('Cannot set mean_centering to 0 when n_cond = 1.'
-                          'Resetting mean_centering to 1.')
+    def __init__(self, X, groups, n_cond=1, mean_centering=0, **kwargs):
+        # check inputs for validity
+        if n_cond == 1 and len(groups) == 1:
+            raise ValueError('Cannot perform PLS with only one group and one '
+                             'condition. Confirm inputs are correct.')
+        if n_cond == 1 and len(groups) > 1 and mean_centering == 0:
+            warnings.warn('Cannot set mean_centering to 0 when there is only'
+                          'one condition. Resetting mean_centering to 1.')
             mean_centering = 1
+        elif n_cond > 1 and len(groups) == 1 and mean_centering == 1:
+            warnings.warn('Cannot set mean_centering to 1 when there is only '
+                          'one group. Resetting mean_centering to 0.')
+            mean_centering = 0
+
+        # instantiate base class, generate dummy array, and run PLS analysis
         super().__init__(X=np.asarray(X),
                          groups=groups,
+                         n_cond=n_cond,
                          mean_centering=mean_centering,
                          **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
@@ -270,14 +284,13 @@ class MeanCenteredPLS(BasePLS):
 
         distrib = np.zeros(shape=(Y.shape[-1], U_boot.shape[1],
                                   self.inputs.n_boot,))
-        normed_U_boot = utils.normalize(U_boot)
 
-        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
-            boot, U = self.bootsamp[:, i], normed_U_boot[:, :, i]
+        for i in range(self.inputs.n_boot):
+            boot, U = self.bootsamp[:, i], U_boot[:, :, i]
             usc = compute.get_mean_center(X[boot], Y,
                                           self.inputs.n_cond,
                                           self.inputs.mean_centering,
-                                          means=False) @ U
+                                          means=False) @ utils.normalize(U)
             distrib[:, :, i] = np.row_stack([usc[grp].mean(axis=0) for grp
                                              in Y.T.astype(bool)])
 
@@ -298,7 +311,9 @@ class MeanCenteredPLS(BasePLS):
             of 1 indicates that an observation belongs to a specific group or
             condition.
         """
+
         res = super().run_pls(X, Y)
+        res.perm_result.permsamp = self.X_perms
         res.usc, res.vsc = X @ res.u, Y @ res.v
 
         # compute bootstraps and BSRs

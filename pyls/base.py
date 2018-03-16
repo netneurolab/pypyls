@@ -276,8 +276,7 @@ class BasePLS():
         # compute permutations and get LV significance; store permsamp
         d_perm, ucorrs, vcorrs = self.permutation(X, Y)
         sp, sprob = compute.perm_sig(res.s, d_perm)
-        res.perm_result.update(dict(sp=sp, sprob=sprob,
-                                    permsamp=self.permsamp))
+        res.perm_result.update(dict(sp=sp, sprob=sprob))
 
         # get split half reliability results
         if self.inputs.n_split is not None:

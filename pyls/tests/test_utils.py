@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import pytest
 import pyls
 
 rs = np.random.RandomState(1234)
