@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from pyls import utils
 
+
 def perm_sig(orig, perm):
     """
     Calculates significance of ``orig`` values agains ``perm`` distributions
@@ -138,7 +139,7 @@ def procrustes(original, permuted, singular):
     return resamp, rotate
 
 
-def get_group_mean(X, Y, n_cond=1, mctype=0):
+def get_group_mean(X, Y, n_cond=1, mean_centering=0):
     """
     Parameters
     ----------
@@ -151,7 +152,7 @@ def get_group_mean(X, Y, n_cond=1, mctype=0):
         condition.
     n_cond : int ,optional
         Number of conditions in dummy coded ``Y`` array. Default: 1
-    mctype : int, optional
+    mean_centering : int, optional
         Mean centering type. Must be in [0, 1, 2]. Default: 0
 
     Returns
@@ -160,14 +161,14 @@ def get_group_mean(X, Y, n_cond=1, mctype=0):
         Means to be removed from ``X`` during centering
     """
 
-    if mctype == 0:
+    if mean_centering == 0:
         # we want means of GROUPS, collapsing across conditions
         inds = slice(0, Y.shape[-1], n_cond)
         groups = utils.dummy_code(Y[:, inds].sum(axis=0).astype(int) * n_cond)
-    elif mctype == 1:
+    elif mean_centering == 1:
         # we want means of CONDITIONS, collapsing across groups
         groups = Y.copy()
-    elif mctype == 2:
+    elif mean_centering == 2:
         # we want the overall mean of the entire dataset
         groups = np.ones((len(X), 1))
     else:
@@ -180,9 +181,9 @@ def get_group_mean(X, Y, n_cond=1, mctype=0):
     # we want group_mean to have the same number of rows as Y does columns
     # that way, we can easily subtract it for mean centering the data
     # and generating the matrix for SVD
-    if mctype == 0:
+    if mean_centering == 0:
         group_mean = np.repeat(group_mean, n_cond, axis=0)
-    elif mctype == 1:
+    elif mean_centering == 1:
         group_mean = group_mean.reshape(-1, n_cond, X.shape[-1]).mean(axis=0)
         group_mean = np.tile(group_mean.T, int(Y.shape[-1] / n_cond)).T
     else:
@@ -191,7 +192,7 @@ def get_group_mean(X, Y, n_cond=1, mctype=0):
     return group_mean
 
 
-def get_mean_center(X, Y, n_cond=1, mctype=0, means=True):
+def get_mean_center(X, Y, n_cond=1, mean_centering=0, means=True):
     """
     Parameters
     ----------
@@ -204,7 +205,7 @@ def get_mean_center(X, Y, n_cond=1, mctype=0, means=True):
         condition.
     n_cond : int ,optional
         Number of conditions in dummy coded ``Y`` array. Default: 1
-    mctype : int, optional
+    mean_centering : int, optional
         Mean centering type. Must be in [0, 1, 2]. Default: 0
     means : bool, optional
         Whether to return demeaned averages instead of demeaned data. Default:
@@ -217,12 +218,14 @@ def get_mean_center(X, Y, n_cond=1, mctype=0, means=True):
         (S x B)
     """
 
-    mc = get_group_mean(X, Y, n_cond=n_cond, mctype=mctype)
+    mc = get_group_mean(X, Y, n_cond=n_cond, mean_centering=mean_centering)
 
     if means:
+        # take mean of groups and subtract relevant mean_centering entry
         mean_centered = np.row_stack([X[grp].mean(axis=0) - mc[n] for (n, grp)
                                       in enumerate(Y.T.astype(bool))])
     else:
+        # subtract relevant mean_centering entry from each observation
         mean_centered = np.row_stack([X[grp] - mc[n][None] for (n, grp)
                                       in enumerate(Y.T.astype(bool))])
 

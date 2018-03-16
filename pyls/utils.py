@@ -5,6 +5,10 @@ import tqdm
 
 
 class DefDict(dict):
+    """
+    Subclass of dictionary that instantiates with ``self.defaults``
+    """
+
     defaults = {}
 
     def __init__(self, **kwargs):
@@ -13,7 +17,7 @@ class DefDict(dict):
         self.__dict__ = self
 
     def __str__(self):
-        items = [k for k in self.defaults.keys() if self.get(k) is not None]
+        items = [k for k in self.keys() if self.get(k) is not None]
         return '{name}({keys})'.format(name=self.__class__.__name__,
                                        keys=', '.join(items))
 
@@ -22,19 +26,25 @@ class DefDict(dict):
 
 def check_xcorr_inputs(X, Y):
     """
+    Ensures that ``X`` and ``Y`` are appropriate for use in ``xcorr()``
+
     Parameters
     ----------
     X : (S x B) array_like
         Input matrix, where ``S`` is samples and ``B`` is features.
     Y : (S x T) array_like, optional
         Input matrix, where ``S`` is samples and ``T`` is features.
+
+    Raises
+    ------
+    ValueError
     """
 
     if X.ndim != Y.ndim:
         raise ValueError('Number of dims of ``X`` and ``Y`` must match.')
     if X.ndim != 2:
         raise ValueError('``X`` and ``Y`` must each have 2 dims.')
-    if X.shape[0] != Y.shape[0]:
+    if len(X) != len(Y):
         raise ValueError('The first dim of ``X`` and ``Y`` must match.')
 
 
@@ -64,7 +74,9 @@ def xcorr(X, Y, norm=True):
     Parameters
     ----------
     X : (S x B) array_like
-    Y : (S x T) array_like
+        Input matrix, where ``S`` is samples and ``B`` is features.
+    Y : (S x T) array_like, optional
+        Input matrix, where ``S`` is samples and ``T`` is features.
 
     Returns
     -------
@@ -90,11 +102,12 @@ def zscore(X):
 
     Parameters
     ----------
-    X : (N x J) array_like
+    X : (S x B) array_like
+        Input array
 
     Returns
     -------
-    zarr : (N x J) np.ndarray
+    zarr : (S x B) np.ndarray
         Z-scored ``X``
     """
 
@@ -118,14 +131,14 @@ def normalize(X, axis=0):
 
     Parameters
     ----------
-    X : (N x K) array_like
-        Data to be normalized
+    X : (S x B) array_like
+        Input array
     axis : int, optional
         Axis for normalization. Default: 0
 
     Returns
     -------
-    normed : (N x K) np.ndarray
+    normed : (S x B) np.ndarray
         Normalized ``X``
     """
 
@@ -169,19 +182,19 @@ def get_seed(seed=None):
 
 def dummy_code(groups, n_cond=1):
     """
-    Dummy codes ``groups``
+    Dummy codes ``groups`` and ``n_cond``
 
     Parameters
     ----------
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
-    n_cond : int
-        Number of conditions, for each subject
+    n_cond : int, optional
+        Number of conditions, for each subject. Default: 1
 
     Returns
     -------
-    Y : (N x G x C) np.ndarray
-        Dummy coded group array
+    Y : (S x G*C) np.ndarray
+        Dummy-coded group array
     """
 
     length = sum(groups) * n_cond
@@ -209,14 +222,10 @@ def permute_cols(x, seed=None):
 
     Parameters
     ----------
-    x : (N x M) array_like
-        Array to be permuted
+    x : (S x B) array_like
+        Input array to be permuted
     seed : {int, RandomState instance, None}, optional
-        The seed of the pseudo random number generator to use when shuffling
-        the data.  If int, ``seed`` is the seed used by the random number
-        generator. If RandomState instance, ``seed`` is the random number
-        generator. If None, the random number generator is the RandomState
-        instance used by ``np.random``. Default: None
+        Seed for random number generation. Default: None
 
     Returns
     -------

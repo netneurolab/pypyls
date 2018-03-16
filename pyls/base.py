@@ -28,6 +28,8 @@ class PLSInputs(utils.DefDict):
         Number of bootstraps generated for testing reliability of features
     n_split : int
         Number of split-half resamples drawn in each of ``n_perm`` permutations
+    mean_centering : int, optional
+        Mean centering type. Must be in [0, 1, 2]. Default: 0
     rotate : bool
         Whether to perform procrustes rotations during permutations. Can
         inflate false-positive rate (see Kovacevic et al., 2013)
@@ -41,7 +43,8 @@ class PLSInputs(utils.DefDict):
     defaults = dict(
         X=None, Y=None, groups=None, n_cond=1,
         n_perm=5000, n_boot=5000, n_split=None,
-        rotate=True, ci=95, n_proc=1, seed=None
+        mean_centering=None, rotate=True,
+        ci=95, n_proc=1, seed=None
     )
 
     def __init__(self, **kwargs):
@@ -184,13 +187,12 @@ class BasePLS():
     ----------
     X : (S x B) array_like
         Input data matrix, where ``S`` is observations and ``B`` is features
-    Y : (S x T) array_like, optional
-        Behavioral matrix, where ``S`` is observations and ``T`` is features
-        Default: None
     groups : (G,) array_like, optional
         Array with number of subjects in each of ``G`` groups. Default: ``[S]``
     n_cond : int, optional
         Number of conditions. Default: 1
+    **kwargs : optional
+        See ``pyls.base.PLSInputs`` for more information
 
     References
     ----------
@@ -210,7 +212,7 @@ class BasePLS():
        Chicago
     """
 
-    def __init__(self, X, Y=None, groups=None, n_cond=1, **kwargs):
+    def __init__(self, X, groups=None, n_cond=1, **kwargs):
         # if groups aren't provided but conditions are, use groups instead
         # otherwise, just get number of subjects
         if groups is None:
@@ -220,7 +222,7 @@ class BasePLS():
         if len(groups) == 1 and n_cond > 1:
             groups, n_cond = [len(X) // n_cond] * n_cond, 1
         # create inputs object and get random seed generator
-        self.inputs = PLSInputs(X=X, Y=Y, groups=groups, n_cond=n_cond,
+        self.inputs = PLSInputs(X=X, groups=groups, n_cond=n_cond,
                                 **kwargs)
         self.rs = utils.get_seed(self.inputs.seed)
 
@@ -273,8 +275,9 @@ class BasePLS():
 
         # compute permutations and get LV significance; store permsamp
         d_perm, ucorrs, vcorrs = self.permutation(X, Y)
-        res.perm_result.sp, res.perm_result.sprob = compute.perm_sig(res.s,
-                                                                     d_perm)
+        sp, sprob = compute.perm_sig(res.s, d_perm)
+        res.perm_result.update(dict(sp=sp, sprob=sprob,
+                                    permsamp=self.permsamp))
 
         # get split half reliability results
         if self.inputs.n_split is not None:
@@ -496,11 +499,13 @@ class BasePLS():
             spl = splitsamp[:, i]
 
             D1 = self.gen_covcorr(X[spl], Y[spl],
-                                  groups=utils.dummy_code(self.inputs.groups,
-                                                          self.inputs.n_cond)[spl])
+                                  groups=utils.dummy_code(
+                                      self.inputs.groups,
+                                      self.inputs.n_cond)[spl])
             D2 = self.gen_covcorr(X[~spl], Y[~spl],
-                                  groups=utils.dummy_code(self.inputs.groups,
-                                                          self.inputs.n_cond)[~spl])
+                                  groups=utils.dummy_code(
+                                      self.inputs.groups,
+                                      self.inputs.n_cond)[~spl])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector

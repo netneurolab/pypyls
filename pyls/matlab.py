@@ -12,12 +12,25 @@ _result_mapping = (
     ('n_boot', ('boot_result', 'num_boot')),
     ('n_split', ('perm_splithalf', 'num_split')),
     ('ci', ('boot_result', 'clim')),
+    ('mean_centering', ('other_input', 'meancentering_type')),
     ('n_proc', ''),
     ('seed', '')
 )
 
 
 def coerce_void(value):
+    """
+    Converts ``value`` to ``value.dtype``
+
+    Parameters
+    ----------
+    value : array_like
+
+    Returns
+    -------
+    value : dtype
+        ``Value`` coerced to ``dtype``
+    """
     if np.squeeze(value).ndim == 0:
         return value.dtype.type(value.squeeze())
     else:
@@ -88,6 +101,20 @@ def import_matlab_result(fname):
 def comp_python_matlab(python, matlab, atol=1e-4):
     """
     Compares ``python`` and ``matlab`` PLS results
+
+    Parameters
+    ----------
+    python : array_like
+    matlab : array_like
+    atol : float, optional
+        Tolerance for differences between ``python`` and ``matlab``
+
+    Returns
+    -------
+    close : bool
+        Whether the input arrays are close within ``atol``
+    maxdiff : float
+        Maximum absolute difference between input arrays
     """
 
     # signs may be flipped so just take difference of absolute values

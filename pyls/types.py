@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import warnings
 import numpy as np
 from pyls.base import BasePLS
 from pyls import compute, utils
@@ -48,7 +49,7 @@ class BehavioralPLS(BasePLS):
         super().__init__(X=np.asarray(X), Y=np.asarray(Y), **kwargs)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
-    def gen_covcorr(self, X, Y, groups):
+    def gen_covcorr(self, X, Y, groups, **kwargs):
         """
         Computes cross-covariance matrix from ``X`` and ``Y``
 
@@ -79,6 +80,7 @@ class BehavioralPLS(BasePLS):
 
     def gen_permsamp(self):
         """ Need to flip permutation (i.e., permute Y, not X) """
+
         Y_perms, X_perms = super().gen_permsamp()
 
         return X_perms, Y_perms
@@ -116,8 +118,8 @@ class BehavioralPLS(BasePLS):
 
         for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
             boot = self.bootsamp[:, i]
-            tusc, yboot = X[boot] @ utils.normalize(U_boot[:, :, i]), Y[boot]
-            distrib[:, :, i] = self.gen_covcorr(tusc, yboot, groups)
+            tusc = X[boot] @ utils.normalize(U_boot[:, :, i])
+            distrib[:, :, i] = self.gen_covcorr(tusc, Y[boot], groups)
 
         return distrib
 
@@ -136,28 +138,28 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.perm_result.permsamp = self.Y_perms
         res.usc = X @ res.u
         res.vsc = np.vstack([y @ v for (y, v) in
                              zip(np.split(Y, len(res.inputs.groups)),
                                  np.split(res.v, len(res.inputs.groups)))])
 
-        # compute bootstraps and BSRs; store bootsamp
+        # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)
         compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
-        res.boot_result.compare_u, res.boot_result.u_se = compare_u, u_se
-        res.boot_result.bootsamp = self.bootsamp
 
         # get lvcorrs
         groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        lvcorrs = self.gen_covcorr(res.usc, Y, groups)
-        res.lvcorrs, res.boot_result.orig_corr = lvcorrs, lvcorrs
+        res.lvcorrs = self.gen_covcorr(res.usc, Y, groups)
 
         # generate distribution / confidence intervals for lvcorrs
-        res.boot_result.distrib = self.boot_distrib(X, Y, U_boot, groups)
-        llcorr, ulcorr = compute.boot_ci(res.boot_result.distrib,
-                                         ci=self.inputs.ci)
-        res.boot_result.llcorr, res.boot_result.ulcorr = llcorr, ulcorr
+        distrib = self.boot_distrib(X, Y, U_boot, groups)
+        llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
+
+        # update results.boot_result dictionary
+        res.boot_result.update(dict(compare_u=compare_u, u_se=u_se,
+                                    bootsamp=self.bootsamp,
+                                    orig_corr=res.lvcorrs, distrib=distrib,
+                                    llcorr=llcorr, ulcorr=ulcorr))
 
         return res
 
@@ -179,7 +181,9 @@ class MeanCenteredPLS(BasePLS):
         Input data matrix, where ``S`` is observations and ``B`` is features
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
-    **kwargs : dict, optional
+    mean_centering : int, optional
+        Mean centering type. Must be in [0, 1, 2]. Default: 0
+    **kwargs : optional
         See ``pyls.base.PLSInputs`` for more information
 
     References
@@ -200,8 +204,15 @@ class MeanCenteredPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, X, groups, **kwargs):
-        super().__init__(X=np.asarray(X), groups=groups, **kwargs)
+    def __init__(self, X, groups, mean_centering=0, **kwargs):
+        if kwargs.get('n_cond', 1) == 1:
+            warnings.warn('Cannot set mean_centering to 0 when n_cond = 1.'
+                          'Resetting mean_centering to 1.')
+            mean_centering = 1
+        super().__init__(X=np.asarray(X),
+                         groups=groups,
+                         mean_centering=mean_centering,
+                         **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
@@ -227,11 +238,10 @@ class MeanCenteredPLS(BasePLS):
             Mean-centered matrix
         """
 
-        # TODO: integrate new mean center functions and ``mctype``
-        grand_mean = compute.get_group_mean(X, Y)
-        mean_centered = np.vstack([(X[grp].mean(axis=0) - grand_mean) for grp
-                                   in Y.T.astype(bool)])
-
+        mean_centered = compute.get_mean_center(X, Y,
+                                                self.inputs.n_cond,
+                                                self.inputs.mean_centering,
+                                                means=True)
         return mean_centered
 
     def boot_distrib(self, X, Y, U_boot):
@@ -264,9 +274,12 @@ class MeanCenteredPLS(BasePLS):
 
         for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
             boot, U = self.bootsamp[:, i], normed_U_boot[:, :, i]
-            # TODO: integrate new mean center functions and ``mctype``
-            usc = compute.get_mean_norm(X[boot], Y) @ U
-            distrib[:, :, i] = compute.get_group_mean(usc, Y, grand=False)
+            usc = compute.get_mean_center(X[boot], Y,
+                                          self.inputs.n_cond,
+                                          self.inputs.mean_centering,
+                                          means=False) @ U
+            distrib[:, :, i] = np.row_stack([usc[grp].mean(axis=0) for grp
+                                             in Y.T.astype(bool)])
 
         return distrib
 
@@ -286,25 +299,29 @@ class MeanCenteredPLS(BasePLS):
             condition.
         """
         res = super().run_pls(X, Y)
-        res.perm_result.permsamp = self.X_perms
         res.usc, res.vsc = X @ res.u, Y @ res.v
 
-        # compute bootstraps and BSRs; store bootsamp
+        # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)
         compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
-        res.boot_result.compare_u, res.boot_result.u_se = compare_u, u_se
-        res.boot_result.bootsamp = self.bootsamp
 
         # get normalized brain scores and contrast
-        # TODO: integrate new mean center functions and ``mctype``
-        res.boot_result.usc2 = compute.get_mean_norm(X, Y) @ res.u
-        res.boot_result.orig_usc = compute.get_group_mean(res.boot_result.usc2,
-                                                          Y, grand=False)
+        usc2 = compute.get_mean_center(X, Y,
+                                       self.inputs.n_cond,
+                                       self.inputs.mean_centering,
+                                       means=False) @ res.u
+        orig_usc = np.row_stack([usc2[grp].mean(axis=0) for grp
+                                 in Y.T.astype(bool)])
 
         # generate distribution / confidence intervals for contrast
-        res.boot_result.distrib = self.boot_distrib(X, Y, U_boot)
-        llusc, ulusc = compute.boot_ci(res.boot_result.distrib,
+        distrib = self.boot_distrib(X, Y, U_boot)
+        llusc, ulusc = compute.boot_ci(distrib,
                                        ci=self.inputs.ci)
-        res.boot_result.llusc, res.boot_result.ulusc = llusc, ulusc
+
+        # update results.boot_result dictionary
+        res.boot_result.update(dict(compare_u=compare_u, u_se=u_se,
+                                    bootsamp=self.bootsamp,
+                                    orig_usc=orig_usc, distrib=distrib,
+                                    usc2=usc2, llusc=llusc, ulusc=ulusc))
 
         return res
