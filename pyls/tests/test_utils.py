@@ -1,9 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import pytest
 import pyls
 
 rs = np.random.RandomState(1234)
+
+
+def test_DefDict():
+    d = pyls.utils.DefDict()
+    print(d)
 
 
 def test_zscore():
@@ -33,6 +39,13 @@ def test_xcorr():
     xcorr = pyls.utils.xcorr(X, Y, norm=False)
     assert xcorr.shape == (25, 200)
 
+    with pytest.raises(ValueError):
+        pyls.utils.xcorr(X[:, 0], Y)
+    with pytest.raises(ValueError):
+        pyls.utils.xcorr(X[:, 0], Y[:, 0])
+    with pytest.raises(ValueError):
+        pyls.utils.xcorr(X[0:10], Y)
+
 
 def test_dummycode():
     groups = [10, 12, 11]
@@ -44,3 +57,9 @@ def test_dummycode():
 
     dummy_cond = pyls.utils.dummy_code(groups, n_cond=3)
     assert dummy_cond.shape == (np.sum(groups) * 3, len(groups) * 3)
+
+
+def test_get_seed():
+    pyls.utils.get_seed()
+    pyls.utils.get_seed(1234)
+    pyls.utils.get_seed(rs)

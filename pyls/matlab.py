@@ -63,7 +63,7 @@ def import_matlab_result(fname):
     # if 'result' key is missing then consider a malformed input
     try:
         result = matfile.get('result')[0, 0]
-    except (KeyError, IndexError) as e:
+    except (IndexError, TypeError) as e:
         raise ValueError('Cannot get result struct from provided mat file')
 
     # convert result structure to a dictionary using dtypes as keys

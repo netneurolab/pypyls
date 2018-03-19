@@ -140,9 +140,11 @@ class BehavioralPLS(BasePLS):
         res = super().run_pls(X, Y)
         res.perm_result.permsamp = self.Y_perms
         res.usc = X @ res.u
+        # mechanism for splitting outputs along group / condition indices
+        grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
         res.vsc = np.vstack([y @ v for (y, v) in
-                             zip(np.split(Y, len(res.inputs.groups)),
-                                 np.split(res.v, len(res.inputs.groups)))])
+                             zip(np.split(Y, np.cumsum(grps)[:-1]),
+                                 np.split(res.v, len(grps)))])
 
         # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)

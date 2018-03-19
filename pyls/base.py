@@ -90,14 +90,14 @@ class PLSResults(utils.DefDict):
         compare_u : (B x L) np.ndarray
             Left singular vectors normalized by standard errors in ``u_se``.
             Often referred to as "bootstrap ratios" or "BSRs", can usually be
-            interpreted as a z-score
+            interpreted as a z-score (assuming a non-skewed distribution)
         u_se : (B x L) np.ndarray
             Standard error of bootstrapped distribution of left singular
             vectors
         distrib : (J x L x R) np.ndarray
             Bootstrapped distribution of either ``orig_usc`` or ``orig_corr``
         usc2 : (S x L) np.ndarray
-            Mean-centered brain scores (``meancenter(inputs.X) @ v``)
+            Mean-centered brain scores (``X_mc @ v``)
         orig_usc : (J x L) np.ndarray
             Group x condition averages of ``usc2``. Can be treated as a
             contrast indicating group x condition differences
@@ -213,15 +213,11 @@ class BasePLS():
     """
 
     def __init__(self, X, groups=None, n_cond=1, **kwargs):
-        # if groups aren't provided but conditions are, use groups instead
-        # otherwise, just get number of subjects
+        # if groups aren't provided or are provided wrong, fix it
         if groups is None:
             groups = [len(X)]
         elif not isinstance(groups, (list, np.ndarray)):
             groups = [groups]
-        if len(groups) == 1 and n_cond > 1:
-            groups, n_cond = [len(X) // n_cond] * n_cond, 1
-        # create inputs object and get random seed generator
         self.inputs = PLSInputs(X=X, groups=groups, n_cond=n_cond,
                                 **kwargs)
         self.rs = utils.get_seed(self.inputs.seed)

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import itertools
 import numpy as np
+import pytest
 import pyls
 
 Xf = 1000
@@ -12,7 +14,7 @@ rs = np.random.RandomState(1234)
 class PLSBaseTest():
     defaults = pyls.base.PLSInputs(X=rs.rand(subj, Xf),
                                    Y=rs.rand(subj, Yf),
-                                   groups=[subj],
+                                   groups=None,
                                    n_cond=1,
                                    mean_centering=0,
                                    rotate=True,
@@ -22,11 +24,6 @@ class PLSBaseTest():
                  behavioral=pyls.BehavioralPLS)
 
     def __init__(self, plstype, **kwargs):
-        # confirm input
-        if plstype not in self.funcs.keys():
-            raise ValueError('Argument `plstype` must be in {}'.format(
-                list(self.funcs.keys())))
-
         self.inputs = pyls.base.PLSInputs(**{key: kwargs.get(key, val) for
                                              (key, val) in
                                              self.defaults.items()})
@@ -44,12 +41,12 @@ class PLSBaseTest():
             Expected attributes and shapes
         """
 
+        dummy = len(self.output.inputs.groups) * self.output.inputs.n_cond
         if self.type == 'behavioral':
-            behavior = Yf * len(self.inputs.groups) * self.inputs.n_cond
-            num_lv = min(subj, Xf, Yf)
+            behavior = Yf * dummy
+            num_lv = min([f for f in [subj, Xf, Yf, dummy] if f != 1])
         else:
-            behavior = len(self.inputs.groups) * self.inputs.n_cond
-            num_lv = len(self.inputs.groups) * self.inputs.n_cond
+            behavior = num_lv = dummy
 
         attrs = [
             ('u', (Xf, num_lv)),
@@ -79,56 +76,56 @@ class PLSBaseTest():
 
 
 def test_BehavioralPLS_onegroup_onecond():
-    for n_split in [None, 5]:
-        PLSBaseTest('behavioral',
-                    groups=[subj],
-                    n_cond=1,
-                    n_split=n_split)
+    kwargs = dict(groups=None, n_cond=1)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_BehavioralPLS_multigroup_onecond():
-    for n_split in [None, 5]:
-        PLSBaseTest('behavioral',
-                    groups=[33, 34, 33],
-                    n_cond=1,
-                    n_split=n_split)
+    kwargs = dict(groups=[33, 34, 33], n_cond=1)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_BehavioralPLS_onegroup_multicond():
-    for n_split in [None, 5]:
-        PLSBaseTest('behavioral',
-                    groups=[subj],
-                    n_cond=4,
-                    n_split=n_split)
+    kwargs = dict(groups=subj // 4, n_cond=4)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_BehavioralPLS_multigroup_multicond():
-    for n_split in [None, 5]:
-        PLSBaseTest('behavioral',
-                    groups=[25, 25],
-                    n_cond=2,
-                    n_split=n_split)
+    kwargs = dict(groups=[25, 25], n_cond=2)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_MeanCenteredPLS_multigroup_onecond():
-    for n_split in [None, 5]:
-        PLSBaseTest('meancentered',
-                    groups=[33, 34, 33],
-                    n_cond=1,
-                    n_split=n_split)
+    kwargs = dict(groups=[33, 34, 33], n_cond=1)
+    for (mc, ns, rt) in itertools.product([1, 2], [None, 5], [True, False]):
+        PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
+                    **kwargs)
+    with pytest.warns(UserWarning):
+        PLSBaseTest('meancentered', groups=[50, 50], mean_centering=0)
 
 
 def test_MeanCenteredPLS_onegroup_multicond():
-    for n_split in [None, 5]:
-        PLSBaseTest('meancentered',
-                    groups=[subj],
-                    n_cond=2,
-                    n_split=n_split)
+    kwargs = dict(groups=[subj // 2], n_cond=2)
+    for (mc, ns, rt) in itertools.product([0, 2], [None, 5], [True, False]):
+        PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
+                    **kwargs)
+    with pytest.warns(UserWarning):
+        PLSBaseTest('meancentered', mean_centering=1, **kwargs)
 
 
 def test_MeanCenteredPLS_multigroup_multicond():
-    for n_split in [None, 5]:
-        PLSBaseTest('meancentered',
-                    groups=[25, 25],
-                    n_cond=2,
-                    n_split=n_split)
+    kwargs = dict(groups=[25, 25], n_cond=2)
+    for (mc, ns, rt) in itertools.product([0, 1, 2], [None, 5], [True, False]):
+        PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
+                    **kwargs)
+
+
+def test_errors():
+    with pytest.raises(ValueError):
+        PLSBaseTest('meancentered', groups=[50, 50], mean_centering=3)
+    with pytest.raises(ValueError):
+        PLSBaseTest('meancentered', groups=[subj])
