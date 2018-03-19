@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import warnings
 import numpy as np
 from pyls.base import BasePLS
 from pyls import compute, utils
@@ -10,7 +11,7 @@ class BehavioralPLS(BasePLS):
     Runs "behavioral" PLS
 
     Uses singular value decomposition (SVD) to find latent variables (LVs) in
-    the cross-covariance matrix of ``brain`` and ``behav``, two subject (N) by
+    the cross-covariance matrix of ``X`` and ``Y``, two subject (N) by
     feature (K) arrays, optionally identifying the differences in these LVs
     between ``groups``. Permutation testing is used to examine statistical
     significance and split-half resampling is used to assess reliability of
@@ -19,78 +20,12 @@ class BehavioralPLS(BasePLS):
 
     Parameters
     ----------
-    brain : (N x K) array_like
-        Where ``N`` is the number of subjects and ``K`` is the number of
-        observations
-    behav : (N x J) array_like
-        Where ``N`` is the number of subjects and ``J`` is the number of
-        observations
-    groups : (N,) array_like, optional
-        Array with labels separating ``N`` subjects into ``G`` groups. Default:
-        None (only one group)
-    n_cond : int, optional
-        Number of conditions. Default: 1
-    n_perm : int, optional
-        Number of permutations for testing statistical significance of singular
-        vectors. Default: 5000
-    n_boot : int, optional
-        Number of bootstraps for testing reliability of singular vectors.
-        Default: 1000
-    n_split : int, optional
-        Number of split-half resamples for testing reliability of permutations.
-        Default: 500
-    ci : (0, 100) float, optional
-        Confidence interval used to calculate reliability of features across
-        bootstraps. This value approximately corresponds to setting an alpha
-        value, where ``alpha = (100 - ci) / 100``. Default: 95
-    n_proc : int, optional
-        Number of processors to use for permutation and bootstrapping.
-        Default: 1 (no multiprocessing)
-    seed : int, optional
-        Seed for random number generator. Default: None
-
-    Attributes
-    ----------
-    U : (K[*G] x L) np.ndarray
-        Left singular vectors from decomposition, where ``L`` is the number of
-        latent variables identified in the data
-    d : (L x L) np.ndarray
-        Diagonal array of singular values from decomposition, where ``L`` is
-        the number of latent variables identified in the data
-    V : (J x L) np.ndarray
-        Right singular vectors from decomposition, where ``L`` is the number of
-        latent variables identified in the data
-    d_pvals : (L,) np.ndarray
-        Statistical significance of latent variables as determined by
-        permutation testing
-    d_varexp : (L,) np.ndarray
-        Variance explained by each latent variable
-    U_bsr : (K[*G] x L) np.ndarray
-        Bootstrap ratios of left singular vectors, as determined by bootstrap
-        resampling. Values can be treated as a Z-score, indicating how
-        reliably the given feature contributes to the corresponding latent
-        variable.
-    V_bsr : (J x L) np.ndarray
-        Bootstrap ratios of right singular vectors, as determined by bootstrap
-        resampling. Values can be treated as a Z-score, indicating how
-        reliably the given feature contributes to the corresponding latent
-        variable.
-    U_corr : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. The correlation
-        of left singular vectors across split-half resamples in the original
-        data.
-    V_corr : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. The correlation
-        of left singular vectors across split-half resamples in the original
-        data.
-    U_pvals : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. Statistical
-        significance of the left singular vectors as determined by permutation
-        tests across split-half resamples.
-    V_pvals : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. Statistical
-        significance of the right singular vectors as determined by permutation
-        tests across split-half resamples.
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is observations and ``B`` is features
+    Y : (S x T) array_like
+        Behavioral matrix, where ``S`` is observations and ``T`` is features
+    **kwargs : dict, optional
+        See ``pyls.base.PLSInputs`` for more information
 
     References
     ----------
@@ -110,94 +45,126 @@ class BehavioralPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, brain, behav, groups=None, n_cond=1, **kwargs):
-        X, Y = np.asarray(brain), np.asarray(behav)
-        super().__init__(X=X, Y=Y, groups=groups, n_cond=n_cond, **kwargs)
-        self._run_pls(self.inputs.X, self.inputs.Y)
+    def __init__(self, X, Y, **kwargs):
+        super().__init__(X=np.asarray(X), Y=np.asarray(Y), **kwargs)
+        self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
-    def _gen_covcorr(self, X, Y, groups):
+    def gen_covcorr(self, X, Y, groups, **kwargs):
         """
         Computes cross-covariance matrix from ``X`` and ``Y``
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is the
-            number of variables.
-        groups : (N,) array_like, optional
-            Array with labels separating ``N`` subjects into ``G`` groups.
-            Default: None (only one group)
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
+        groups : (S x J) array_like
+            Dummy coded input array, where ``S`` is observations and ``J``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
 
         Returns
         -------
-        cross_cov : (J[*G] x K) np.ndarray
+        crosscov : (J*T x B) np.ndarray
             Cross-covariance matrix
         """
 
-        if X.ndim != Y.ndim:
-            raise ValueError('Number of dimensions of ``X`` and ``Y`` must '
-                             'match.')
-        if X.ndim != 2:
-            raise ValueError('``X`` and ``Y`` must each have 2 dimensions.')
-        if X.shape[0] != Y.shape[0]:
-            raise ValueError('The first dimension of ``X`` and ``Y`` must '
-                             'match.')
+        crosscov = np.row_stack([utils.xcorr(X[grp], Y[grp], norm=False)
+                                 for grp in groups.T.astype(bool)])
 
-        if groups.shape[-1] == 1:
-            cross_cov = utils.xcorr(utils.normalize(X),
-                                    utils.normalize(Y))
-        else:
-            cross_cov = [utils.xcorr(utils.normalize(X[grp]),
-                                     utils.normalize(Y[grp]))
-                         for grp in groups.T.astype(bool)]
-            cross_cov = np.row_stack(cross_cov)
+        return crosscov
 
-        return cross_cov
+    def gen_permsamp(self):
+        """ Need to flip permutation (i.e., permute Y, not X) """
 
-    def _run_pls(self, X, Y):
+        Y_perms, X_perms = super().gen_permsamp()
+
+        return X_perms, Y_perms
+
+    def boot_distrib(self, X, Y, U_boot, groups):
+        """
+        Generates bootstrapped distribution for contrast
+
+        Parameters
+        ----------
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
+        U_boot : (K x L x B) array_like
+            Bootstrapped values of the right singular vectors, where ``L`` is
+            the number of latent variables and ``B`` is the number of
+            bootstraps
+        groups : (S x J) array_like
+            Dummy coded input array, where ``S`` is observations and ``J``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
+
+        Returns
+        -------
+        distrib : (G x L x B) np.ndarray
+        """
+
+        distrib = np.zeros(shape=(groups.shape[-1] * Y.shape[-1],
+                                  U_boot.shape[1],
+                                  self.inputs.n_boot,))
+
+        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
+            boot = self.bootsamp[:, i]
+            tusc = X[boot] @ utils.normalize(U_boot[:, :, i])
+            distrib[:, :, i] = self.gen_covcorr(tusc, Y[boot], groups)
+
+        return distrib
+
+    def run_pls(self, X, Y):
         """
         Runs PLS analysis
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Input array, where ``N`` is the number of subjects and ``J`` is the
-            number of variables.
-        groups : (N,) array_like
-            Array with labels separating ``N`` subjects into ``G`` groups.
-            Default: None (only one group)
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
         """
 
-        # original singular vectors / values
-        self.U, self.d, self.V = self._svd(X, Y, seed=self._rs)
-        # get variance explained by latent variables
-        self.d_varexp = compute.crossblock_cov(self.d)
+        res = super().run_pls(X, Y)
+        res.perm_result.permsamp = self.Y_perms
+        res.usc = X @ res.u
+        # mechanism for splitting outputs along group / condition indices
+        grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
+        res.vsc = np.vstack([y @ v for (y, v) in
+                             zip(np.split(Y, np.cumsum(grps)[:-1]),
+                                 np.split(res.v, len(grps)))])
 
-        # compute permutations
-        d_perm, ucorrs, vcorrs = self._permutation(X, Y)
-        # get LV significance
-        self.d_pvals = compute.perm_sig(self.d, d_perm)
+        # compute bootstraps and BSRs
+        U_boot, V_boot = self.bootstrap(X, Y)
+        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
-        # get split half reliability, if set
-        if self.inputs.n_split is not None:
-            di = np.linalg.inv(self.d)
-            ud, vd = self.U @ di, self.V @ di
-            self.U_corr, self.V_corr = self._split_half(X, Y, ud, vd)
-            self.U_pvals = compute.perm_sig(np.diag(self.U_corr), ucorrs)
-            self.V_pvals = compute.perm_sig(np.diag(self.V_corr), vcorrs)
+        # get lvcorrs
+        groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        res.lvcorrs = self.gen_covcorr(res.usc, Y, groups)
 
-        # compute bootstraps
-        U_boot, V_boot = self._bootstrap(X, Y)
+        # generate distribution / confidence intervals for lvcorrs
+        distrib = self.boot_distrib(X, Y, U_boot, groups)
+        llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
-        # compute bootstrap ratios
-        self.U_bsr = compute.boot_rel(self.U @ self.d, U_boot)
-        self.V_bsr = compute.boot_rel(self.V @ self.d, V_boot)
+        # update results.boot_result dictionary
+        res.boot_result.update(dict(compare_u=compare_u, u_se=u_se,
+                                    bootsamp=self.bootsamp,
+                                    orig_corr=res.lvcorrs, distrib=distrib,
+                                    llcorr=llcorr, ulcorr=ulcorr))
+
+        return res
 
 
 class MeanCenteredPLS(BasePLS):
@@ -213,90 +180,16 @@ class MeanCenteredPLS(BasePLS):
 
     Parameters
     ----------
-    data : (N x K) array_like
-        Original data array where ``N`` is the number of subjects and ``K`` is
-        the number of observations
+    X : (S x B) array_like
+        Input data matrix, where ``S`` is observations and ``B`` is features
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
     n_cond : int, optional
         Number of conditions. Default: 1
-    n_perm : int, optional
-        Number of permutations for testing statistical significance of singular
-        vectors. Default: 5000
-    n_boot : int, optional
-        Number of bootstraps for testing reliability of singular vectors.
-        Default: 1000
-    n_split : int, optional
-        Number of split-half resamples for testing reliability of permutations.
-        Default: 500
-    ci : (0, 100) float, optional
-        Confidence interval used to calculate reliability of features across
-        bootstraps. This value approximately corresponds to setting an alpha
-        value, where ``alpha = (100 - ci) / 100``. Default: 95
-    n_proc : int, optional
-        Number of processors to use for permutation and bootstrapping.
-        Default: 1 (no multiprocessing)
-    seed : int, optional
-        Seed for random number generator. Default: None
-
-    Attributes
-    ----------
-    U : (G x L) np.ndarray
-        Left singular vectors from decomposition, where ``G`` is the number of
-        groups and ``L`` is the number of latent variables identified in the
-        data
-    d : (L x L) np.ndarray
-        Diagonal array of singular values from decomposition, where ``L`` is
-        the number of latent variables identified in the data
-    V : (J x L) np.ndarray
-        Right singular vectors from decomposition, where ``L`` is the number of
-        latent variables identified in the data
-    d_pvals : (L,) np.ndarray
-        Statistical significance of latent variables as determined by
-        permutation testing
-    d_varexp : (L,) np.ndarray
-        Variance explained by each latent variable
-    U_bsr : (G x L) np.ndarray
-        Bootstrap ratios of left singular vectors, as determined by bootstrap
-        resampling. Values can be treated as a Z-score, indicating how
-        reliably the given feature contributes to the corresponding latent
-        variable.
-    V_bsr : (J x L) np.ndarray
-        Bootstrap ratios of right singular vectors, as determined by bootstrap
-        resampling. Values can be treated as a Z-score, indicating how
-        reliably the given feature contributes to the corresponding latent
-        variable.
-    usc : (N x L) np.ndarray
-        "Brainscores" reflecting the extent to which each subject adheres to
-        the identified latent variable.
-    orig_usc : (G x L) np.ndarray
-        Contrast reflecting weighted dissociation of ``groups`` from each other
-        for each identified latent variable.
-    orig_usc_ll : (G x L) np.ndarray
-        Lower bound of confidence interval for ``orig_usc`` as determined by
-        bootstrap resampling. CI set by ``ci`` at instantiation.
-    orig_usc_ul : (G x L) np.ndarray
-        Upper bound of confidence interval for ``orig_usc`` as determined by
-        bootstrap resampling. CI set by ``ci`` at instantiation.
-    distrib : (G x L x B) np.ndarray
-        Distribution of ``orig_usc`` as determined by bootstrap resampling.
-        Used to calculated ``orig_usc_ll` and ``orig_usc_ul``.
-    U_corr : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. The correlation
-        of left singular vectors across split-half resamples in the original
-        data.
-    V_corr : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. The correlation
-        of left singular vectors across split-half resamples in the original
-        data.
-    U_pvals : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. Statistical
-        significance of the left singular vectors as determined by permutation
-        tests across split-half resamples.
-    V_pvals : (L,) np.ndarray
-        Only present if ``n_split`` was set at instantiation. Statistical
-        significance of the right singular vectors as determined by permutation
-        tests across split-half resamples.
+    mean_centering : int, optional
+        Mean centering type. Must be in [0, 1, 2]. Default: 0
+    **kwargs : optional
+        See ``pyls.base.PLSInputs`` for more information
 
     References
     ----------
@@ -316,123 +209,136 @@ class MeanCenteredPLS(BasePLS):
        Chicago
     """
 
-    def __init__(self, data, groups, n_cond=1, **kwargs):
-        super().__init__(X=np.asarray(data), groups=groups,
-                         n_cond=n_cond, **kwargs)
-        # for consistency, assign variables to X and Y
-        self.inputs._Y = utils.dummy_code(self.inputs.groups,
-                                          self.inputs.n_cond)
-        # run analysis
-        self._run_pls(self.inputs.X, self.inputs.Y)
+    def __init__(self, X, groups, n_cond=1, mean_centering=0, **kwargs):
+        # check inputs for validity
+        if n_cond == 1 and len(groups) == 1:
+            raise ValueError('Cannot perform PLS with only one group and one '
+                             'condition. Confirm inputs are correct.')
+        if n_cond == 1 and len(groups) > 1 and mean_centering == 0:
+            warnings.warn('Cannot set mean_centering to 0 when there is only'
+                          'one condition. Resetting mean_centering to 1.')
+            mean_centering = 1
+        elif n_cond > 1 and len(groups) == 1 and mean_centering == 1:
+            warnings.warn('Cannot set mean_centering to 1 when there is only '
+                          'one group. Resetting mean_centering to 0.')
+            mean_centering = 0
 
-    def _gen_covcorr(self, X, Y, groups=None):
+        # instantiate base class, generate dummy array, and run PLS analysis
+        super().__init__(X=np.asarray(X),
+                         groups=groups,
+                         n_cond=n_cond,
+                         mean_centering=mean_centering,
+                         **kwargs)
+        self.inputs.Y = utils.dummy_code(self.inputs.groups,
+                                         self.inputs.n_cond)
+        self.results = self.run_pls(self.inputs.X, self.inputs.Y)
+
+    def gen_covcorr(self, X, Y, **kwargs):
         """
         Computes mean-centered matrix from ``X`` and ``Y``
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``C`` is the number of subjects x
-            the number of conditions, and ``J`` corresponds to the number of
-            groups x conditions. A value of 1 indicates that a subject
-            condition (row) belongs to a specific condition group (column).
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Dummy coded input array, where ``S`` is observations and ``T``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
 
         Returns
         -------
-        mean_centered : (J x K) np.ndarray
+        mean_centered : (T x B) np.ndarray
             Mean-centered matrix
         """
 
-        iden = np.ones(shape=(len(Y), 1))
-        grp_means = np.linalg.inv(np.diag((iden.T @ Y).flatten())) @ Y.T @ X
-        num_group = len(grp_means)
-        L = np.ones(shape=(num_group, 1))
-        # effectively the same as M - M.mean(axis=0)...
-        mean_centered = grp_means - (L @ (((1/num_group) * L.T) @ grp_means))
-
+        mean_centered = compute.get_mean_center(X, Y,
+                                                self.inputs.n_cond,
+                                                self.inputs.mean_centering,
+                                                means=True)
         return mean_centered
 
-    def _boot_distrib(self, X, Y, V_boot):
+    def boot_distrib(self, X, Y, U_boot):
         """
         Generates bootstrapped distribution for contrast
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
-        V_boot : (K x L x B) array_like
-            Bootstrapped values of the right singular vectors, where ``L`` is
-            the number of latent variables and ``B`` is the number of
-            bootstraps
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Dummy coded input array, where ``S`` is observations and ``T``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
+        U_boot : (B x L x R) array_like
+            Bootstrapped values of the right singular vectors, where ``B`` is
+            the same as in ``X``, `L`` is the number of latent variables and
+            ``R`` is the number of bootstraps
 
         Returns
         -------
-        distrib : (G x L x B) np.ndarray
+        distrib : (T x L x R) np.ndarray
         """
 
-        distrib = np.zeros(shape=(self.U.shape + (self.inputs.n_boot,)))
-        normed_V_boot = utils.normalize(V_boot)
+        distrib = np.zeros(shape=(Y.shape[-1], U_boot.shape[1],
+                                  self.inputs.n_boot,))
 
-        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
-            boot, V = self.bootsamp[:, i], normed_V_boot[:, :, i]
-            usc = compute.get_mean_norm(X[boot], Y) @ V
-            distrib[:, :, i] = compute.get_group_mean(usc, Y, grand=False)
+        for i in range(self.inputs.n_boot):
+            boot, U = self.bootsamp[:, i], U_boot[:, :, i]
+            usc = compute.get_mean_center(X[boot], Y,
+                                          self.inputs.n_cond,
+                                          self.inputs.mean_centering,
+                                          means=False) @ utils.normalize(U)
+            distrib[:, :, i] = np.row_stack([usc[grp].mean(axis=0) for grp
+                                             in Y.T.astype(bool)])
 
         return distrib
 
-    def _run_pls(self, X, Y):
+    def run_pls(self, X, Y):
         """
         Runs PLS analysis
 
         Parameters
         ----------
-        X : (N x K) array_like
-            Input array, where ``N`` is the number of subjects and ``K`` is the
-            number of variables.
-        Y : (N x J) array_like
-            Dummy coded input array, where ``N`` is the number of subjects and
-            ``J`` corresponds to the number of groups. A value of 1 indicates
-            that a subject (row) belongs to a group (column).
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like, optional
+            Dummy coded input array, where ``S`` is observations and ``T``
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
         """
 
-        # original singular vectors / values
-        self.U, self.d, self.V = self._svd(X, Y, seed=self._rs)
-        # get variance explained by latent variables
-        self.d_varexp = compute.crossblock_cov(self.d)
+        res = super().run_pls(X, Y)
+        res.perm_result.permsamp = self.X_perms
+        res.usc, res.vsc = X @ res.u, Y @ res.v
 
-        # compute permutations
-        d_perm, ucorrs, vcorrs = self._permutation(X, Y)
-        # get LV significance
-        self.d_pvals = compute.perm_sig(self.d, d_perm)
-
-        # get split half reliability, if requested
-        if self.inputs.n_split is not None:
-            di = np.linalg.inv(self.d)
-            ud, vd = self.U @ di, self.V @ di
-            self.U_corr, self.V_corr = self._split_half(X, Y, ud, vd)
-            self.U_pvals = compute.perm_sig(np.diag(self.U_corr), ucorrs)
-            self.V_pvals = compute.perm_sig(np.diag(self.V_corr), vcorrs)
-
-        # generate bootstrapped singular vectors
-        U_boot, V_boot = self._bootstrap(X, Y)
-
-        # compute bootstrap ratios
-        self.U_bsr = compute.boot_rel(self.U @ self.d, U_boot)
-        self.V_bsr = compute.boot_rel(self.V @ self.d, V_boot)
+        # compute bootstraps and BSRs
+        U_boot, V_boot = self.bootstrap(X, Y)
+        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
         # get normalized brain scores and contrast
-        self.usc = compute.get_mean_norm(X, Y) @ self.V
-        self.orig_usc = compute.get_group_mean(self.usc, Y, grand=False)
+        usc2 = compute.get_mean_center(X, Y,
+                                       self.inputs.n_cond,
+                                       self.inputs.mean_centering,
+                                       means=False) @ res.u
+        orig_usc = np.row_stack([usc2[grp].mean(axis=0) for grp
+                                 in Y.T.astype(bool)])
 
         # generate distribution / confidence intervals for contrast
-        self.distrib = self._boot_distrib(X, Y, V_boot)
-        self.orig_usc_ll, self.orig_usc_ul = compute.boot_ci(self.distrib,
-                                                             ci=self.inputs.ci)
+        distrib = self.boot_distrib(X, Y, U_boot)
+        llusc, ulusc = compute.boot_ci(distrib,
+                                       ci=self.inputs.ci)
+
+        # update results.boot_result dictionary
+        res.boot_result.update(dict(compare_u=compare_u, u_se=u_se,
+                                    bootsamp=self.bootsamp,
+                                    orig_usc=orig_usc, distrib=distrib,
+                                    usc2=usc2, llusc=llusc, ulusc=ulusc))
+
+        return res

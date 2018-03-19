@@ -4,6 +4,50 @@ import numpy as np
 import tqdm
 
 
+class DefDict(dict):
+    """
+    Subclass of dictionary that instantiates with ``self.defaults``
+    """
+
+    defaults = {}
+
+    def __init__(self, **kwargs):
+        i = {key: kwargs.get(key, val) for key, val in self.defaults.items()}
+        super().__init__(**i)
+        self.__dict__ = self
+
+    def __str__(self):
+        items = [k for k in self.keys() if self.get(k) is not None]
+        return '{name}({keys})'.format(name=self.__class__.__name__,
+                                       keys=', '.join(items))
+
+    __repr__ = __str__
+
+
+def check_xcorr_inputs(X, Y):
+    """
+    Ensures that ``X`` and ``Y`` are appropriate for use in ``xcorr()``
+
+    Parameters
+    ----------
+    X : (S x B) array_like
+        Input matrix, where ``S`` is samples and ``B`` is features.
+    Y : (S x T) array_like, optional
+        Input matrix, where ``S`` is samples and ``T`` is features.
+
+    Raises
+    ------
+    ValueError
+    """
+
+    if X.ndim != Y.ndim:
+        raise ValueError('Number of dims of ``X`` and ``Y`` must match.')
+    if X.ndim != 2:
+        raise ValueError('``X`` and ``Y`` must each have 2 dims.')
+    if len(X) != len(Y):
+        raise ValueError('The first dim of ``X`` and ``Y`` must match.')
+
+
 def trange(n_iter, **kwargs):
     """
     Wrapper for ``tqdm.trange`` with some default options set
@@ -15,7 +59,7 @@ def trange(n_iter, **kwargs):
 
     Returns
     -------
-    tqdm.tqdm instance
+    progbar : tqdm.tqdm instance
     """
 
     form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
@@ -23,50 +67,28 @@ def trange(n_iter, **kwargs):
                        bar_format=form, **kwargs)
 
 
-def xcorr(X, Y, groups=None):
+def xcorr(X, Y, norm=True):
     """
     Calculates the cross-covariance matrix of ``X`` and ``Y``
 
     Parameters
     ----------
-    X : (N x J) array_like
-    Y : (N x K) array_like
-    groups : (N,) array_like, optional
-        Grouping array, where ``len(np.unique(groups))`` is the number of
-        distinct groups in ``X`` and ``Y``. Cross-covariance matrices are
-        computed separately for each group and are stacked row-wise.
+    X : (S x B) array_like
+        Input matrix, where ``S`` is samples and ``B`` is features.
+    Y : (S x T) array_like, optional
+        Input matrix, where ``S`` is samples and ``T`` is features.
 
     Returns
     -------
-    (K[*G] x J) np.ndarray
+    xprod : (T x B) np.ndarray
         Cross-covariance of ``X`` and ``Y``
     """
 
-    if groups is None:
-        return _compute_xcorr(X, Y)
-    else:
-        return np.row_stack([_compute_xcorr(X[groups == grp],
-                                            Y[groups == grp])
-                             for grp in np.unique(groups)])
-
-
-def _compute_xcorr(X, Y):
-    """
-    Calculates the cross-covariance matrix of ``X`` and ``Y``
-
-    Parameters
-    ----------
-    X : (N x J) array_like
-    Y : (N x K) array_like
-
-    Returns
-    -------
-    xprod : (K x J) np.ndarray
-        Cross-covariance of ``X`` and ``Y``
-    """
-
-    Xnz, Ynz = normalize(zscore(X)), normalize(zscore(Y))
-    xprod = (Ynz.T @ Xnz) / (Xnz.shape[0] - 1)
+    check_xcorr_inputs(X, Y)
+    Xn, Yn = zscore(X), zscore(Y)
+    if norm:
+        Xn, Yn = normalize(Xn), normalize(Yn)
+    xprod = (Yn.T @ Xn) / (len(Xn) - 1)
 
     return xprod
 
@@ -80,22 +102,21 @@ def zscore(X):
 
     Parameters
     ----------
-    X : (N x J) array_like
+    X : (S x B) array_like
+        Input array
 
     Returns
     -------
-    zarr : (N x J) np.ndarray
+    zarr : (S x B) np.ndarray
         Z-scored ``X``
     """
 
     arr = np.array(X)
-
-    avg, stdev = arr.mean(axis=0), arr.std(axis=0)
+    avg, stdev = arr.mean(axis=0), arr.std(axis=0, ddof=1)
     zero_items = np.where(stdev == 0)[0]
 
     if zero_items.size > 0:
         avg[zero_items], stdev[zero_items] = 0, 1
-
     zarr = (arr - avg) / stdev
     zarr[:, zero_items] = 0
 
@@ -110,20 +131,19 @@ def normalize(X, axis=0):
 
     Parameters
     ----------
-    X : (N x K) array_like
-        Data to be normalized
+    X : (S x B) array_like
+        Input array
     axis : int, optional
         Axis for normalization. Default: 0
 
     Returns
     -------
-    normed : (N x K) np.ndarray
+    normed : (S x B) np.ndarray
         Normalized ``X``
     """
 
     normed = np.array(X)
     normal_base = np.linalg.norm(normed, axis=axis, keepdims=True)
-
     # avoid DivideByZero errors
     zero_items = np.where(normal_base == 0)
     normal_base[zero_items] = 1
@@ -162,25 +182,24 @@ def get_seed(seed=None):
 
 def dummy_code(groups, n_cond=1):
     """
-    Dummy codes ``groups``
+    Dummy codes ``groups`` and ``n_cond``
 
     Parameters
     ----------
     groups : (G,) list
         List with number of subjects in each of ``G`` groups
-    n_cond : int
-        Number of conditions, for each subject
+    n_cond : int, optional
+        Number of conditions, for each subject. Default: 1
 
     Returns
     -------
-    Y : (N x G x C) np.ndarray
-        Dummy coded group array
+    Y : (S x G*C) np.ndarray
+        Dummy-coded group array
     """
 
     length = sum(groups) * n_cond
     width = len(groups) * n_cond
     Y = np.zeros((length, width))
-
     cstart = 0  # starting index for columns
     rstart = 0  # starting index for rows
 
@@ -203,14 +222,10 @@ def permute_cols(x, seed=None):
 
     Parameters
     ----------
-    x : (N x M) array_like
-        Array to be permuted
+    x : (S x B) array_like
+        Input array to be permuted
     seed : {int, RandomState instance, None}, optional
-        The seed of the pseudo random number generator to use when shuffling
-        the data.  If int, ``seed`` is the seed used by the random number
-        generator. If RandomState instance, ``seed`` is the random number
-        generator. If None, the random number generator is the RandomState
-        instance used by ``np.random``. Default: None
+        Seed for random number generation. Default: None
 
     Returns
     -------

@@ -1,198 +1,131 @@
 # -*- coding: utf-8 -*-
 
+import itertools
 import numpy as np
 import pytest
 import pyls
 
-
-brain = 1000
-behavior = 100
+Xf = 1000
+Yf = 100
 subj = 100
-n_perm = 20
-n_boot = 10
-n_split = 5
-seed = 1234
-
-np.random.rand(seed)
-X = np.random.rand(subj, brain)
-Y = np.random.rand(subj, behavior)
+rs = np.random.RandomState(1234)
 
 
-def make_outputs(behavior, num_lv):
-    """
-    Used to make list of expected attributes and shapes for PLS outputs
+class PLSBaseTest():
+    defaults = pyls.base.PLSInputs(X=rs.rand(subj, Xf),
+                                   Y=rs.rand(subj, Yf),
+                                   groups=None,
+                                   n_cond=1,
+                                   mean_centering=0,
+                                   rotate=True,
+                                   n_perm=20, n_boot=10, n_split=None,
+                                   ci=95, seed=rs)
+    funcs = dict(meancentered=pyls.MeanCenteredPLS,
+                 behavioral=pyls.BehavioralPLS)
 
-    Parameters
-    ----------
-    behavior : int
-        Expected number of behavior output
-    num_lv : int
-        Expected number of output latent variables
+    def __init__(self, plstype, **kwargs):
+        self.inputs = pyls.base.PLSInputs(**{key: kwargs.get(key, val) for
+                                             (key, val) in
+                                             self.defaults.items()})
+        self.output = self.funcs.get(plstype)(**self.inputs).results
+        self.type = plstype
+        self.confirm_outputs()
 
-    Returns
-    -------
-    nosplit_attrs : list-of-tuple
-        For PLS without split-half resampling
-    split_attrs : list-of-tuple
-        For PLS with split-half resampling
-    """
+    def make_outputs(self):
+        """
+        Used to make list of expected attributes and shapes for PLS outputs
 
-    nosplit_attrs = [
-        ('U', (behavior, num_lv)),
-        ('d', (num_lv, num_lv)),
-        ('V', (brain, num_lv)),
-        ('d_pvals', (num_lv,)),
-        ('d_varexp', (num_lv,)),
-        ('U_bsr', (behavior, num_lv)),
-        ('V_bsr', (brain, num_lv))
-    ]
+        Returns
+        -------
+        attrs : list
+            Expected attributes and shapes
+        """
 
-    split_attrs = [
-        ('U_corr', (num_lv,)),
-        ('V_corr', (num_lv,)),
-        ('U_pvals', (num_lv,)),
-        ('V_pvals', (num_lv,)),
-    ] + nosplit_attrs
+        dummy = len(self.output.inputs.groups) * self.output.inputs.n_cond
+        if self.type == 'behavioral':
+            behavior = Yf * dummy
+            num_lv = min([f for f in [subj, Xf, Yf, dummy] if f != 1])
+        else:
+            behavior = num_lv = dummy
 
-    return nosplit_attrs, split_attrs
+        attrs = [
+            ('u', (Xf, num_lv)),
+            ('s', (num_lv, num_lv)),
+            ('v', (behavior, num_lv)),
+            ('usc', (subj, num_lv)),
+            ('vsc', (subj, num_lv)),
+            ('s_varexp', (num_lv,))
+        ]
 
+        return attrs
 
-def confirm_outputs(output, attributes):
-    """
-    Used to confirm ``output`` has expected ``attributes```
+    def confirm_outputs(self):
+        """
+        Used to confirm ``output`` has expected ``attributes```
 
-    Parameters
-    ----------
-    output : PLS output
-    attributes : list-of-tuple
-        From output of ``make_outputs()``
-    """
-
-    for (attr, shape) in attributes:
-        assert hasattr(output, attr)
-        assert getattr(output, attr).shape == shape
-
-
-def test_BehavioralPLS_errors():
-    # confirm errors in cross-covariance matrix calculations
-    with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:, 0], X)
-    with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:, 0], X[:, 0])
-    with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(Y[:-1], X)
-    with pytest.raises(ValueError):
-        pyls.types.BehavioralPLS(X[:, :, None], Y[:, :, None])
+        Parameters
+        ----------
+        output : PLS output
+        attributes : list-of-tuple
+            From output of ``make_outputs()``
+        """
+        attributes = self.make_outputs()
+        for (attr, shape) in attributes:
+            assert hasattr(self.output, attr)
+            assert getattr(self.output, attr).shape == shape
 
 
 def test_BehavioralPLS_onegroup_onecond():
-    # one group, one condition
-    groups, n_cond = [subj], 1
-    nosplit = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=None, seed=seed)
-    split = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                     n_perm=n_perm, n_boot=n_boot,
-                                     n_split=n_split, seed=seed)
-
-    # ensure the outputs have appropriate attributes
-    nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+    kwargs = dict(groups=None, n_cond=1)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_BehavioralPLS_multigroup_onecond():
-    # multiple groups, one condition
-    groups, n_cond = [33, 34, 33], 1
-    nosplit = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=None, seed=seed)
-    split = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                     n_perm=n_perm, n_boot=n_boot,
-                                     n_split=n_split, seed=seed)
-
-    nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+    kwargs = dict(groups=[33, 34, 33], n_cond=1)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_BehavioralPLS_onegroup_multicond():
-    # one group, multiple conditions
-    groups, n_cond = [subj], 4
-    nosplit = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=None, seed=seed)
-    split = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                     n_perm=n_perm, n_boot=n_boot,
-                                     n_split=n_split, seed=seed)
-
-    nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+    kwargs = dict(groups=subj // 4, n_cond=4)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_BehavioralPLS_multigroup_multicond():
-    # multiple groups, multiple conditions
-    groups, n_cond = [25, 25], 2
-    nosplit = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=None, seed=seed)
-    split = pyls.types.BehavioralPLS(X, Y, groups=groups, n_cond=n_cond,
-                                     n_perm=n_perm, n_boot=n_boot,
-                                     n_split=n_split, seed=seed)
-
-    nosplit_attrs, split_attrs = make_outputs(behavior * n_cond * len(groups),
-                                              min([subj, brain, behavior]) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+    kwargs = dict(groups=[25, 25], n_cond=2)
+    for (ns, rt) in itertools.product([None, 5], [True, False]):
+        PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
 def test_MeanCenteredPLS_multigroup_onecond():
-    # multiple groups, one condition
-    groups, n_cond = [33, 34, 33], 1
-    nosplit = pyls.types.MeanCenteredPLS(X, groups, n_cond=n_cond,
-                                         n_perm=n_perm, n_boot=n_boot,
-                                         n_split=None, seed=seed)
-    split = pyls.types.MeanCenteredPLS(X, groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=n_split, seed=seed)
-
-    nosplit_attrs, split_attrs = make_outputs(len(groups) * n_cond,
-                                              (len(groups) * n_cond) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+    kwargs = dict(groups=[33, 34, 33], n_cond=1)
+    for (mc, ns, rt) in itertools.product([1, 2], [None, 5], [True, False]):
+        PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
+                    **kwargs)
+    with pytest.warns(UserWarning):
+        PLSBaseTest('meancentered', groups=[50, 50], mean_centering=0)
 
 
 def test_MeanCenteredPLS_onegroup_multicond():
-    # one group, multiple conditions
-    groups, n_cond = [subj], 2
-    nosplit = pyls.types.MeanCenteredPLS(X, groups, n_cond=n_cond,
-                                         n_perm=n_perm, n_boot=n_boot,
-                                         n_split=None, seed=seed)
-    split = pyls.types.MeanCenteredPLS(X, groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=n_split, seed=seed)
-
-    nosplit_attrs, split_attrs = make_outputs(len(groups) * n_cond,
-                                              (len(groups) * n_cond) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+    kwargs = dict(groups=[subj // 2], n_cond=2)
+    for (mc, ns, rt) in itertools.product([0, 2], [None, 5], [True, False]):
+        PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
+                    **kwargs)
+    with pytest.warns(UserWarning):
+        PLSBaseTest('meancentered', mean_centering=1, **kwargs)
 
 
 def test_MeanCenteredPLS_multigroup_multicond():
-    # multiple groups, multiple conditions
-    groups, n_cond = [25, 25], 2
-    nosplit = pyls.types.MeanCenteredPLS(X, groups=groups, n_cond=n_cond,
-                                         n_perm=n_perm, n_boot=n_boot,
-                                         n_split=None, seed=seed)
-    split = pyls.types.MeanCenteredPLS(X, groups=groups, n_cond=n_cond,
-                                       n_perm=n_perm, n_boot=n_boot,
-                                       n_split=n_split, seed=seed)
+    kwargs = dict(groups=[25, 25], n_cond=2)
+    for (mc, ns, rt) in itertools.product([0, 1, 2], [None, 5], [True, False]):
+        PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
+                    **kwargs)
 
-    nosplit_attrs, split_attrs = make_outputs(len(groups) * n_cond,
-                                              (len(groups) * n_cond) - 1)
-    confirm_outputs(nosplit, nosplit_attrs)
-    confirm_outputs(split, split_attrs)
+
+def test_errors():
+    with pytest.raises(ValueError):
+        PLSBaseTest('meancentered', groups=[50, 50], mean_centering=3)
+    with pytest.raises(ValueError):
+        PLSBaseTest('meancentered', groups=[subj])
