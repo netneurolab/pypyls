@@ -47,3 +47,11 @@ PLSResults(u, s, v, usc, vsc, boot_result, perm_result, perm_splithalf, inputs, 
 ```
 
 The results are currently formatted the same as how the PLS Matlab toolbox would generate them. The results object has a doc-string describing what each output represents, so while we work on [getting some documentation](https://github.com/rmarkello/pyls/issues/19) you can rely on those for some insight!
+
+
+## How to get involved
+We're thrilled to welcome new contributors! If you're interesting in getting involved, you should start by reading our [contributing guidelines](https://github.com/rmarkello/pyls/blob/master/CONTRIBUTING.md) and [code of conduct](https://github.com/rmarkello/pyls/blob/master/Code_of_Conduct.md).
+
+Once you're done with that, you can take a look at our [roadmap](https://github.com/rmarkello/pyls/issues/26) and the accompanying [project](https://github.com/rmarkello/pyls/projects/1). If you find something you'd like to work on, head on over to the relevant [issue](https://github.com/rmarkello/pyls/issues) and let us know.
+
+If you've found a bug, are experiencing a problem, or have a question, create a new issue with some information about it!
