@@ -57,9 +57,3 @@ def test_dummycode():
 
     dummy_cond = pyls.utils.dummy_code(groups, n_cond=3)
     assert dummy_cond.shape == (np.sum(groups) * 3, len(groups) * 3)
-
-
-def test_get_seed():
-    pyls.utils.get_seed()
-    pyls.utils.get_seed(1234)
-    pyls.utils.get_seed(rs)

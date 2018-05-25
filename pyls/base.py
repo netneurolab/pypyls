@@ -3,6 +3,7 @@
 import warnings
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
+from sklearn.utils.validation import check_random_state
 from pyls import compute, utils
 
 
@@ -22,27 +23,33 @@ class PLSInputs(utils.DefDict):
         List with number of subjects in each of ``G`` groups
     n_cond : int
         Number of conditions observed in data
-    n_perm : int
-        Number of permutations generated for testing significance of PLS
-    n_boot : int
-        Number of bootstraps generated for testing reliability of features
-    n_split : int
-        Number of split-half resamples drawn in each of ``n_perm`` permutations
+    n_perm : int, optional
+        Number of permutations generated for testing significance of PLS.
+        Default: 5000
+    n_boot : int, optional
+        Number of bootstraps generated for testing reliability of features.
+        Default: 5000
+    n_split : int, optional
+        Number of split-half resamples for each of ``n_perm`` permutations.
+        Default: 0
+    cv_split : [0, 1] float, optional
+        Ratio of samples for division amongst train and test sets. Default: 1.0
     mean_centering : int, optional
         Mean centering type. Must be in [0, 1, 2]. Default: 0
-    rotate : bool
+    rotate : bool, optional
         Whether to perform procrustes rotations during permutations. Can
-        inflate false-positive rate (see Kovacevic et al., 2013)
-    ci : float
-        Confidence interval to assess bootstrap resampling results
-    n_proc : int
-        Multiprocessing not implemented yet
-    seed : {int, RandomState, None}
-        Seed for pseudo-random number generation
+        inflate false-positive rate (see Kovacevic et al., 2013). Default: True
+    ci : float, optional
+        Confidence interval to assess bootstrap resampling results. Default: 95
+    n_proc : int, optional
+        Multiprocessing not implemented yet. Default: 1
+    seed : {int, RandomState, None}, optional
+        Seed for pseudo-random number generation. Default: None
     """
     defaults = dict(
         X=None, Y=None, groups=None, n_cond=1,
-        n_perm=5000, n_boot=5000, n_split=None,
+        n_perm=5000, n_boot=5000,
+        n_split=0, cv_split=1.0,
         mean_centering=None, rotate=True,
         ci=95, n_proc=1, seed=None
     )
@@ -97,7 +104,7 @@ class PLSResults(utils.DefDict):
         distrib : (J x L x R) np.ndarray
             Bootstrapped distribution of either ``orig_usc`` or ``orig_corr``
         usc2 : (S x L) np.ndarray
-            Mean-centered brain scores (``X_mc @ v``)
+            Mean-centered brain scores (``(X - mean(X)) @ v``)
         orig_usc : (J x L) np.ndarray
             Group x condition averages of ``usc2``. Can be treated as a
             contrast indicating group x condition differences
@@ -220,7 +227,7 @@ class BasePLS():
             groups = [groups]
         self.inputs = PLSInputs(X=X, groups=groups, n_cond=n_cond,
                                 **kwargs)
-        self.rs = utils.get_seed(self.inputs.seed)
+        self.rs = check_random_state(self.inputs.seed)
 
     def gen_covcorr(self, X, Y, groups):
         """
@@ -327,7 +334,7 @@ class BasePLS():
         n_comp = min(min(dummy.squeeze().shape), min(crosscov.shape))
         U, d, V = randomized_svd(crosscov.T,
                                  n_components=n_comp,
-                                 random_state=utils.get_seed(seed))
+                                 random_state=check_random_state(seed))
 
         return U, np.diag(d), V.T
 

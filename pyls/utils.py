@@ -2,6 +2,7 @@
 
 import numpy as np
 import tqdm
+from sklearn.utils.validation import check_array, check_random_state
 
 
 class DefDict(dict):
@@ -93,7 +94,7 @@ def xcorr(X, Y, norm=True):
     return xprod
 
 
-def zscore(X):
+def zscore(data, axis=0, ddof=1, comp=None):
     """
     Z-scores ``X`` by subtracting mean and dividing by standard deviation
 
@@ -102,23 +103,41 @@ def zscore(X):
 
     Parameters
     ----------
-    X : (S x B) array_like
-        Input array
+    data : (N x ...) array_like
+        Data to be z-scored
+    axis : int, optional
+        Axis to use to z-score data. Default: 0
+    ddof : int, optional
+        Delta degrees of freedom.  The divisor used in calculations is
+        ``M - ddof``, where ``M`` is the number of elements along ``axis``
+        in ``comp``. Default: 1
+    comp : (M x ...) array_like
+        Distribution to z-score ``data``. Should have same dimension as data
+        along `axis`. Default: ``data``
 
     Returns
     -------
-    zarr : (S x B) np.ndarray
-        Z-scored ``X``
+    zarr : (N x ...) np.ndarray
+        Z-scored version of ``data``
     """
 
-    arr = np.array(X)
-    avg, stdev = arr.mean(axis=0), arr.std(axis=0, ddof=1)
-    zero_items = np.where(stdev == 0)[0]
+    data = check_array(data, ensure_2d=False, allow_nd=True)
 
-    if zero_items.size > 0:
-        avg[zero_items], stdev[zero_items] = 0, 1
-    zarr = (arr - avg) / stdev
-    zarr[:, zero_items] = 0
+    if comp is not None:
+        comp = check_array(comp, ensure_2d=False, allow_nd=True)
+    else:
+        comp = data
+
+    avg = comp.mean(axis=axis, keepdims=True)
+    stdev = comp.std(axis=axis, ddof=ddof, keepdims=True)
+    zeros = stdev == 0
+
+    if np.any(zeros):
+        avg[zeros] = 0
+        stdev[zeros] = 1
+
+    zarr = (data - avg) / stdev
+    zarr[np.repeat(zeros, zarr.shape[axis], axis=axis)] = 0
 
     return zarr
 
@@ -154,32 +173,6 @@ def normalize(X, axis=0):
     return normed
 
 
-def get_seed(seed=None):
-    """
-    Determines type of ``seed`` and returns RandomState instance
-
-    Parameters
-    ----------
-    seed : {int, RandomState instance, None}, optional
-        The seed of the pseudo random number generator to use when shuffling
-        the data.  If int, ``seed`` is the seed used by the random number
-        generator. If RandomState instance, ``seed`` is the random number
-        generator. If None, the random number generator is the RandomState
-        instance used by ``np.random``. Default: None
-
-    Returns
-    -------
-    RandomState instance
-    """
-
-    if seed is not None:
-        if isinstance(seed, int):
-            return np.random.RandomState(seed)
-        elif isinstance(seed, np.random.RandomState):
-            return seed
-    return np.random
-
-
 def dummy_code(groups, n_cond=1):
     """
     Dummy codes ``groups`` and ``n_cond``
@@ -193,7 +186,7 @@ def dummy_code(groups, n_cond=1):
 
     Returns
     -------
-    Y : (S x G*C) np.ndarray
+    Y : (S x F) np.ndarray
         Dummy-coded group array
     """
 
@@ -218,7 +211,7 @@ def permute_cols(x, seed=None):
     """
     Permutes the rows for each column in ``x`` separately
 
-    Taken directly from https://stackoverflow.com/a/27489131
+    Taken from https://stackoverflow.com/a/27489131
 
     Parameters
     ----------
@@ -233,7 +226,7 @@ def permute_cols(x, seed=None):
         Permuted array
     """
 
-    rs = get_seed(seed)
+    rs = check_random_state(seed)
     ix_i = rs.random_sample(x.shape).argsort(axis=0)
     ix_j = np.tile(np.arange(x.shape[1]), (x.shape[0], 1))
     return x[ix_i, ix_j]

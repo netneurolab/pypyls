@@ -5,39 +5,6 @@ from sklearn.utils.extmath import randomized_svd
 from pyls import utils
 
 
-def zscore_comp(data, comp, axis=0, ddof=1):
-    """
-    Uses ``distribution`` to z-score ``data`` along ``axis``
-
-    Useful for z-scoring patient populations relative to healthy controls
-
-    Parameters
-    ----------
-    data : (N x ...) array_like
-        Data to be z-scored
-    comp : (M x ...) array_like
-        Distribution to z-score ``data``. Should have same dimension as data
-        along `axis`
-    axis : int, optional
-        Axis to use to z-score data. Default: 0
-    ddof : int, optional
-        Delta degrees of freedom.  The divisor used in calculations is
-        ``M - ddof``, where ``M`` is the number of elements along ``axis``
-        in ``comp``. Default: 1
-
-    Returns
-    -------
-    zscored : np.ndarray
-        Z-scored version of ``data``
-    """
-
-    dmean = np.asarray(comp).mean(axis=axis, keepdims=True)
-    dstd = np.asarray(comp).std(axis=axis, ddof=ddof, keepdims=True)
-    zscored = (np.asarray(data) - dmean) / dstd
-
-    return zscored
-
-
 def rescale_test(X_train, X_test, Y_train, U, V):
     """
     Generates out-of-sample predicted ``Y`` values
@@ -57,7 +24,7 @@ def rescale_test(X_train, X_test, Y_train, U, V):
         Behavioral matrix, where ``S2`` is observations and ``T`` is features
     """
 
-    X_resc = zscore_comp(X_test, comp=X_train, axis=0, ddof=1)
+    X_resc = utils.zscore(X_test, comp=X_train, axis=0, ddof=1)
     Y_test = X_resc @ U @ V.T + Y_train.mean(axis=0, keepdims=True)
 
     return Y_test
@@ -65,7 +32,7 @@ def rescale_test(X_train, X_test, Y_train, U, V):
 
 def get_cv(true, pred):
     """
-    Generates the cross-validated determination coefficient (delta CV, R^2)
+    Generates the determination coefficient (delta CV or R^2)
 
     Parameters
     ----------
