@@ -190,21 +190,32 @@ def dummy_code(groups, n_cond=1):
         Dummy-coded group array
     """
 
-    length = sum(groups) * n_cond
-    width = len(groups) * n_cond
-    Y = np.zeros((length, width))
-    cstart = 0  # starting index for columns
-    rstart = 0  # starting index for rows
+    labels = dummy_label(groups, n_cond)
+    dummy = np.column_stack([labels == g for g in np.unique(labels)])
 
-    for i, grp in enumerate(groups):
-        vals = np.repeat(np.eye(n_cond), grp).reshape(
-            (n_cond, n_cond * grp)).T
-        Y[:, cstart:cstart + n_cond][rstart:rstart + (grp * n_cond)] = vals
+    return dummy.astype(int)
 
-        cstart += vals.shape[1]
-        rstart += vals.shape[0]
 
-    return Y
+def dummy_label(groups, n_cond=1):
+    """
+    Generates group labels for ``groups`` and ``n_cond``
+
+    Parameters
+    ----------
+    groups : (G,) list
+        List with number of subjects in each of ``G`` groups
+    n_cond : int, optional
+        Number of conditions, for each subject. Default: 1
+
+    Returns
+    -------
+    Y : (S,) np.ndarray
+        Dummy-label group array
+    """
+
+    num_labels = len(groups * n_cond)
+
+    return np.repeat(np.arange(num_labels) + 1, np.repeat(groups, n_cond))
 
 
 def permute_cols(x, seed=None):

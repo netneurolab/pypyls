@@ -20,14 +20,14 @@ def rescale_test(X_train, X_test, Y_train, U, V):
 
     Returns
     -------
-    Y_test : (S2 x T) np.ndarray
+    Y_pred : (S2 x T) np.ndarray
         Behavioral matrix, where ``S2`` is observations and ``T`` is features
     """
 
     X_resc = utils.zscore(X_test, comp=X_train, axis=0, ddof=1)
-    Y_test = X_resc @ U @ V.T + Y_train.mean(axis=0, keepdims=True)
+    Y_pred = (X_resc @ U @ V.T) + Y_train.mean(axis=0, keepdims=True)
 
-    return Y_test
+    return Y_pred
 
 
 def get_cv(true, pred):
@@ -47,7 +47,7 @@ def get_cv(true, pred):
         Relative distance between predicted and true values
     """
 
-    return 1 - (np.sum((true - pred)**2) / np.sum((true - true.mean()**2)))
+    return 1 - (np.sum((true - pred)**2) / np.sum((true - true.mean())**2))
 
 
 def perm_sig(orig, perm):

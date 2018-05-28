@@ -33,7 +33,8 @@ class PLSInputs(utils.DefDict):
         Number of split-half resamples for each of ``n_perm`` permutations.
         Default: 0
     cv_split : [0, 1] float, optional
-        Ratio of samples for division amongst train and test sets. Default: 1.0
+        Proportion of data to partition as test split during cross-validation.
+        Default: 0.25
     mean_centering : int, optional
         Mean centering type. Must be in [0, 1, 2]. Default: 0
     rotate : bool, optional
@@ -49,7 +50,7 @@ class PLSInputs(utils.DefDict):
     defaults = dict(
         X=None, Y=None, groups=None, n_cond=1,
         n_perm=5000, n_boot=5000,
-        n_split=0, cv_split=1.0,
+        n_split=100, test_size=0.25,
         mean_centering=None, rotate=True,
         ci=95, n_proc=1, seed=None
     )
@@ -58,6 +59,9 @@ class PLSInputs(utils.DefDict):
         super().__init__(**kwargs)
         if self.n_split == 0:
             self.n_split = None
+        if self.test_size < 0 or self.test_size >= 1:
+            raise ValueError('Test_size must be in [0, 1). Provided value: {}'
+                             .format(str(self.test_size)))
 
 
 class PLSResults(utils.DefDict):
@@ -304,7 +308,7 @@ class BasePLS():
 
         return res
 
-    def svd(self, X, Y, seed=None):
+    def svd(self, X, Y, dummy=None, seed=None):
         """
         Runs SVD on cross-covariance matrix computed from ``X`` and ``Y``
 
@@ -321,15 +325,16 @@ class BasePLS():
 
         Returns
         -------
-        U : (B x L) ndarray
+        U : (B x L) np.ndarray
             Left singular vectors
-        d : (L x L) ndarray
+        d : (L x L) np.ndarray
             Diagonal array of singular values
-        V : (J x L) ndarray
+        V : (J x L) np.ndarray
             Right singular vectors
         """
 
-        dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        if dummy is None:
+            dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         crosscov = self.gen_covcorr(X, Y, groups=dummy)
         n_comp = min(min(dummy.squeeze().shape), min(crosscov.shape))
         U, d, V = randomized_svd(crosscov.T,
@@ -629,7 +634,7 @@ class BasePLS():
 
         return bootsamp
 
-    def gen_splits(self):
+    def gen_splits(self, test_size=0.5):
         """ Generates split-half arrays for ``self._split_half()`` """
 
         Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
@@ -656,7 +661,7 @@ class BasePLS():
                 for grp in check_grps:
                     curr_grp = subj_inds[grp]
                     take = self.rs.choice([np.ceil, np.floor])
-                    num_subj = int(take(curr_grp.size/2))
+                    num_subj = int(take(curr_grp.size * (1 - test_size)))
                     splinds = self.rs.choice(curr_grp,
                                              size=num_subj,
                                              replace=False)

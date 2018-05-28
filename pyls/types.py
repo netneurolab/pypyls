@@ -2,6 +2,8 @@
 
 import warnings
 import numpy as np
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
 from pyls.base import BasePLS
 from pyls import compute, utils
 
@@ -123,6 +125,42 @@ class BehavioralPLS(BasePLS):
 
         return distrib
 
+    def crossval(self, X, Y):
+        """
+        Performs cross-validation of SVD of ``X`` and ``Y``
+
+        Parameters
+        ----------
+        X : (S x B) array_like
+            Input data matrix, where ``S`` is observations and ``B`` is
+            features
+        Y : (S x T) array_like
+            Behavioral matrix, where ``S`` is observations and ``T`` is
+            features
+
+        Returns
+        -------
+        r2_scores : (C,) np.ndarray
+            R^2 (coefficient of determination) scores across train-test splits
+        """
+
+        r2_scores = np.zeros(self.inputs.n_split)
+        splits = self.gen_splits(test_size=self.inputs.test_size)
+        dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+
+        for i in utils.trange(self.inputs.n_split, desc='Running cross-val'):
+            split = splits[:, i]
+            X_train, Y_train, dummy_train = X[split], Y[split], dummy[split]
+            X_test, Y_test = X[~split], Y[~split]
+
+            U, d, V = self.svd(X_train, Y_train,
+                               dummy=dummy_train,
+                               seed=self.rs)
+            Y_pred = compute.rescale_test(X_train, X_test, Y_train, U, V)
+            r2_scores[i] = r2_score(Y_test, Y_pred)
+
+        return r2_scores
+
     def run_pls(self, X, Y):
         """
         Runs PLS analysis
@@ -163,6 +201,10 @@ class BehavioralPLS(BasePLS):
                                     bootsamp=self.bootsamp,
                                     orig_corr=res.lvcorrs, distrib=distrib,
                                     llcorr=llcorr, ulcorr=ulcorr))
+
+        # compute cross-validated coefficient of determination
+        if (self.inputs.n_split is not None) and self.inputs.test_size > 0:
+            self.r2 = self.crossval(X, Y)
 
         return res
 
