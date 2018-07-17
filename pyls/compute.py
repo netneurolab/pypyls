@@ -30,26 +30,6 @@ def rescale_test(X_train, X_test, Y_train, U, V):
     return Y_pred
 
 
-def get_cv(true, pred):
-    """
-    Generates the determination coefficient (delta CV or R^2)
-
-    Parameters
-    ----------
-    true : (S x T) array_like
-        True values
-    pred : (S x T) array_like
-        Predicted values
-
-    Returns
-    -------
-    r2 : float
-        Relative distance between predicted and true values
-    """
-
-    return 1 - (np.sum((true - pred)**2) / np.sum((true - true.mean())**2))
-
-
 def perm_sig(orig, perm):
     """
     Calculates significance of ``orig`` values agains ``perm`` distributions

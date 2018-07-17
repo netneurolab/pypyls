@@ -3,7 +3,6 @@
 import warnings
 import numpy as np
 from sklearn.metrics import r2_score
-from sklearn.model_selection import train_test_split
 from pyls.base import BasePLS
 from pyls import compute, utils
 
@@ -18,7 +17,8 @@ class BehavioralPLS(BasePLS):
     between ``groups``. Permutation testing is used to examine statistical
     significance and split-half resampling is used to assess reliability of
     LVs. Bootstrap resampling is used to examine reliability of features (K)
-    across LVs.
+    across LVs. A cross-validated framework is used to examine the predictive
+    accuracy of the decomposition.
 
     Parameters
     ----------
@@ -140,26 +140,43 @@ class BehavioralPLS(BasePLS):
 
         Returns
         -------
+        r_scores : (C,) np.ndarray
+            R (Pearon correlation) scores across train-test splits
         r2_scores : (C,) np.ndarray
             R^2 (coefficient of determination) scores across train-test splits
         """
 
-        r2_scores = np.zeros(self.inputs.n_split)
+        # use gen_splits to handle grouping/condition vars in train/test split
         splits = self.gen_splits(test_size=self.inputs.test_size)
         dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+        r_scores = np.zeros((Y.shape[-1], self.inputs.n_split))
+        r2_scores = np.zeros((Y.shape[-1], self.inputs.n_split))
 
         for i in utils.trange(self.inputs.n_split, desc='Running cross-val'):
+            # subset appropriately into train/test sets
             split = splits[:, i]
             X_train, Y_train, dummy_train = X[split], Y[split], dummy[split]
-            X_test, Y_test = X[~split], Y[~split]
-
+            X_test, Y_test, dummy_test = X[~split], Y[~split], dummy[~split]
+            # perform initial decomposition on train set
             U, d, V = self.svd(X_train, Y_train,
                                dummy=dummy_train,
                                seed=self.rs)
-            Y_pred = compute.rescale_test(X_train, X_test, Y_train, U, V)
-            r2_scores[i] = r2_score(Y_test, Y_pred)
+            # rescale test set prediction, handling grouping/condition vars
+            Y_pred = np.row_stack([compute.rescale_test(X_train[tr_grp],
+                                                        X_test[te_grp],
+                                                        Y_train[tr_grp],
+                                                        U, V_spl)
+                                   for V_spl, tr_grp, te_grp in
+                                   zip(np.split(V, dummy.shape[-1]),
+                                       dummy_train.T.astype(bool),
+                                       dummy_test.T.astype(bool))])
+            # calculate r & r-squared from comp of rescaled test & true values
+            r_scores[:, i] = [np.corrcoef(Y_test[:, i], Y_pred[:, i])[0, 1]
+                              for i in range(Y_test.shape[-1])]
+            r2_scores[:, i] = r2_score(Y_test, Y_pred,
+                                       multioutput='raw_values')
 
-        return r2_scores
+        return r_scores, r2_scores
 
     def run_pls(self, X, Y):
         """
@@ -203,8 +220,9 @@ class BehavioralPLS(BasePLS):
                                     llcorr=llcorr, ulcorr=ulcorr))
 
         # compute cross-validated coefficient of determination
-        if (self.inputs.n_split is not None) and self.inputs.test_size > 0:
-            self.r2 = self.crossval(X, Y)
+        if self.inputs.n_split is not None and self.inputs.test_size > 0:
+            r, r2 = self.crossval(X, Y)
+            res.cross_val.update(dict(pearson_r=r, r_squared=r2))
 
         return res
 

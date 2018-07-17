@@ -174,9 +174,27 @@ class PLSResults(utils.DefDict):
             ucorr_ul=None, ucorr_ll=None, vcorr_ul=None, vcorr_ll=None
         )
 
+    class PLSCrossValidationResults(utils.DefDict):
+        """
+        PLS cross-validation results
+
+        Attributes
+        ----------
+        r_sqared : (T x I) np.ndarray
+            R-squared ("determination coefficient") for each of `T` predicted
+            behavioral scores against true behavioral scores across `I` train /
+            test split
+        pearson_r : (T x I) np.ndarray
+            Pearson's correlation for each of `T` predicted behavioral scores
+            against true behavioral scores across `I` train / test split
+        """
+        defaults = dict(
+            r_squared=None, pearson_r=None
+        )
+
     defaults = dict(
-        u=None, s=None, v=None, usc=None, vsc=None, lvcorrs=None,
-        boot_result={}, perm_result={}, perm_splithalf={}, inputs={}
+        u=None, s=None, v=None, usc=None, vsc=None, lvcorrs=None, inputs={},
+        boot_result={}, perm_result={}, perm_splithalf={}, cross_val={}
     )
 
     def __init__(self, **kwargs):
@@ -185,6 +203,7 @@ class PLSResults(utils.DefDict):
         self.boot_result = self.PLSBootResult(**self.boot_result)
         self.perm_result = self.PLSPermResult(**self.perm_result)
         self.perm_splithalf = self.PLSSplitHalfResult(**self.perm_splithalf)
+        self.cross_val = self.PLSCrossValidationResults(**self.cross_val)
 
 
 class BasePLS():
