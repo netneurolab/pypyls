@@ -37,8 +37,9 @@ class PLSBaseTest():
 
         Returns
         -------
-        attrs : list
-            Expected attributes and shapes
+        attrs : list-of-tuples
+            Each entry in the list is a tuple with the attribute name and
+            expected shape
         """
 
         dummy = len(self.output.inputs.groups) * self.output.inputs.n_cond
@@ -60,46 +61,37 @@ class PLSBaseTest():
         return attrs
 
     def confirm_outputs(self):
-        """
-        Used to confirm ``output`` has expected ``attributes```
-
-        Parameters
-        ----------
-        output : PLS output
-        attributes : list-of-tuple
-            From output of ``make_outputs()``
-        """
-        attributes = self.make_outputs()
-        for (attr, shape) in attributes:
+        """ Confirms generated outputs are of expected shape / size """
+        for (attr, shape) in self.make_outputs():
             assert hasattr(self.output, attr)
             assert getattr(self.output, attr).shape == shape
 
 
-def test_BehavioralPLS_onegroup_onecond():
+def test_BehavioralPLS_onegroup_onecondition():
     kwargs = dict(groups=None, n_cond=1)
     for (ns, rt) in itertools.product([None, 5], [True, False]):
         PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
-def test_BehavioralPLS_multigroup_onecond():
+def test_BehavioralPLS_multigroup_onecondition():
     kwargs = dict(groups=[33, 34, 33], n_cond=1)
     for (ns, rt) in itertools.product([None, 5], [True, False]):
         PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
-def test_BehavioralPLS_onegroup_multicond():
+def test_BehavioralPLS_onegroup_multicondition():
     kwargs = dict(groups=subj // 4, n_cond=4)
     for (ns, rt) in itertools.product([None, 5], [True, False]):
         PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
-def test_BehavioralPLS_multigroup_multicond():
+def test_BehavioralPLS_multigroup_multicondition():
     kwargs = dict(groups=[25, 25], n_cond=2)
     for (ns, rt) in itertools.product([None, 5], [True, False]):
         PLSBaseTest('behavioral', n_split=ns, rotate=rt, **kwargs)
 
 
-def test_MeanCenteredPLS_multigroup_onecond():
+def test_MeanCenteredPLS_multigroup_onecondition():
     kwargs = dict(groups=[33, 34, 33], n_cond=1)
     for (mc, ns, rt) in itertools.product([1, 2], [None, 5], [True, False]):
         PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
@@ -108,7 +100,7 @@ def test_MeanCenteredPLS_multigroup_onecond():
         PLSBaseTest('meancentered', groups=[50, 50], mean_centering=0)
 
 
-def test_MeanCenteredPLS_onegroup_multicond():
+def test_MeanCenteredPLS_onegroup_multicondition():
     kwargs = dict(groups=[subj // 2], n_cond=2)
     for (mc, ns, rt) in itertools.product([0, 2], [None, 5], [True, False]):
         PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
@@ -117,7 +109,7 @@ def test_MeanCenteredPLS_onegroup_multicond():
         PLSBaseTest('meancentered', mean_centering=1, **kwargs)
 
 
-def test_MeanCenteredPLS_multigroup_multicond():
+def test_MeanCenteredPLS_multigroup_multicondition():
     kwargs = dict(groups=[25, 25], n_cond=2)
     for (mc, ns, rt) in itertools.product([0, 1, 2], [None, 5], [True, False]):
         PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,

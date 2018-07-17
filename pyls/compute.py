@@ -5,6 +5,31 @@ from sklearn.utils.extmath import randomized_svd
 from pyls import utils
 
 
+def rescale_test(X_train, X_test, Y_train, U, V):
+    """
+    Generates out-of-sample predicted ``Y`` values
+
+    Parameters
+    ----------
+    X_train : (S1 x B) array_like
+        Data matrix, where ``S1`` is observations and ``B`` is features
+    X_test : (S2 x B)
+        Data matrix, where ``S2`` is observations and ``B`` is features
+    Y_train : (S1 x T) array_like
+        Behavioral matrix, where ``S1`` is observations and ``T`` is features
+
+    Returns
+    -------
+    Y_pred : (S2 x T) np.ndarray
+        Behavioral matrix, where ``S2`` is observations and ``T`` is features
+    """
+
+    X_resc = utils.zscore(X_test, comp=X_train, axis=0, ddof=1)
+    Y_pred = (X_resc @ U @ V.T) + Y_train.mean(axis=0, keepdims=True)
+
+    return Y_pred
+
+
 def perm_sig(orig, perm):
     """
     Calculates significance of ``orig`` values agains ``perm`` distributions
@@ -17,7 +42,7 @@ def perm_sig(orig, perm):
     orig : (L x L) array_like
         Diagonal matrix of singular values for ``L`` latent variables
     perm : (L x P) array_like
-        Distribution of singular values from permutation testing where ```P``
+        Distribution of singular values from permutation testing where ``P``
         is the number of permutations
 
     Returns

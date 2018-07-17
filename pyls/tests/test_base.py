@@ -34,6 +34,9 @@ def test_PLSInputs():
 
     assert pyls.base.PLSInputs(n_split=0).n_split is None
 
+    with pytest.raises(ValueError):
+        pyls.base.PLSInputs(test_size=1)
+
 
 def test_BasePLS():
     basepls = pyls.base.BasePLS(**opts)
