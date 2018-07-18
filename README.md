@@ -3,6 +3,7 @@ A python 3 implementation of Partial Least Squares (PLS) cross-covariance decomp
 
 [![Build Status](https://travis-ci.org/rmarkello/pyls.svg?branch=master)](https://travis-ci.org/rmarkello/pyls)
 [![codecov](https://codecov.io/gh/rmarkello/pyls/branch/master/graph/badge.svg)](https://codecov.io/gh/rmarkello/pyls)
+[![Documentation Status](https://readthedocs.org/projects/pyls/badge/?version=latest)](http://pyls.readthedocs.io/en/latest/?badge=latest)
 
 ## Requirements
 This package requires python >= 3.5, and a [few helpful modules](https://github.com/rmarkello/pyls/blob/master/requirements.txt).
@@ -47,7 +48,7 @@ PLSResults(u, s, v, usc, vsc, boot_result, perm_result, perm_splithalf, inputs, 
 PLSResults(u, s, v, usc, vsc, boot_result, perm_result, perm_splithalf, inputs, s_varexp)
 ```
 
-The results are currently formatted (and named) using the same conventions as the Matlab PLS toolbox referenced above. The results objects (`results` in the above example) have doc-strings describing what each output represents, so while we work on [getting some better documentation](https://github.com/rmarkello/pyls/issues/19) you can rely on those for some insight! Try typing `help(results)` to get more information on the results 
+The results are currently formatted (and named) using the same conventions as the Matlab PLS toolbox referenced above. The results objects (`results` in the above example) have doc-strings describing what each output represents, so while we work on [getting some better documentation](https://github.com/rmarkello/pyls/issues/19) you can rely on those for some insight! Try typing `help(results)` to get more information on the results
 
 ## How to get involved
 We're thrilled to welcome new contributors! If you're interesting in getting involved, you should start by reading our [contributing guidelines](https://github.com/rmarkello/pyls/blob/master/CONTRIBUTING.md) and [code of conduct](https://github.com/rmarkello/pyls/blob/master/Code_of_Conduct.md).

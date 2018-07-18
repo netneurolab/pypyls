@@ -5,6 +5,8 @@ pyls: Partial Least Squares in Python
    :target: https://travis-ci.org/rmarkello/pyls
 .. image:: https://codecov.io/gh/rmarkello/pyls/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/rmarkello/pyls
+.. image:: https://readthedocs.org/projects/pyls/badge/?version=latest
+   :target: http://pyls.readthedocs.io/en/latest
 .. image:: http://img.shields.io/badge/License-GPL%202.0-blue.svg
    :target: https://opensource.org/licenses/GPL-2.0
 
