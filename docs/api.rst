@@ -2,8 +2,8 @@
 
 .. currentmodule:: pyls
 
-API Reference
-=============
+API
+===
 
 .. autoclass:: pyls.BehavioralPLS
 .. autoclass:: pyls.MeanCenteredPLS

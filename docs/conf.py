@@ -11,7 +11,7 @@
 #
 import os
 import sys
-import sphinx_rtd_theme
+sys.path.insert(0, os.path.abspath(os.path.pardir))
 
 # -- Project information -----------------------------------------------------
 
@@ -19,8 +19,7 @@ project = 'pyls'
 copyright = '2018, Ross Markello'
 author = 'Ross Markello'
 
-sys.path.insert(0, os.path.abspath(os.path.pardir))
-import pyls
+import pyls  # noqa
 # The short X.Y version
 version = pyls.__version__
 # The full version, including alpha/beta/rc tags
@@ -31,19 +30,19 @@ release = pyls.__version__
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #
-needs_sphinx = '1.2'
+# needs_sphinx = '1.0'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.coverage',
-    'sphinx.ext.doctest',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
-    'numpydoc'
+    'sphinx.ext.doctest',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
 ]
 
 # Generate the API documentation when building
@@ -55,9 +54,6 @@ autoclass_content = "class"
 templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-# source_suffix = ['.rst', '.md']
 source_suffix = '.rst'
 
 # The master toctree document.
@@ -83,7 +79,7 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
+import sphinx_rtd_theme  # noqa
 html_theme = 'sphinx_rtd_theme'
 html_show_sourcelink = False
 
@@ -98,16 +94,6 @@ html_show_sourcelink = False
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-# Custom sidebar templates, must be a dictionary that maps document names
-# to template names.
-#
-# The default sidebars (for documents that don't match any pattern) are
-# defined by theme itself.  Builtin themes are using these templates by
-# default: ``['localtoc.html', 'relations.html', 'sourcelink.html',
-# 'searchbox.html']``.
-#
-# html_sidebars = {}
-
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
@@ -115,55 +101,9 @@ html_static_path = ['_static']
 htmlhelp_basename = 'pylsdoc'
 
 
-# -- Options for LaTeX output ------------------------------------------------
-
-latex_elements = {
-    # The paper size ('letterpaper' or 'a4paper').
-    #
-    # 'papersize': 'letterpaper',
-
-    # The font size ('10pt', '11pt' or '12pt').
-    #
-    # 'pointsize': '10pt',
-
-    # Additional stuff for the LaTeX preamble.
-    #
-    # 'preamble': '',
-
-    # Latex figure (float) alignment
-    #
-    # 'figure_align': 'htbp',
-}
-
-# Grouping the document tree into LaTeX files. List of tuples
-# (source start file, target name, title,
-#  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    (master_doc, 'pyls.tex', 'pyls Documentation',
-     'Ross Markello', 'manual'),
-]
-
-
-# -- Options for manual page output ------------------------------------------
-
-# One entry per manual page. List of tuples
-# (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'pyls', 'pyls Documentation',
-     [author], 1)
-]
-
-
-# -- Options for Texinfo output ----------------------------------------------
-
-# Grouping the document tree into Texinfo files. List of tuples
-# (source start file, target name, title, author,
-#  dir menu entry, description, category)
-texinfo_documents = [
-    (master_doc, 'pyls', 'pyls Documentation',
-     author, 'pyls', 'One line description of project.',
-     'Miscellaneous'),
-]
-
-
 # -- Extension configuration -------------------------------------------------
+intersphinx_mapping = {
+    'numpy': ('http://docs.scipy.org/doc/numpy', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
+    'sklearn': ('http://scikit-learn.org/0.17', None),
+}

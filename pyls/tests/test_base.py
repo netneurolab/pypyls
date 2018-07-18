@@ -11,19 +11,21 @@ n_boot = 10
 n_split = 5
 seed = 1234
 groups = [50, 50]
+test_size = 0.25
+mean_centering = 0
+rotate = True
 
 np.random.rand(seed)
 X = np.random.rand(100, 1000)
 Y = np.random.rand(100, 100)
 
 opts = dict(X=X, Y=Y,
-            groups=groups, n_cond=n_cond,
-            n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-            ci=95, n_proc=1, seed=seed)
+            groups=groups, n_cond=n_cond, mean_centering=mean_centering,
+            n_perm=n_perm, n_boot=n_boot, n_split=n_split, test_size=test_size,
+            rotate=rotate, ci=95, seed=seed)
 
-attrs = ['X', 'Y', 'groups', 'n_cond',
-         'n_perm', 'n_boot', 'n_split',
-         'ci', 'n_proc', 'seed']
+attrs = ['X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
+         'test_size', 'mean_centering', 'rotate', 'ci', 'seed']
 
 
 def test_PLSInputs():

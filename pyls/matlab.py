@@ -20,7 +20,7 @@ _result_mapping = (
 
 def coerce_void(value):
     """
-    Converts ``value`` to ``value.dtype``
+    Converts `value` to `value.dtype`
 
     Parameters
     ----------
@@ -29,7 +29,7 @@ def coerce_void(value):
     Returns
     -------
     value : dtype
-        ``Value`` coerced to ``dtype``
+        `Value` coerced to `dtype`
     """
     if np.squeeze(value).ndim == 0:
         return value.dtype.type(value.squeeze())
@@ -39,17 +39,17 @@ def coerce_void(value):
 
 def import_matlab_result(fname):
     """
-    Imports ``fname`` PLS result from Matlab
+    Imports `fname` PLS result from Matlab
 
     Parameters
     ----------
     fname : str
-        Filepath to output mat file obtained by Matlab PLS toolbox. Should
-        contain at least a result "struct".
+        Filepath to output mat file obtained from Matlab PLS toolbox. Should
+        contain at least a result struct object.
 
     Returns
     -------
-    results : pyls.base.PLSResults
+    results : `pyls.base.PLSResults`
         Matlab results in a Python-friendly format
     """
 
@@ -83,7 +83,7 @@ def import_matlab_result(fname):
         if isinstance(val, np.ndarray):
             result[key] = coerce_void(val)
 
-    # add an inputs dictionary baesd on ``_result_mapping``
+    # add an inputs dictionary baesd on `_result_mapping`
     try:
         result['inputs'] = dict(X=np.vstack(matfile.get('datamat_lst')[:, 0]))
     except TypeError:
@@ -100,19 +100,19 @@ def import_matlab_result(fname):
 
 def comp_python_matlab(python, matlab, atol=1e-4):
     """
-    Compares ``python`` and ``matlab`` PLS results
+    Compares `python` and `matlab` PLS results
 
     Parameters
     ----------
     python : array_like
     matlab : array_like
     atol : float, optional
-        Tolerance for differences between ``python`` and ``matlab``
+        Tolerance for differences between `python` and `matlab`
 
     Returns
     -------
     close : bool
-        Whether the input arrays are close within ``atol``
+        Whether the input arrays are close within `atol`
     maxdiff : float
         Maximum absolute difference between input arrays
     """

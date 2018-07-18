@@ -1,77 +1,43 @@
 # -*- coding: utf-8 -*-
 
+from textwrap import dedent
 import warnings
 import numpy as np
 from sklearn.metrics import r2_score
-from pyls.base import BasePLS
+from pyls.base import BasePLS, _pls_input_docs
 from pyls import compute, utils
 
 
 class BehavioralPLS(BasePLS):
-    """
-    Runs "behavioral" PLS
+    def __init__(self, X, Y, groups=None, n_cond=1, mean_centering=0,
+                 n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
+                 rotate=True, ci=95, seed=None, **kwargs):
 
-    Uses singular value decomposition (SVD) to find latent variables (LVs) in
-    the cross-covariance matrix of ``X`` and ``Y``, two subject (N) by
-    feature (K) arrays, optionally identifying the differences in these LVs
-    between ``groups``. Permutation testing is used to examine statistical
-    significance and split-half resampling is used to assess reliability of
-    LVs. Bootstrap resampling is used to examine reliability of features (K)
-    across LVs. A cross-validated framework is used to examine the predictive
-    accuracy of the decomposition.
-
-    Parameters
-    ----------
-    X : (S x B) array_like
-        Input data matrix, where ``S`` is observations and ``B`` is features
-    Y : (S x T) array_like
-        Behavioral matrix, where ``S`` is observations and ``T`` is features
-    **kwargs : dict, optional
-        See ``pyls.base.PLSInputs`` for more information
-
-    References
-    ----------
-    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
-       (1996). Spatial pattern analysis of functional brain images using
-       partial least squares. Neuroimage, 3(3), 143-157.
-    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
-       analysis of neuroimaging data: applications and advances. Neuroimage,
-       23, S250-S263.
-    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
-       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
-       review. Neuroimage, 56(2), 455-475.
-    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
-       Revisiting PLS resampling: comparing significance versus reliability
-       across range of simulations. In New Perspectives in Partial Least
-       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago
-    """
-
-    def __init__(self, X, Y, **kwargs):
-        super().__init__(X=np.asarray(X), Y=np.asarray(Y), **kwargs)
+        super().__init__(X=np.asarray(X), Y=np.asarray(Y), groups=groups,
+                         n_cond=n_cond, mean_centering=mean_centering,
+                         n_perm=n_perm, n_boot=n_boot, n_split=n_split,
+                         test_size=test_size, rotate=rotate, ci=ci, seed=seed)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
     def gen_covcorr(self, X, Y, groups, **kwargs):
         """
-        Computes cross-covariance matrix from ``X`` and ``Y``
+        Computes cross-covariance matrix from `X` and `Y`
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is observations and ``T`` is
-            features
-        groups : (S x J) array_like
-            Dummy coded input array, where ``S`` is observations and ``J``
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        groups : (S, J) array_like
+            Dummy coded input array, where `S` is observations and `J`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
 
         Returns
         -------
-        crosscov : (J*T x B) np.ndarray
+        crosscov : (J*T, B) np.ndarray
             Cross-covariance matrix
         """
 
@@ -93,25 +59,22 @@ class BehavioralPLS(BasePLS):
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is observations and ``T`` is
-            features
-        U_boot : (K x L x B) array_like
-            Bootstrapped values of the right singular vectors, where ``L`` is
-            the number of latent variables and ``B`` is the number of
-            bootstraps
-        groups : (S x J) array_like
-            Dummy coded input array, where ``S`` is observations and ``J``
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        U_boot : (K, L, B) array_like
+            Bootstrapped values of the right singular vectors, where `L` is the
+            number of latent variables and `B` is the number of bootstraps
+        groups : (S, J) array_like
+            Dummy coded input array, where `S` is observations and `J`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
 
         Returns
         -------
-        distrib : (G x L x B) np.ndarray
+        distrib : (G, L, B) np.ndarray
         """
 
         distrib = np.zeros(shape=(groups.shape[-1] * Y.shape[-1],
@@ -127,16 +90,14 @@ class BehavioralPLS(BasePLS):
 
     def crossval(self, X, Y):
         """
-        Performs cross-validation of SVD of ``X`` and ``Y``
+        Performs cross-validation of SVD of `X` and `Y`
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is observations and ``T`` is
-            features
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
 
         Returns
         -------
@@ -184,12 +145,10 @@ class BehavioralPLS(BasePLS):
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like
-            Behavioral matrix, where ``S`` is observations and ``T`` is
-            features
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
         """
 
         res = super().run_pls(X, Y)
@@ -227,29 +186,41 @@ class BehavioralPLS(BasePLS):
         return res
 
 
-class MeanCenteredPLS(BasePLS):
-    """
-    Runs "mean-centered" PLS
+BehavioralPLS.__doc__ = dedent("""\
+    Performs behavioral PLS on `X` and `Y`.
 
-    Uses singular value decomposition (SVD) to find latent variables (LVs) in
-    ``data``, a subject (N) x feature (K) array, that maximize the difference
-    between ``groups``. Permutation testing is used to examine statistical
-    significance and split-half resampling is used to assess reliability of
-    LVs. Bootstrap resampling is used to examine reliability of features (K)
-    across LVs.
+    Behavioral PLS is a multivariate statistical approach that relates two sets
+    of variables together. Traditionally, one of these arrays
+    represents a set of brain features (e.g., functional connectivity
+    estimates) and the other represents a set of behavioral variables; however,
+    these arrays can be any two sets of features belonging to a common group of
+    samples.
+
+    Using a singular value decomposition, behavioral PLS attempts to find
+    linear combinations of features from the provided arrays that maximally
+    covary with each other. The decomposition is performed on the cross-
+    covariance matrix `R`, where :math:`R = Y' \\times X`, which represents the
+    covariation of all the input features across samples.
+
+    {decomposition_narrative}
 
     Parameters
     ----------
-    X : (S x B) array_like
-        Input data matrix, where ``S`` is observations and ``B`` is features
-    groups : (G,) list
-        List with number of subjects in each of ``G`` groups
-    n_cond : int, optional
-        Number of conditions. Default: 1
-    mean_centering : int, optional
-        Mean centering type. Must be in [0, 1, 2]. Default: 0
-    **kwargs : optional
-        See ``pyls.base.PLSInputs`` for more information
+    X : (S, B) array_like
+        Input data matrix, where `S` is samples and `B` is features
+    Y : (S, T) array_like
+        Input data matrix, where `S` is samples and `T` is features
+    {groups}
+    {conditions}
+    {stat_test}
+    {rotate}
+    {ci}
+    {seed}
+
+    Attributes
+    ----------
+    results : :obj:`pyls.PLSResults`
+        Dictionary-like object containing results
 
     References
     ----------
@@ -267,50 +238,58 @@ class MeanCenteredPLS(BasePLS):
        across range of simulations. In New Perspectives in Partial Least
        Squares and Related Methods (pp. 159-170). Springer, New York, NY.
        Chicago
-    """
+    .. [5] Misic, B., Betzel, R. F., de Reus, M. A., van den Heuvel, M.P.,
+       Berman, M. G., McIntosh, A. R., & Sporns, O. (2016). Network level
+       structure-function relationships in human neocortex. Cerebral Cortex,
+       26, 3285-96.
+    """).format(**_pls_input_docs)
 
-    def __init__(self, X, groups, n_cond=1, mean_centering=0, **kwargs):
+
+class MeanCenteredPLS(BasePLS):
+    def __init__(self, X, groups=None, n_cond=1, mean_centering=0, n_perm=5000,
+                 n_boot=5000, n_split=100, test_size=0.25, rotate=True, ci=95,
+                 seed=None, **kwargs):
+        if groups is None:
+            groups = [len(X)]
         # check inputs for validity
         if n_cond == 1 and len(groups) == 1:
             raise ValueError('Cannot perform PLS with only one group and one '
-                             'condition. Confirm inputs are correct.')
-        if n_cond == 1 and len(groups) > 1 and mean_centering == 0:
+                             'condition. Please confirm inputs are correct.')
+        if n_cond == 1 and mean_centering == 0:
             warnings.warn('Cannot set mean_centering to 0 when there is only'
                           'one condition. Resetting mean_centering to 1.')
             mean_centering = 1
-        elif n_cond > 1 and len(groups) == 1 and mean_centering == 1:
+        elif len(groups) == 1 and mean_centering == 1:
             warnings.warn('Cannot set mean_centering to 1 when there is only '
                           'one group. Resetting mean_centering to 0.')
             mean_centering = 0
 
         # instantiate base class, generate dummy array, and run PLS analysis
-        super().__init__(X=np.asarray(X),
-                         groups=groups,
-                         n_cond=n_cond,
-                         mean_centering=mean_centering,
-                         **kwargs)
+        super().__init__(X=np.asarray(X), groups=groups, n_cond=n_cond,
+                         mean_centering=mean_centering, n_perm=n_perm,
+                         n_boot=n_boot, n_split=n_split, test_size=test_size,
+                         rotate=rotate, ci=ci, seed=seed)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
     def gen_covcorr(self, X, Y, **kwargs):
         """
-        Computes mean-centered matrix from ``X`` and ``Y``
+        Computes mean-centered matrix from `X` and `Y`
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like
-            Dummy coded input array, where ``S`` is observations and ``T``
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Dummy coded input array, where `S` is observations and `T`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
 
         Returns
         -------
-        mean_centered : (T x B) np.ndarray
+        mean_centered : (T, B) np.ndarray
             Mean-centered matrix
         """
 
@@ -326,22 +305,21 @@ class MeanCenteredPLS(BasePLS):
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like
-            Dummy coded input array, where ``S`` is observations and ``T``
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Dummy coded input array, where `S` is observations and `T`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
-        U_boot : (B x L x R) array_like
-            Bootstrapped values of the right singular vectors, where ``B`` is
-            the same as in ``X``, `L`` is the number of latent variables and
-            ``R`` is the number of bootstraps
+        U_boot : (B, L, R) array_like
+            Bootstrapped values of the right singular vectors, where `B` is the
+            same as in `X`, `L` is the number of latent variables and `R` is
+            the number of bootstraps
 
         Returns
         -------
-        distrib : (T x L x R) np.ndarray
+        distrib : (T, L, R) np.ndarray
         """
 
         distrib = np.zeros(shape=(Y.shape[-1], U_boot.shape[1],
@@ -364,11 +342,10 @@ class MeanCenteredPLS(BasePLS):
 
         Parameters
         ----------
-        X : (S x B) array_like
-            Input data matrix, where ``S`` is observations and ``B`` is
-            features
-        Y : (S x T) array_like, optional
-            Dummy coded input array, where ``S`` is observations and ``T``
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like, optional
+            Dummy coded input array, where `S` is observations and `T`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
@@ -402,3 +379,52 @@ class MeanCenteredPLS(BasePLS):
                                     usc2=usc2, llusc=llusc, ulusc=ulusc))
 
         return res
+
+
+MeanCenteredPLS.__doc__ = dedent("""\
+    Performs mean-centered PLS on `X`, sorted into `groups` and `conditions`.
+
+    Mean-centered PLS is a multivariate statistical approach that attempts to
+    find sets of variables in a matrix which maximally discriminate between
+    groups or conditions. While it carries the name PLS, it is perhaps more
+    related to principal components analysis (PCA) than it is to
+    :obj:`pyls.BehavioralPLS`. The main differentiation from PCA is that
+    `mean_centering` can be set to "boost" or highlight potential differences
+    between groups or condition variables.
+
+    {decomposition_narrative}
+
+    Parameters
+    ----------
+    X : (S, B) array_like
+        Input data matrix, where `S` is observations and `B` is features
+    {groups}
+    {conditions}
+    {mean_centering}
+    {stat_test}
+    {rotate}
+    {ci}
+    {seed}
+
+    Attributes
+    ----------
+    results : :obj:`pyls.PLSResults`
+        Dictionary-like object containing results
+
+    References
+    ----------
+    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
+       (1996). Spatial pattern analysis of functional brain images using
+       partial least squares. Neuroimage, 3(3), 143-157.
+    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
+       analysis of neuroimaging data: applications and advances. Neuroimage,
+       23, S250-S263.
+    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
+       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
+       review. Neuroimage, 56(2), 455-475.
+    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
+       Revisiting PLS resampling: comparing significance versus reliability
+       across range of simulations. In New Perspectives in Partial Least
+       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
+       Chicago
+    """).format(**_pls_input_docs)

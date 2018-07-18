@@ -7,7 +7,7 @@ from sklearn.utils.validation import check_array, check_random_state
 
 class DefDict(dict):
     """
-    Subclass of dictionary that instantiates with ``self.defaults``
+    Subclass of `dict` that instantiates with `self.defaults`
     """
 
     defaults = {}
@@ -27,14 +27,14 @@ class DefDict(dict):
 
 def check_xcorr_inputs(X, Y):
     """
-    Ensures that ``X`` and ``Y`` are appropriate for use in ``xcorr()``
+    Ensures that `X` and `Y` are appropriate for use in `xcorr()`
 
     Parameters
     ----------
-    X : (S x B) array_like
-        Input matrix, where ``S`` is samples and ``B`` is features.
-    Y : (S x T) array_like, optional
-        Input matrix, where ``S`` is samples and ``T`` is features.
+    X : (S, B) array_like
+        Input matrix, where `S` is samples and `B` is features.
+    Y : (S, T) array_like, optional
+        Input matrix, where `S` is samples and `T` is features.
 
     Raises
     ------
@@ -42,16 +42,16 @@ def check_xcorr_inputs(X, Y):
     """
 
     if X.ndim != Y.ndim:
-        raise ValueError('Number of dims of ``X`` and ``Y`` must match.')
+        raise ValueError('Number of dims of `X` and `Y` must match.')
     if X.ndim != 2:
-        raise ValueError('``X`` and ``Y`` must each have 2 dims.')
+        raise ValueError('`X` and `Y` must each have 2 dims.')
     if len(X) != len(Y):
-        raise ValueError('The first dim of ``X`` and ``Y`` must match.')
+        raise ValueError('The first dim of `X` and `Y` must match.')
 
 
 def trange(n_iter, **kwargs):
     """
-    Wrapper for ``tqdm.trange`` with some default options set
+    Wrapper for :obj:`tqdm.trange` with some default options set
 
     Parameters
     ----------
@@ -60,7 +60,7 @@ def trange(n_iter, **kwargs):
 
     Returns
     -------
-    progbar : tqdm.tqdm instance
+    progbar : :obj:`tqdm.tqdm`
     """
 
     form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
@@ -70,19 +70,19 @@ def trange(n_iter, **kwargs):
 
 def xcorr(X, Y, norm=True):
     """
-    Calculates the cross-covariance matrix of ``X`` and ``Y``
+    Calculates the cross-covariance matrix of `X` and `Y`
 
     Parameters
     ----------
-    X : (S x B) array_like
-        Input matrix, where ``S`` is samples and ``B`` is features.
-    Y : (S x T) array_like, optional
-        Input matrix, where ``S`` is samples and ``T`` is features.
+    X : (S, B) array_like
+        Input matrix, where `S` is samples and `B` is features.
+    Y : (S, T) array_like, optional
+        Input matrix, where `S` is samples and `T` is features.
 
     Returns
     -------
-    xprod : (T x B) np.ndarray
-        Cross-covariance of ``X`` and ``Y``
+    xprod : (T, B) :obj:`numpy.ndarray`
+        Cross-covariance of `X` and `Y`
     """
 
     check_xcorr_inputs(X, Y)
@@ -96,29 +96,29 @@ def xcorr(X, Y, norm=True):
 
 def zscore(data, axis=0, ddof=1, comp=None):
     """
-    Z-scores ``X`` by subtracting mean and dividing by standard deviation
+    Z-scores `X` by subtracting mean and dividing by standard deviation
 
-    Effectively the same as ``np.nan_to_num(scipy.stats.zscore(X))`` but
+    Effectively the same as `np.nan_to_num(scipy.stats.zscore(X))` but
     handles DivideByZero without issuing annoying warnings.
 
     Parameters
     ----------
-    data : (N x ...) array_like
+    data : (N, ...) array_like
         Data to be z-scored
     axis : int, optional
         Axis to use to z-score data. Default: 0
     ddof : int, optional
         Delta degrees of freedom.  The divisor used in calculations is
-        ``M - ddof``, where ``M`` is the number of elements along ``axis``
-        in ``comp``. Default: 1
-    comp : (M x ...) array_like
-        Distribution to z-score ``data``. Should have same dimension as data
-        along `axis`. Default: ``data``
+        `M - ddof`, where `M` is the number of elements along `axis` in
+        `comp`. Default: 1
+    comp : (M, ...) array_like
+        Distribution to z-score `data`. Should have same dimension as data
+        along `axis`. Default: `data`
 
     Returns
     -------
-    zarr : (N x ...) np.ndarray
-        Z-scored version of ``data``
+    zarr : (N, ...) :obj:`numpy.ndarray`
+        Z-scored version of `data`
     """
 
     data = check_array(data, ensure_2d=False, allow_nd=True)
@@ -144,21 +144,22 @@ def zscore(data, axis=0, ddof=1, comp=None):
 
 def normalize(X, axis=0):
     """
-    Normalizes ``X`` along ``axis``
+    Normalizes `X` along `axis`
 
-    Utilizes Frobenius norm (or Hilbert-Schmidt norm, L_{p,q} norm where p=q=2)
+    Utilizes Frobenius norm (or Hilbert-Schmidt norm, `L_{p,q}` norm where
+    `p=q=2`)
 
     Parameters
     ----------
-    X : (S x B) array_like
+    X : (S, B) array_like
         Input array
     axis : int, optional
         Axis for normalization. Default: 0
 
     Returns
     -------
-    normed : (S x B) np.ndarray
-        Normalized ``X``
+    normed : (S, B) :obj:`numpy.ndarray`
+        Normalized `X`
     """
 
     normed = np.array(X)
@@ -175,18 +176,18 @@ def normalize(X, axis=0):
 
 def dummy_code(groups, n_cond=1):
     """
-    Dummy codes ``groups`` and ``n_cond``
+    Dummy codes `groups` and `n_cond`
 
     Parameters
     ----------
     groups : (G,) list
-        List with number of subjects in each of ``G`` groups
+        List with number of subjects in each of `G` groups
     n_cond : int, optional
         Number of conditions, for each subject. Default: 1
 
     Returns
     -------
-    Y : (S x F) np.ndarray
+    Y : (S, F) :obj:`numpy.ndarray`
         Dummy-coded group array
     """
 
@@ -198,18 +199,18 @@ def dummy_code(groups, n_cond=1):
 
 def dummy_label(groups, n_cond=1):
     """
-    Generates group labels for ``groups`` and ``n_cond``
+    Generates group labels for `groups` and `n_cond`
 
     Parameters
     ----------
     groups : (G,) list
-        List with number of subjects in each of ``G`` groups
+        List with number of subjects in each of `G` groups
     n_cond : int, optional
         Number of conditions, for each subject. Default: 1
 
     Returns
     -------
-    Y : (S,) np.ndarray
+    Y : (S,) :obj:`numpy.ndarray`
         Dummy-label group array
     """
 
@@ -220,20 +221,20 @@ def dummy_label(groups, n_cond=1):
 
 def permute_cols(x, seed=None):
     """
-    Permutes the rows for each column in ``x`` separately
+    Permutes the rows for each column in `x` separately
 
     Taken from https://stackoverflow.com/a/27489131
 
     Parameters
     ----------
-    x : (S x B) array_like
+    x : (S, B) array_like
         Input array to be permuted
-    seed : {int, RandomState instance, None}, optional
+    seed : {int, :obj:`numpy.random.RandomState`, None}, optional
         Seed for random number generation. Default: None
 
     Returns
     -------
-    permuted : np.ndarray
+    permuted : :obj:`numpy.ndarray`
         Permuted array
     """
 
