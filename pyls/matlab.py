@@ -1,20 +1,57 @@
 # -*- coding: utf-8 -*-
 
+import collections
 import numpy as np
 import scipy.io as sio
-from pyls.base import PLSResults
+from pyls.struct import PLSResults
 
 _result_mapping = (
-    ('Y', 'stacked_behavdata'),
-    ('groups', 'num_subj_lst'),
-    ('n_cond', 'num_conditions'),
-    ('n_perm', ('perm_result', 'num_perm')),
-    ('n_boot', ('boot_result', 'num_boot')),
-    ('n_split', ('perm_splithalf', 'num_split')),
-    ('ci', ('boot_result', 'clim')),
-    ('mean_centering', ('other_input', 'meancentering_type')),
-    ('n_proc', ''),
-    ('seed', '')
+    ('u', 'lsingvec'),
+    ('s', 'singvals'),
+    ('v', 'rsingvec'),
+    ('usc', 'brainscores'),
+    ('lvcorrs', 'behavcorr'),
+    # permres
+    ('perm_result_sprob', 'pvals'),
+    ('perm_result_permsamp', 'permsamp'),
+    # bootres
+    ('boot_result_orig_corr', 'behavcorr'),
+    ('boot_result_ulcorr', 'behavcorr_uplim'),
+    ('boot_result_llcorr', 'behavcorr_lolim'),
+    ('boot_result_orig_usc', 'contrast'),
+    ('boot_result_ulusc', 'contrast_uplim'),
+    ('boot_result_llusc', 'contrast_lolim'),
+    ('boot_result_compare_u', 'bootstrap_ratios'),
+    ('boot_result_u_se', 'lsingvec_boot_se'),
+    ('boot_result_usc2', 'brainscores_demeaned'),
+    # splitres
+    ('perm_splithalf_orig_ucorr', 'lsingvec_corr'),
+    ('perm_splithalf_orig_vcorr', 'rsingvec_corr'),
+    ('perm_splithalf_ucorr_prob', 'lsingvec_corr_pvals'),
+    ('perm_splithalf_vcorr_prob', 'rsingvec_corr_pvals'),
+    ('perm_splithalf_ucorr_ul', 'lsingvec_corr_uplim'),
+    ('perm_splithalf_vcorr_ul', 'rsingvec_corr_lolim'),
+    ('perm_splithalf_ucorr_ll', 'lsingvec_corr_uplim'),
+    ('perm_splithalf_vcorr_ll', 'rsingvec_corr_lolim'),
+    # inputs
+    ('stacked_behavdata', 'Y'),
+    ('num_subj_lst', 'groups'),
+    ('num_conditions', 'n_cond'),
+    ('perm_result_num_perm', 'n_perm'),
+    ('boot_result_num_boot', 'n_boot'),
+    ('perm_splithalf_num_split', 'n_split'),
+    ('boot_result_clim', 'ci'),
+    ('other_input_meancentering_type', 'mean_centering')
+)
+
+_mean_centered_mapping = (
+    ('vsc', 'designscores'),
+    ('distrib', 'contrast_boot')
+)
+
+_behavioral_mapping = (
+    ('vsc', 'behavscores'),
+    ('distrib', 'behavcorr_boot')
 )
 
 
@@ -31,10 +68,71 @@ def coerce_void(value):
     value : dtype
         `Value` coerced to `dtype`
     """
+
     if np.squeeze(value).ndim == 0:
         return value.dtype.type(value.squeeze())
     else:
         return np.squeeze(value)
+
+
+def flatten(d, parent_key='', sep='_'):
+    """
+    Flattens nested dictionary `d` into single dictionary with new keyset
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary to be flattened
+    parent_key : str, optional
+        Key of parent dictionary of `d`. Default: ''
+    sep : str, optional
+        How to join keys of `d` with `parent_key`, if provided. Default: '_'
+
+    Returns
+    -------
+    flat : dict
+        Flattened input dictionary `d`
+
+    Notes
+    -----
+    Taken directly from https://stackoverflow.com/a/6027615
+    """
+
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def rename_keys(d, mapping):
+    """
+    Renames keys in dictionary `d` based on tuples in `mapping`
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary with keys to be renamed
+    mapping : list of tuples
+        List of (oldkey, newkey) pairs to rename entries in `d`
+
+    Returns
+    -------
+    renamed : dict
+        Input dictionary `d` with keys renamed
+    """
+
+    new_dict = d.copy()
+    for oldkey, newkey in mapping:
+        try:
+            new_dict[newkey] = new_dict.pop(oldkey)
+        except KeyError:
+            pass
+
+    return new_dict
 
 
 def import_matlab_result(fname):
@@ -60,7 +158,7 @@ def import_matlab_result(fname):
 
     # load mat file using scipy.io
     matfile = sio.loadmat(fname)
-    # if 'result' key is missing then consider a malformed input
+    # if 'result' key is missing then consider this a malformed PLS result mat
     try:
         result = matfile.get('result')[0, 0]
     except (IndexError, TypeError) as e:
@@ -71,28 +169,30 @@ def import_matlab_result(fname):
     result = {labels[n]: value for n, value in enumerate(result)}
 
     # convert sub-structures to dictionaries using dtypes as keys
-    structs = ['boot_result', 'perm_result', 'perm_splithalf', 'other_input']
-    for attr in structs:
+    struct = ['boot_result', 'perm_result', 'perm_splithalf', 'other_input']
+    for attr in struct:
         if result.get(attr) is not None:
             labels = get_labels(result[attr].dtype.fields)
             result[attr] = {labels[n]: coerce_void(value) for n, value
                             in enumerate(result[attr][0, 0])}
+
+    # get input data from results file, if it exists
+    try:
+        result['inputs'] = dict(X=np.vstack(matfile.get('datamat_lst')[:, 0]))
+    except TypeError:
+        result['inputs'] = dict()
 
     # squeeze all the values so they're a bit more interpretable
     for key, val in result.items():
         if isinstance(val, np.ndarray):
             result[key] = coerce_void(val)
 
-    # add an inputs dictionary baesd on `_result_mapping`
-    try:
-        result['inputs'] = dict(X=np.vstack(matfile.get('datamat_lst')[:, 0]))
-    except TypeError:
-        result['inputs'] = dict()
-    for key, val in _result_mapping:
-        if isinstance(val, tuple):
-            result['inputs'][key] = result.get(val[0], {}).get(val[1])
-        else:
-            result['inputs'][key] = result.get(val)
+    # flatten the dictionary and rename the keys according to our mapping
+    result = rename_keys(flatten(result), _result_mapping)
+    if result['method'] == 3:
+        result = rename_keys(result, _behavioral_mapping)
+    else:
+        result = rename_keys(result, _mean_centered_mapping)
 
     # pack it into a pyls.base.PLSResults class instance for attribute access
     return PLSResults(**result)

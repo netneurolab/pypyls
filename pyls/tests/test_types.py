@@ -12,21 +12,21 @@ rs = np.random.RandomState(1234)
 
 
 class PLSBaseTest():
-    defaults = pyls.base.PLSInputs(X=rs.rand(subj, Xf),
-                                   Y=rs.rand(subj, Yf),
-                                   groups=None,
-                                   n_cond=1,
-                                   mean_centering=0,
-                                   rotate=True,
-                                   n_perm=20, n_boot=10, n_split=None,
-                                   ci=95, seed=rs)
+    defaults = pyls.struct.PLSInputs(X=rs.rand(subj, Xf),
+                                     Y=rs.rand(subj, Yf),
+                                     groups=None,
+                                     n_cond=1,
+                                     mean_centering=0,
+                                     rotate=True,
+                                     n_perm=20, n_boot=10, n_split=None,
+                                     ci=95, seed=rs)
     funcs = dict(meancentered=pyls.MeanCenteredPLS,
                  behavioral=pyls.BehavioralPLS)
 
     def __init__(self, plstype, **kwargs):
-        self.inputs = pyls.base.PLSInputs(**{key: kwargs.get(key, val) for
-                                             (key, val) in
-                                             self.defaults.items()})
+        self.inputs = pyls.struct.PLSInputs(**{key: kwargs.get(key, val) for
+                                               (key, val) in
+                                               self.defaults.items()})
         self.output = self.funcs.get(plstype)(**self.inputs).results
         self.type = plstype
         self.confirm_outputs()
@@ -50,12 +50,12 @@ class PLSBaseTest():
             behavior = num_lv = dummy
 
         attrs = [
-            ('u', (Xf, num_lv)),
-            ('s', (num_lv, num_lv)),
-            ('v', (behavior, num_lv)),
-            ('usc', (subj, num_lv)),
-            ('vsc', (subj, num_lv)),
-            ('s_varexp', (num_lv,))
+            ('lsingvec', (Xf, num_lv)),
+            ('singvals', (num_lv, num_lv)),
+            ('rsingvec', (behavior, num_lv)),
+            ('brainscores', (subj, num_lv)),
+            ('behavscores' if self.type == 'behavioral' else 'designscores',
+             (subj, num_lv))
         ]
 
         return attrs

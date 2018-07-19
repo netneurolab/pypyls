@@ -4,7 +4,8 @@ from textwrap import dedent
 import warnings
 import numpy as np
 from sklearn.metrics import r2_score
-from pyls.base import BasePLS, _pls_input_docs
+from pyls.base import BasePLS
+from pyls.struct import _pls_input_docs
 from pyls import compute, utils
 
 
@@ -152,36 +153,39 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.perm_result.permsamp = self.Y_perms
-        res.usc = X @ res.u
+        res.permres.permsamp = self.Y_perms
+        res.brainscores = X @ res.lsingvec
         # mechanism for splitting outputs along group / condition indices
         grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
-        res.vsc = np.vstack([y @ v for (y, v) in
-                             zip(np.split(Y, np.cumsum(grps)[:-1]),
-                                 np.split(res.v, len(grps)))])
+        res.behavscores = np.vstack([y @ v for (y, v) in
+                                     zip(np.split(Y, np.cumsum(grps)[:-1]),
+                                         np.split(res.rsingvec, len(grps)))])
 
         # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)
-        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
+        compare_u, u_se = compute.boot_rel(res.lsingvec @ res.singvals, U_boot)
 
         # get lvcorrs
         groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        res.lvcorrs = self.gen_covcorr(res.usc, Y, groups)
+        res.behavcorr = self.gen_covcorr(res.brainscores, Y, groups)
 
         # generate distribution / confidence intervals for lvcorrs
         distrib = self.boot_distrib(X, Y, U_boot, groups)
         llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
         # update results.boot_result dictionary
-        res.boot_result.update(dict(compare_u=compare_u, u_se=u_se,
-                                    bootsamp=self.bootsamp,
-                                    orig_corr=res.lvcorrs, distrib=distrib,
-                                    llcorr=llcorr, ulcorr=ulcorr))
+        res.bootres.update(dict(bootstrap_ratios=compare_u,
+                                lsingvec_boot_se=u_se,
+                                bootsamp=self.bootsamp,
+                                behavcorr=res.behavcorr,
+                                behavcorr_boot=distrib,
+                                behavcorr_lolim=llcorr,
+                                behavcorr_uplim=ulcorr))
 
-        # compute cross-validated coefficient of determination
+        # compute cross-validated prediction-based metrics
         if self.inputs.n_split is not None and self.inputs.test_size > 0:
             r, r2 = self.crossval(X, Y)
-            res.cross_val.update(dict(pearson_r=r, r_squared=r2))
+            res.cvres.update(dict(pearson_r=r, r_squared=r2))
 
         return res
 
@@ -199,15 +203,12 @@ BehavioralPLS.__doc__ = dedent("""\
     Using a singular value decomposition, behavioral PLS attempts to find
     linear combinations of features from the provided arrays that maximally
     covary with each other. The decomposition is performed on the cross-
-    covariance matrix `R`, where :math:`R = Y' \\times X`, which represents the
-    covariation of all the input features across samples.
-
-    {decomposition_narrative}
+    covariance matrix :math:`R`, where :math:`R = Y' \\times X`, which
+    represents the covariation of all the input features across samples.
 
     Parameters
     ----------
-    X : (S, B) array_like
-        Input data matrix, where `S` is samples and `B` is features
+    {input_matrix}
     Y : (S, T) array_like
         Input data matrix, where `S` is samples and `T` is features
     {groups}
@@ -219,25 +220,15 @@ BehavioralPLS.__doc__ = dedent("""\
 
     Attributes
     ----------
-    results : :obj:`pyls.PLSResults`
-        Dictionary-like object containing results
+    {pls_results}
+
+    Notes
+    -----
+    {decomposition_narrative}
 
     References
     ----------
-    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
-       (1996). Spatial pattern analysis of functional brain images using
-       partial least squares. Neuroimage, 3(3), 143-157.
-    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
-       analysis of neuroimaging data: applications and advances. Neuroimage,
-       23, S250-S263.
-    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
-       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
-       review. Neuroimage, 56(2), 455-475.
-    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
-       Revisiting PLS resampling: comparing significance versus reliability
-       across range of simulations. In New Perspectives in Partial Least
-       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago
+    {references}
     .. [5] Misic, B., Betzel, R. F., de Reus, M. A., van den Heuvel, M.P.,
        Berman, M. G., McIntosh, A. R., & Sporns, O. (2016). Network level
        structure-function relationships in human neocortex. Cerebral Cortex,
@@ -317,6 +308,7 @@ class MeanCenteredPLS(BasePLS):
             same as in `X`, `L` is the number of latent variables and `R` is
             the number of bootstraps
 
+
         Returns
         -------
         distrib : (T, L, R) np.ndarray
@@ -352,20 +344,21 @@ class MeanCenteredPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.perm_result.permsamp = self.X_perms
-        res.usc, res.vsc = X @ res.u, Y @ res.v
+        res.permres.permsamp = self.X_perms
+        res.brainscores, res.designscores = X @ res.lsingvec, Y @ res.rsingvec
 
         # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)
-        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
+        compare_u, u_se = compute.boot_rel(res.lsingvec @ res.singvals, U_boot)
 
         # get normalized brain scores and contrast
         usc2 = compute.get_mean_center(X, Y,
                                        self.inputs.n_cond,
                                        self.inputs.mean_centering,
-                                       means=False) @ res.u
+                                       means=False) @ res.lsingvec
         orig_usc = np.row_stack([usc2[grp].mean(axis=0) for grp
                                  in Y.T.astype(bool)])
+        res.brainscores_demeaned = usc2
 
         # generate distribution / confidence intervals for contrast
         distrib = self.boot_distrib(X, Y, U_boot)
@@ -373,10 +366,13 @@ class MeanCenteredPLS(BasePLS):
                                        ci=self.inputs.ci)
 
         # update results.boot_result dictionary
-        res.boot_result.update(dict(compare_u=compare_u, u_se=u_se,
-                                    bootsamp=self.bootsamp,
-                                    orig_usc=orig_usc, distrib=distrib,
-                                    usc2=usc2, llusc=llusc, ulusc=ulusc))
+        res.bootres.update(dict(bootstrap_ratios=compare_u,
+                                lsingvec_boot_se=u_se,
+                                bootsamp=self.bootsamp,
+                                contrast=orig_usc,
+                                contrast_boot=distrib,
+                                contrast_lolim=llusc,
+                                contrast_uplim=ulusc))
 
         return res
 
@@ -386,18 +382,19 @@ MeanCenteredPLS.__doc__ = dedent("""\
 
     Mean-centered PLS is a multivariate statistical approach that attempts to
     find sets of variables in a matrix which maximally discriminate between
-    groups or conditions. While it carries the name PLS, it is perhaps more
-    related to principal components analysis (PCA) than it is to
-    :obj:`pyls.BehavioralPLS`. The main differentiation from PCA is that
-    `mean_centering` can be set to "boost" or highlight potential differences
-    between groups or condition variables.
+    subgroups within the matrix.
 
-    {decomposition_narrative}
+    While it carries the name PLS, mean-centered PLS is perhaps more related to
+    principal components analysis than it is to :obj:`pyls.BehavioralPLS`. In
+    contrast to behavioral PLS, mean-centered PLS does not construct a cross-
+    covariance matrix. Instead, it operates by averaging the provided data
+    (`X`) within groups and/or conditions. The resultant matrix :math:`M` is
+    mean-centered, generating a new matrix :math:`R_{{mean\_centered}}` which
+    is submitted to singular value decomposition.
 
     Parameters
     ----------
-    X : (S, B) array_like
-        Input data matrix, where `S` is observations and `B` is features
+    {input_matrix}
     {groups}
     {conditions}
     {mean_centering}
@@ -408,23 +405,27 @@ MeanCenteredPLS.__doc__ = dedent("""\
 
     Attributes
     ----------
-    results : :obj:`pyls.PLSResults`
-        Dictionary-like object containing results
+    {pls_results}
+
+    Notes
+    -----
+    The provided `mean_centering` argument can be changed to highlight or
+    "boost" potential group / condition differences by modfiying how
+    :math:`R_{{mean\_centered}}` is generated:
+
+    - `mean_centering=0` will remove group means collapsed across conditions,
+      emphasizing potential differences between conditions while removing
+      overall group differences
+    - `mean_centering=1` will remove condition means collapsed across groups,
+      emphasizing potential differences between groups while removing overall
+      condition differences
+    - `mean_centering=2` will remove the grand mean collapsed across both
+      groups _and_ conditions, permitting investigation of the full spectrum of
+      potential group and condition effects.
+
+    {decomposition_narrative}
 
     References
     ----------
-    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
-       (1996). Spatial pattern analysis of functional brain images using
-       partial least squares. Neuroimage, 3(3), 143-157.
-    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
-       analysis of neuroimaging data: applications and advances. Neuroimage,
-       23, S250-S263.
-    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
-       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
-       review. Neuroimage, 56(2), 455-475.
-    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
-       Revisiting PLS resampling: comparing significance versus reliability
-       across range of simulations. In New Perspectives in Partial Least
-       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago
+    {references}
     """).format(**_pls_input_docs)

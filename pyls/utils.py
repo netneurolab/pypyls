@@ -2,27 +2,56 @@
 
 import numpy as np
 import tqdm
+from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_random_state
 
 
-class DefDict(dict):
+class ResDict(Bunch):
     """
-    Subclass of `dict` that instantiates with `self.defaults`
+    Subclass of `sklearn.utils.Bunch` that only accepts keys in `cls.allowed`
+
+    Also edits string representation to show non-empty keys
     """
 
-    defaults = {}
+    allowed = []
 
     def __init__(self, **kwargs):
-        i = {key: kwargs.get(key, val) for key, val in self.defaults.items()}
+        i = {key: val for key, val in kwargs.items() if key in
+             self.__class__.allowed}
         super().__init__(**i)
-        self.__dict__ = self
 
     def __str__(self):
-        items = [k for k in self.keys() if self.get(k) is not None]
+        items = [k for k in self.keys() if (self.get(k) is not None and not
+                 empty_dict(self.get(k)))]
         return '{name}({keys})'.format(name=self.__class__.__name__,
                                        keys=', '.join(items))
 
+    def __setitem__(self, key, val):
+        if key in self.__class__.allowed:
+            super().__setitem__(key, val)
+
     __repr__ = __str__
+
+
+def empty_dict(dobj):
+    """
+    Returns True if `len(dobj.keys) == 0`; otherwise, returns False
+
+    Parameters
+    ----------
+    dobj
+        Any Python object
+
+    Returns
+    -------
+    empty : bool
+        Whether `dobj` is an empty dictionary-like object
+    """
+
+    try:
+        return len(dobj.keys()) == 0
+    except AttributeError:
+        return False
 
 
 def check_xcorr_inputs(X, Y):
@@ -81,7 +110,7 @@ def xcorr(X, Y, norm=True):
 
     Returns
     -------
-    xprod : (T, B) :obj:`numpy.ndarray`
+    xprod : (T, B) `numpy.ndarray`
         Cross-covariance of `X` and `Y`
     """
 
@@ -117,7 +146,7 @@ def zscore(data, axis=0, ddof=1, comp=None):
 
     Returns
     -------
-    zarr : (N, ...) :obj:`numpy.ndarray`
+    zarr : (N, ...) `numpy.ndarray`
         Z-scored version of `data`
     """
 
@@ -158,7 +187,7 @@ def normalize(X, axis=0):
 
     Returns
     -------
-    normed : (S, B) :obj:`numpy.ndarray`
+    normed : (S, B) `numpy.ndarray`
         Normalized `X`
     """
 
@@ -187,7 +216,7 @@ def dummy_code(groups, n_cond=1):
 
     Returns
     -------
-    Y : (S, F) :obj:`numpy.ndarray`
+    Y : (S, F) `numpy.ndarray`
         Dummy-coded group array
     """
 
@@ -210,7 +239,7 @@ def dummy_label(groups, n_cond=1):
 
     Returns
     -------
-    Y : (S,) :obj:`numpy.ndarray`
+    Y : (S,) `numpy.ndarray`
         Dummy-label group array
     """
 
@@ -234,7 +263,7 @@ def permute_cols(x, seed=None):
 
     Returns
     -------
-    permuted : :obj:`numpy.ndarray`
+    permuted : `numpy.ndarray`
         Permuted array
     """
 

@@ -29,15 +29,15 @@ attrs = ['X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
 
 
 def test_PLSInputs():
-    pls_inputs = pyls.base.PLSInputs(**opts)
+    pls_inputs = pyls.struct.PLSInputs(**opts)
     for key in attrs:
         assert hasattr(pls_inputs, key)
         assert np.all(getattr(pls_inputs, key) == opts[key])
 
-    assert pyls.base.PLSInputs(n_split=0).n_split is None
+    assert pyls.struct.PLSInputs(n_split=0).n_split is None
 
     with pytest.raises(ValueError):
-        pyls.base.PLSInputs(test_size=1)
+        pyls.struct.PLSInputs(test_size=1)
 
 
 def test_BasePLS():

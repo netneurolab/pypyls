@@ -7,9 +7,8 @@ import pyls
 rs = np.random.RandomState(1234)
 
 
-def test_DefDict():
-    d = pyls.utils.DefDict()
-    print(d)
+def test_RefDict():
+    d = pyls.utils.ResDict()
 
 
 def test_zscore():

@@ -11,7 +11,6 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.pardir))
 
 # -- Project information -----------------------------------------------------
 
@@ -19,6 +18,8 @@ project = 'pyls'
 copyright = '2018, Ross Markello'
 author = 'Ross Markello'
 
+# Import project to get version info
+sys.path.insert(0, os.path.abspath(os.path.pardir))
 import pyls  # noqa
 # The short X.Y version
 version = pyls.__version__
@@ -27,10 +28,6 @@ release = pyls.__version__
 
 
 # -- General configuration ---------------------------------------------------
-
-# If your documentation needs a minimal Sphinx version, state it here.
-#
-# needs_sphinx = '1.0'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -103,7 +100,7 @@ htmlhelp_basename = 'pylsdoc'
 
 # -- Extension configuration -------------------------------------------------
 intersphinx_mapping = {
-    'numpy': ('http://docs.scipy.org/doc/numpy', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
-    'sklearn': ('http://scikit-learn.org/0.17', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
+    'sklearn': ('http://scikit-learn.org/stable', None),
 }

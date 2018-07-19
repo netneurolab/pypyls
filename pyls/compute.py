@@ -20,7 +20,7 @@ def rescale_test(X_train, X_test, Y_train, U, V):
 
     Returns
     -------
-    Y_pred : (S2, T) :obj:`numpy.ndarray`
+    Y_pred : (S2, T) `numpy.ndarray`
         Behavioral matrix, where `S2` is observations and `T` is features
     """
 
@@ -47,18 +47,17 @@ def perm_sig(orig, perm):
 
     Returns
     -------
-    sp : (L,) :obj:`numpy.ndarray`
+    sprob : (L,) `numpy.ndarray`
         Number of permutations where singular values exceeded original data
-        decomposition for each of `L` latent variables
-    sprob : (L,) :obj:`numpy.ndarray`
-        `sp` normalized by the total number of permutations. Can be
-        interpreted as the statistical significance of the latent variables
+        decomposition for each of `L` latent variables normalized by the total
+        number of permutations. Can be interpreted as the statistical
+        significance of the latent variables (i.e., non-parameteric p-values).
     """
 
     sp = np.sum(perm > np.diag(orig)[:, None], axis=1)
     sprob = sp / (perm.shape[-1] + 1)
 
-    return sp, sprob
+    return sprob
 
 
 def boot_ci(boot, ci=95):
@@ -75,9 +74,9 @@ def boot_ci(boot, ci=95):
 
     Returns
     -------
-    lower : (G, L) :obj:`numpy.ndarray`
+    lower : (G, L) `numpy.ndarray`
         Lower bound of CI for singular vectors in `boot`
-    upper : (G, L) :obj:`numpy.ndarray`
+    upper : (G, L) `numpy.ndarray`
         Upper bound of CI for singular vectors in `boot`
     """
 
@@ -102,7 +101,7 @@ def boot_rel(orig, boot):
 
     Returns
     -------
-    bsr : (G, L) :obj:`numpy.ndarray`
+    bsr : (G, L) `numpy.ndarray`
         Bootstrap ratios for provided singular vectors
     """
 
@@ -125,7 +124,7 @@ def crossblock_cov(singular):
 
     Returns
     -------
-    cov : (L,) :obj:`numpy.ndarray`
+    cov : (L,) `numpy.ndarray`
         Cross-block covariance
     """
 
@@ -150,9 +149,9 @@ def procrustes(original, permuted, singular):
 
     Returns
     -------
-    resamp : :obj:`numpy.ndarray`
+    resamp : `numpy.ndarray`
         Singular values of rotated `permuted` matrix
-    rotate : :obj:`numpy.ndarray`
+    rotate : `numpy.ndarray`
         Matrix for rotating `permuted` to `original`
     """
 
@@ -182,7 +181,7 @@ def get_group_mean(X, Y, n_cond=1, mean_centering=0):
 
     Returns
     -------
-    group_mean : (T, B) :obj:`numpy.ndarray`
+    group_mean : (T, B) `numpy.ndarray`
         Means to be removed from `X` during centering
     """
 
@@ -228,7 +227,7 @@ def get_mean_center(X, Y, n_cond=1, mean_centering=0, means=True):
         corresponds to the number of different groups x conditions. A value
         of 1 indicates that an observation belongs to a specific group or
         condition.
-    n_cond : int ,optional
+    n_cond : int, optional
         Number of conditions in dummy coded `Y` array. Default: 1
     mean_centering : {0, 1, 2}, optional
         Mean-centering method. Default: 0
@@ -238,7 +237,7 @@ def get_mean_center(X, Y, n_cond=1, mean_centering=0, means=True):
 
     Returns
     -------
-    mean_centered : {(T, B), (S, B)} :obj:`numpy.ndarray`
+    mean_centered : {(T, B), (S, B)} `numpy.ndarray`
         If `means` is True, returns array with shape (T, B); otherwise, returns
         (S, B)
     """
