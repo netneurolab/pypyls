@@ -10,7 +10,7 @@ _pls_input_docs = dict(
     diagonal matrix of singular values. The `i`-th pair of singular vectors
     detail the contributions of individual input features to an overall,
     multivariate pattern (the `i`-th LV), and the singular values explain the
-    amount of variance captured lsingvecby that pattern.
+    amount of variance captured by that pattern.
 
     Statistical significance of the LVs is determined via permutation testing.
     Bootstrap resampling is used to examine the contribution and reliability of
@@ -103,7 +103,8 @@ _pls_input_docs = dict(
 class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
-        'test_size', 'mean_centering', 'rotate', 'ci', 'seed'
+        'test_size', 'mean_centering', 'rotate', 'ci', 'seed',
+        'bootsamples', 'permsamples'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -144,11 +145,11 @@ class PLSResults(ResDict):
 
     Attributes
     ----------
-    lsingvec : (B, L) `numpy.ndarray`
+    u : (B, L) `numpy.ndarray`
         Left singular vectors from original singular value decomposition.
-    singvals : (L, L) `numpy.ndarray`
+    s : (L, L) `numpy.ndarray`
         Singular values from original singular value decomposition.
-    rsingvec : (J, L) `numpy.ndarray`
+    v : (J, L) `numpy.ndarray`
         Right singular vectors from original singular value decomposition.
     brainscores : (S, L) `numpy.ndarray`
         Brain scores (`inputs.X @ v`)
@@ -158,7 +159,7 @@ class PLSResults(ResDict):
     behavscores : (S x L) `numpy.ndarray`
         Behavior scores (`inputs.Y @ u`). Only obtained from
         :obj:`pyls.BehavioralPLS`.
-    brainscores_demeaned : (S, L) `numpy.ndarray`
+    brainscores_dm : (S, L) `numpy.ndarray`
         Mean-centered brain scores ((`inputs.X - mean(inputs.X)) @ v`). Only
         obtained from :obj:`pyls.MeanCenteredPLS`.
     behavcorr : (J, L) `numpy.ndarray`
@@ -166,9 +167,9 @@ class PLSResults(ResDict):
         :obj:`pyls.BehavioralPLS`.
     permres : :obj:`pyls.struct.PLSPermResult`
         Dictionary-like object containing results of permutation testing.
-    bootres : :obj:`pyls.struct.PLSBootResult`
+    bootres : :obj:`pyls.struct.PLSBootResults`
         Dictionary-like object containing results of bootstrap resampling.
-    splitres : :obj:`pyls.struct.PLSSplitHalfResult`
+    splitres : :obj:`pyls.struct.PLSSplitHalfResults`
         Dictionary-like object containing results of split-half resampling.
     cvres : :obj:`pyls.struct.PLSCrossValidationResults`
         Dictionary-like object containing results of cross-validation testing.
@@ -176,8 +177,8 @@ class PLSResults(ResDict):
         Dictionary-like object containing inputs provided to original PLS.
     """
     allowed = [
-        'lsingvec', 'singvals', 'rsingvec',
-        'brainscores', 'brainscores_demeaned', 'designscores', 'behavscores',
+        'u', 's', 'v',
+        'brainscores', 'brainscores_dm', 'designscores', 'behavscores',
         'behavcorr', 'permres', 'bootres', 'splitres', 'cvres', 'inputs'
     ]
 
@@ -185,24 +186,24 @@ class PLSResults(ResDict):
         super().__init__(**kwargs)
         # create all sub-dictionaries
         self.inputs = PLSInputs(**kwargs.get('inputs', kwargs))
-        self.bootres = PLSBootResult(**kwargs.get('bootres', kwargs))
-        self.permres = PLSPermResult(**kwargs.get('permres', kwargs))
-        self.splitres = PLSSplitHalfResult(**kwargs.get('splitres', kwargs))
+        self.bootres = PLSBootResults(**kwargs.get('bootres', kwargs))
+        self.permres = PLSPermResults(**kwargs.get('permres', kwargs))
+        self.splitres = PLSSplitHalfResults(**kwargs.get('splitres', kwargs))
         self.cvres = PLSCrossValidationResults(**kwargs.get('cvres', kwargs))
 
 
-class PLSBootResult(ResDict):
+class PLSBootResults(ResDict):
     """
-    PLS bootstrap resampling results
+    Dictionary-like object containing results of PLS bootstrap resampling
 
     Attributes
     ----------
-    bootstrap_ratios : (B, L) `numpy.ndarray`
+    bootstrapratios : (B, L) `numpy.ndarray`
         Left singular vectors normalized by their standard error obtained
-        from bootstrapping (`lsingvec_boot_stderr)`. Often referred to as
-        "BSRs", these can be interpreted as a z-score (assuming a non-skewed
+        from bootstrapping (`uboot_stderr)`. Often referred to as "BSRs",
+        these can be interpreted as a z-score (assuming a non-skewed
         distribution).
-    lsingvec_boot_se : (B, L) `numpy.ndarray`
+    uboot_se : (B, L) `numpy.ndarray`
         Standard error of bootstrapped distribution of left singular vectors
         vectors
     contrast : (J, L) `numpy.ndarray`
@@ -230,17 +231,17 @@ class PLSBootResult(ResDict):
     behavcorr_lolim : (J, L) `numpy.ndarray`
         Lower bound of confidence interval for `behavcorr`. Only obtained from
         :obj:`pyls.BehavioralPLS`.
-    bootsamp : (S, R) `numpy.ndarray`
+    bootsamples : (S, R) `numpy.ndarray`
         Indices of bootstrapped samples `S` across `R` resamples.
     """
     allowed = [
-        'bootstrap_ratios', 'lsingvec_boot_se', 'bootsamp',
-        'behavcorr', 'behavcorr_boot', 'behavcorr_uplim', 'behavcorr_lolim'
+        'bootstrapratios', 'uboot_se', 'bootsamples',
+        'behavcorr', 'behavcorr_boot', 'behavcorr_uplim', 'behavcorr_lolim',
         'contrast', 'contrast_boot', 'contrast_uplim', 'contrast_lolim'
     ]
 
 
-class PLSPermResult(ResDict):
+class PLSPermResults(ResDict):
     """
     Dictionary-like object containing results of PLS permutation testing
 
@@ -248,41 +249,41 @@ class PLSPermResult(ResDict):
     ----------
     pvals : (L,) `numpy.ndarray`
         Non-parametric p-values of latent variables from PLS decomposition.
-    permsamp : (S, P) `numpy.ndarray`
+    permsamples : (S, P) `numpy.ndarray`
         Indices of permuted samples `S` across `P` permutations.
     """
     allowed = [
-        'pvals', 'permsamp'
+        'pvals', 'permsamples'
     ]
 
 
-class PLSSplitHalfResult(ResDict):
+class PLSSplitHalfResults(ResDict):
     """
     Dictionary-like object containing results of PLS split-half resampling
 
     Attributes
     ----------
-    lsingvec_corr, rsingvec_corr : (L,) `numpy.ndarray`
+    ucorr, vcorr : (L,) `numpy.ndarray`
         Average correlations between split-half resamples in original (non-
         permuted) data for left/right singular vectors. Can be interpreted
         as reliability of `L` latent variables
-    lsingvec_corr_pvals, rsingvec_corr_pvals : (L,) `numpy.ndarray`
+    ucorr_pvals, vcorr_pvals : (L,) `numpy.ndarray`
         Number of permutations where correlation between split-half
         resamples exceeded original correlations, normalized by the total
         number of permutations. Can be interpreted as the statistical
         significance of the reliability of `L` latent variables
-    lsingvec_corr_uplim, rsingvec_corr_uplim : (L,) `numpy.ndarray`
+    ucorr_uplim, vcorr_uplim : (L,) `numpy.ndarray`
         Upper bound of confidence interval for correlations between split
         halves for left/right singular vectors
-    lingsvec_corr_lolim, rsingvec_corr_lolim : (L,) `numpy.ndarray`
+    ucorr_lolim, vcorr_lolim : (L,) `numpy.ndarray`
         Lower bound of confidence interval for correlations between split
         halves for left/right singular vectors
     """
     allowed = [
-        'lsingvec_corr', 'rsingvec_corr',
-        'lsingvec_corr_pvals', 'rsingvec_corr_pvals',
-        'lsingvec_corr_uplim', 'rsingvec_corr_uplim',
-        'lingsvec_corr_lolim', 'rsingvec_corr_lolim'
+        'ucorr', 'vcorr',
+        'ucorr_pvals', 'vcorr_pvals',
+        'ucorr_uplim', 'vcorr_uplim',
+        'ucorr_lolim', 'vcorr_lolim'
     ]
 
 

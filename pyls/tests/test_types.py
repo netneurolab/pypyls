@@ -50,9 +50,9 @@ class PLSBaseTest():
             behavior = num_lv = dummy
 
         attrs = [
-            ('lsingvec', (Xf, num_lv)),
-            ('singvals', (num_lv, num_lv)),
-            ('rsingvec', (behavior, num_lv)),
+            ('u', (Xf, num_lv)),
+            ('s', (num_lv, num_lv)),
+            ('v', (behavior, num_lv)),
             ('brainscores', (subj, num_lv)),
             ('behavscores' if self.type == 'behavioral' else 'designscores',
              (subj, num_lv))

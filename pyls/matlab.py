@@ -6,14 +6,14 @@ import scipy.io as sio
 from pyls.struct import PLSResults
 
 _result_mapping = (
-    ('u', 'lsingvec'),
-    ('s', 'singvals'),
-    ('v', 'rsingvec'),
+    ('u', 'u'),
+    ('s', 's'),
+    ('v', 'v'),
     ('usc', 'brainscores'),
     ('lvcorrs', 'behavcorr'),
     # permres
     ('perm_result_sprob', 'pvals'),
-    ('perm_result_permsamp', 'permsamp'),
+    ('perm_result_permsamp', 'permsamples'),
     # bootres
     ('boot_result_orig_corr', 'behavcorr'),
     ('boot_result_ulcorr', 'behavcorr_uplim'),
@@ -21,19 +21,21 @@ _result_mapping = (
     ('boot_result_orig_usc', 'contrast'),
     ('boot_result_ulusc', 'contrast_uplim'),
     ('boot_result_llusc', 'contrast_lolim'),
-    ('boot_result_compare_u', 'bootstrap_ratios'),
-    ('boot_result_u_se', 'lsingvec_boot_se'),
-    ('boot_result_usc2', 'brainscores_demeaned'),
+    ('boot_result_compare_u', 'bootstrapratios'),
+    ('boot_result_u_se', 'uboot_se'),
+    ('boot_result_usc2', 'brainscores_dm'),
+    ('boot_result_bootsamp', 'bootsamples'),
     # splitres
-    ('perm_splithalf_orig_ucorr', 'lsingvec_corr'),
-    ('perm_splithalf_orig_vcorr', 'rsingvec_corr'),
-    ('perm_splithalf_ucorr_prob', 'lsingvec_corr_pvals'),
-    ('perm_splithalf_vcorr_prob', 'rsingvec_corr_pvals'),
-    ('perm_splithalf_ucorr_ul', 'lsingvec_corr_uplim'),
-    ('perm_splithalf_vcorr_ul', 'rsingvec_corr_lolim'),
-    ('perm_splithalf_ucorr_ll', 'lsingvec_corr_uplim'),
-    ('perm_splithalf_vcorr_ll', 'rsingvec_corr_lolim'),
+    ('perm_splithalf_orig_ucorr', 'ucorr'),
+    ('perm_splithalf_orig_vcorr', 'vcorr'),
+    ('perm_splithalf_ucorr_prob', 'ucorr_pvals'),
+    ('perm_splithalf_vcorr_prob', 'vcorr_pvals'),
+    ('perm_splithalf_ucorr_ul', 'ucorr_uplim'),
+    ('perm_splithalf_vcorr_ul', 'vcorr_lolim'),
+    ('perm_splithalf_ucorr_ll', 'ucorr_uplim'),
+    ('perm_splithalf_vcorr_ll', 'vcorr_lolim'),
     # inputs
+    ('inputs_X', 'X'),
     ('stacked_behavdata', 'Y'),
     ('num_subj_lst', 'groups'),
     ('num_conditions', 'n_cond'),
@@ -55,7 +57,7 @@ _behavioral_mapping = (
 )
 
 
-def coerce_void(value):
+def _coerce_void(value):
     """
     Converts `value` to `value.dtype`
 
@@ -75,7 +77,7 @@ def coerce_void(value):
         return np.squeeze(value)
 
 
-def flatten(d, parent_key='', sep='_'):
+def _flatten(d, parent_key='', sep='_'):
     """
     Flattens nested dictionary `d` into single dictionary with new keyset
 
@@ -102,13 +104,13 @@ def flatten(d, parent_key='', sep='_'):
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
         if isinstance(v, collections.MutableMapping):
-            items.extend(flatten(v, new_key, sep=sep).items())
+            items.extend(_flatten(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
     return dict(items)
 
 
-def rename_keys(d, mapping):
+def _rename_keys(d, mapping):
     """
     Renames keys in dictionary `d` based on tuples in `mapping`
 
@@ -173,26 +175,31 @@ def import_matlab_result(fname):
     for attr in struct:
         if result.get(attr) is not None:
             labels = get_labels(result[attr].dtype.fields)
-            result[attr] = {labels[n]: coerce_void(value) for n, value
+            result[attr] = {labels[n]: _coerce_void(value) for n, value
                             in enumerate(result[attr][0, 0])}
 
     # get input data from results file, if it exists
-    try:
-        result['inputs'] = dict(X=np.vstack(matfile.get('datamat_lst')[:, 0]))
-    except TypeError:
-        result['inputs'] = dict()
+    X = matfile.get('datamat_lst')
+    result['inputs'] = dict(X=np.vstack(X[:, 0])) if X is not None else dict()
 
     # squeeze all the values so they're a bit more interpretable
     for key, val in result.items():
         if isinstance(val, np.ndarray):
-            result[key] = coerce_void(val)
+            result[key] = _coerce_void(val)
 
     # flatten the dictionary and rename the keys according to our mapping
-    result = rename_keys(flatten(result), _result_mapping)
+    result = _rename_keys(_flatten(result), _result_mapping)
     if result['method'] == 3:
-        result = rename_keys(result, _behavioral_mapping)
+        result = _rename_keys(result, _behavioral_mapping)
     else:
-        result = rename_keys(result, _mean_centered_mapping)
+        result = _rename_keys(result, _mean_centered_mapping)
+
+    # index arrays - 1 to account for Matlab vs Python 1- vs 0-indexing
+    for key in ['bootsamples', 'permsamples']:
+        try:
+            result[key] -= 1
+        except KeyError:
+            continue
 
     # pack it into a pyls.base.PLSResults class instance for attribute access
     return PLSResults(**result)

@@ -16,24 +16,27 @@ class ResDict(Bunch):
     allowed = []
 
     def __init__(self, **kwargs):
+        # only keep allowed keys
         i = {key: val for key, val in kwargs.items() if key in
              self.__class__.allowed}
         super().__init__(**i)
 
     def __str__(self):
-        items = [k for k in self.keys() if (self.get(k) is not None and not
-                 empty_dict(self.get(k)))]
+        # override dict built-in string repr to display only non-empty keys
+        items = [k for k in self.__class__.allowed if
+                 (self.get(k) is not None and not _empty_dict(self.get(k)))]
         return '{name}({keys})'.format(name=self.__class__.__name__,
                                        keys=', '.join(items))
 
     def __setitem__(self, key, val):
+        # legit we only want keys that are allowed
         if key in self.__class__.allowed:
             super().__setitem__(key, val)
 
     __repr__ = __str__
 
 
-def empty_dict(dobj):
+def _empty_dict(dobj):
     """
     Returns True if `len(dobj.keys) == 0`; otherwise, returns False
 
@@ -50,32 +53,8 @@ def empty_dict(dobj):
 
     try:
         return len(dobj.keys()) == 0
-    except AttributeError:
+    except (AttributeError, TypeError):
         return False
-
-
-def check_xcorr_inputs(X, Y):
-    """
-    Ensures that `X` and `Y` are appropriate for use in `xcorr()`
-
-    Parameters
-    ----------
-    X : (S, B) array_like
-        Input matrix, where `S` is samples and `B` is features.
-    Y : (S, T) array_like, optional
-        Input matrix, where `S` is samples and `T` is features.
-
-    Raises
-    ------
-    ValueError
-    """
-
-    if X.ndim != Y.ndim:
-        raise ValueError('Number of dims of `X` and `Y` must match.')
-    if X.ndim != 2:
-        raise ValueError('`X` and `Y` must each have 2 dims.')
-    if len(X) != len(Y):
-        raise ValueError('The first dim of `X` and `Y` must match.')
 
 
 def trange(n_iter, **kwargs):
@@ -93,8 +72,10 @@ def trange(n_iter, **kwargs):
     """
 
     form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
-    return tqdm.trange(n_iter, ascii=True, leave=False, bar_format=form,
-                       **kwargs)
+    defaults = dict(ascii=True, leave=False, bar_format=form)
+    defaults.update(kwargs)
+
+    return tqdm.trange(n_iter, **defaults)
 
 
 def xcorr(X, Y, norm=True):
@@ -114,7 +95,13 @@ def xcorr(X, Y, norm=True):
         Cross-covariance of `X` and `Y`
     """
 
-    check_xcorr_inputs(X, Y)
+    if X.ndim != Y.ndim:
+        raise ValueError('Number of dims of `X` and `Y` must match.')
+    if X.ndim != 2:
+        raise ValueError('`X` and `Y` must each have 2 dims.')
+    if len(X) != len(Y):
+        raise ValueError('The first dim of `X` and `Y` must match.')
+
     Xn, Yn = zscore(X), zscore(Y)
     if norm:
         Xn, Yn = normalize(Xn), normalize(Yn)
@@ -152,6 +139,7 @@ def zscore(data, axis=0, ddof=1, comp=None):
 
     data = check_array(data, ensure_2d=False, allow_nd=True)
 
+    # check if z-score against another distribution or self
     if comp is not None:
         comp = check_array(comp, ensure_2d=False, allow_nd=True)
     else:
@@ -160,7 +148,7 @@ def zscore(data, axis=0, ddof=1, comp=None):
     avg = comp.mean(axis=axis, keepdims=True)
     stdev = comp.std(axis=axis, ddof=ddof, keepdims=True)
     zeros = stdev == 0
-
+    # avoid DivideByZero errors
     if np.any(zeros):
         avg[zeros] = 0
         stdev[zeros] = 1
@@ -175,7 +163,7 @@ def normalize(X, axis=0):
     """
     Normalizes `X` along `axis`
 
-    Utilizes Frobenius norm (or Hilbert-Schmidt norm, `L_{p,q}` norm where
+    Utilizes Frobenius norm (or Hilbert-Schmidt norm / `L_{p,q}` norm where
     `p=q=2`)
 
     Parameters

@@ -4,7 +4,7 @@ from textwrap import dedent
 import warnings
 import numpy as np
 from sklearn.metrics import r2_score
-from pyls.base import BasePLS
+from pyls.base import BasePLS, gen_splits
 from pyls.struct import _pls_input_docs
 from pyls import compute, utils
 
@@ -17,7 +17,8 @@ class BehavioralPLS(BasePLS):
         super().__init__(X=np.asarray(X), Y=np.asarray(Y), groups=groups,
                          n_cond=n_cond, mean_centering=mean_centering,
                          n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                         test_size=test_size, rotate=rotate, ci=ci, seed=seed)
+                         test_size=test_size, rotate=rotate, ci=ci, seed=seed,
+                         **kwargs)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
     def gen_covcorr(self, X, Y, groups, **kwargs):
@@ -46,13 +47,6 @@ class BehavioralPLS(BasePLS):
                                  for grp in groups.T.astype(bool)])
 
         return crosscov
-
-    def gen_permsamp(self):
-        """ Need to flip permutation (i.e., permute Y, not X) """
-
-        Y_perms, X_perms = super().gen_permsamp()
-
-        return X_perms, Y_perms
 
     def boot_distrib(self, X, Y, U_boot, groups):
         """
@@ -109,7 +103,11 @@ class BehavioralPLS(BasePLS):
         """
 
         # use gen_splits to handle grouping/condition vars in train/test split
-        splits = self.gen_splits(test_size=self.inputs.test_size)
+        splits = gen_splits(self.inputs.groups,
+                            self.inputs.n_cond,
+                            self.inputs.n_split,
+                            seed=self.rs,
+                            test_size=self.inputs.test_size)
         dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         r_scores = np.zeros((Y.shape[-1], self.inputs.n_split))
         r2_scores = np.zeros((Y.shape[-1], self.inputs.n_split))
@@ -153,17 +151,16 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.permres.permsamp = self.Y_perms
-        res.brainscores = X @ res.lsingvec
+        res.brainscores = X @ res.u
         # mechanism for splitting outputs along group / condition indices
         grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
         res.behavscores = np.vstack([y @ v for (y, v) in
                                      zip(np.split(Y, np.cumsum(grps)[:-1]),
-                                         np.split(res.rsingvec, len(grps)))])
+                                         np.split(res.v, len(grps)))])
 
         # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)
-        compare_u, u_se = compute.boot_rel(res.lsingvec @ res.singvals, U_boot)
+        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
         # get lvcorrs
         groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
@@ -174,9 +171,9 @@ class BehavioralPLS(BasePLS):
         llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
         # update results.boot_result dictionary
-        res.bootres.update(dict(bootstrap_ratios=compare_u,
-                                lsingvec_boot_se=u_se,
-                                bootsamp=self.bootsamp,
+        res.bootres.update(dict(bootstrapratios=compare_u,
+                                uboot_se=u_se,
+                                bootsamples=self.bootsamp,
                                 behavcorr=res.behavcorr,
                                 behavcorr_boot=distrib,
                                 behavcorr_lolim=llcorr,
@@ -186,6 +183,9 @@ class BehavioralPLS(BasePLS):
         if self.inputs.n_split is not None and self.inputs.test_size > 0:
             r, r2 = self.crossval(X, Y)
             res.cvres.update(dict(pearson_r=r, r_squared=r2))
+
+        # get rid of the stupid diagonal matrix
+        res.s = np.diag(res.s)
 
         return res
 
@@ -259,7 +259,7 @@ class MeanCenteredPLS(BasePLS):
         super().__init__(X=np.asarray(X), groups=groups, n_cond=n_cond,
                          mean_centering=mean_centering, n_perm=n_perm,
                          n_boot=n_boot, n_split=n_split, test_size=test_size,
-                         rotate=rotate, ci=ci, seed=seed)
+                         rotate=rotate, ci=ci, seed=seed, **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
@@ -344,21 +344,20 @@ class MeanCenteredPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.permres.permsamp = self.X_perms
-        res.brainscores, res.designscores = X @ res.lsingvec, Y @ res.rsingvec
+        res.brainscores, res.designscores = X @ res.u, Y @ res.v
 
         # compute bootstraps and BSRs
         U_boot, V_boot = self.bootstrap(X, Y)
-        compare_u, u_se = compute.boot_rel(res.lsingvec @ res.singvals, U_boot)
+        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
         # get normalized brain scores and contrast
         usc2 = compute.get_mean_center(X, Y,
                                        self.inputs.n_cond,
                                        self.inputs.mean_centering,
-                                       means=False) @ res.lsingvec
+                                       means=False) @ res.u
         orig_usc = np.row_stack([usc2[grp].mean(axis=0) for grp
                                  in Y.T.astype(bool)])
-        res.brainscores_demeaned = usc2
+        res.brainscores_dm = usc2
 
         # generate distribution / confidence intervals for contrast
         distrib = self.boot_distrib(X, Y, U_boot)
@@ -366,13 +365,16 @@ class MeanCenteredPLS(BasePLS):
                                        ci=self.inputs.ci)
 
         # update results.boot_result dictionary
-        res.bootres.update(dict(bootstrap_ratios=compare_u,
-                                lsingvec_boot_se=u_se,
-                                bootsamp=self.bootsamp,
+        res.bootres.update(dict(bootstrapratios=compare_u,
+                                uboot_se=u_se,
+                                permsamples=self.bootsamp,
                                 contrast=orig_usc,
                                 contrast_boot=distrib,
                                 contrast_lolim=llusc,
                                 contrast_uplim=ulusc))
+
+        # get rid of the stupid diagonal matrix
+        res.s = np.diag(res.s)
 
         return res
 

@@ -12,8 +12,7 @@ EXAMPLES = ['mpls_multigroup_onecond_nosplit.mat',
             'bpls_onegroup_onecond_split.mat',
             'resultonly.mat']
 
-attrs = ['lsingvec', 'singvals', 'rsingvec', 'brainscores', 'permres',
-         'bootres', 'inputs']
+attrs = ['u', 's', 'v', 'brainscores', 'permres', 'bootres', 'inputs']
 
 
 def test_import_matlab():

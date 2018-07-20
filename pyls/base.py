@@ -7,12 +7,185 @@ from sklearn.utils.validation import check_random_state
 from pyls import compute, struct, utils
 
 
+def gen_permsamp(groups, n_cond, n_perm, seed=None):
+    """
+    Generates permutation arrays for PLS permutation testing
+
+    Parameters
+    ----------
+    groups : list
+    n_cond : int
+    n_perm : int
+    seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+
+    Returns
+    -------
+    permsamp : `numpy.ndarray`
+    """
+
+    Y = utils.dummy_code(groups, n_cond)
+    permsamp = np.zeros(shape=(len(Y), n_perm), dtype=int)
+    subj_inds = np.arange(np.sum(groups), dtype=int)
+    rs = check_random_state(seed)
+    warned = False
+
+    # calculate some variables for permuting conditions within subject
+    # do this here to save on calculation time
+    indices, grps = np.where(Y)
+    grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+    to_permute = [np.vstack(grp_conds[i:i + n_cond]) for i in
+                  range(0, Y.shape[-1], n_cond)]
+    splitinds = np.cumsum(groups)[:-1]
+    check_grps = utils.dummy_code(groups).T.astype(bool)
+
+    for i in utils.trange(n_perm, desc='Making permutations'):
+        count, duplicated = 0, True
+        while duplicated and count < 500:
+            count, duplicated = count + 1, False
+            # generate conditions permuted w/i subject
+            inds = np.hstack([utils.permute_cols(i, seed=rs) for i
+                              in to_permute])
+            # generate permutation of subjects across groups
+            perm = rs.permutation(subj_inds)
+            # confirm subjects *are* mixed across groups
+            if len(groups) > 1:
+                for grp in check_grps:
+                    if np.all(np.sort(perm[grp]) == subj_inds[grp]):
+                        duplicated = True
+            # permute conditions w/i subjects across groups and stack
+            perminds = np.hstack([f.flatten('F') for f in
+                                  np.split(inds[:, perm].T, splitinds)])
+            # make sure permuted indices are not a duplicate sequence
+            dupe_seq = perminds[:, None] == permsamp[:, :i]
+            if dupe_seq.all(axis=0).any():
+                duplicated = True
+        # if we broke out because we tried 500 permutations and couldn't
+        # generate a new one, just warn that we're using duplicate
+        # permutations and give up
+        if count == 500 and not warned:
+            warnings.warn('WARNING: Duplicate permutations used.')
+            warned = True
+        # store the permuted indices
+        permsamp[:, i] = perminds
+
+    return permsamp
+
+
+def gen_bootsamp(groups, n_cond, n_boot, seed=None):
+    """ Generates bootstrap arrays for `self._bootstrap()` """
+
+    Y = utils.dummy_code(groups, n_cond)
+    bootsamp = np.zeros(shape=(len(Y), n_boot), dtype=int)
+    subj_inds = np.arange(np.sum(groups), dtype=int)
+    rs = check_random_state(seed)
+    warned = False
+    min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
+
+    # calculate some variables for ensuring we resample with replacement
+    # subjects across all their conditions. do this here to save on
+    # calculation time
+    indices, grps = np.where(Y)
+    grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+    inds = np.hstack([np.vstack(grp_conds[i:i + n_cond]) for i
+                      in range(0, len(grp_conds), n_cond)])
+    splitinds = np.cumsum(groups)[:-1]
+    check_grps = utils.dummy_code(groups).T.astype(bool)
+
+    for i in utils.trange(n_boot, desc='Making bootstraps'):
+        count, duplicated = 0, True
+        while duplicated and count < 500:
+            count, duplicated = count + 1, False
+            # empty container to store current bootstrap attempt
+            boot = np.zeros(shape=(subj_inds.size), dtype=int)
+            # iterate through and resample from w/i groups
+            for grp in check_grps:
+                curr_grp, all_same = subj_inds[grp], True
+                while all_same:
+                    num_subj = curr_grp.size
+                    boot[curr_grp] = np.sort(rs.choice(curr_grp,
+                                                       size=num_subj,
+                                                       replace=True),
+                                             axis=0)
+                    # make sure bootstrap has enough unique subjs
+                    if np.unique(boot[curr_grp]).size >= min_subj:
+                        all_same = False
+            # resample subjects (with conditions) and stack groups
+            bootinds = np.hstack([f.flatten('F') for f in
+                                  np.split(inds[:, boot].T, splitinds)])
+            # make sure bootstrap is not a duplicated sequence
+            for grp in check_grps:
+                curr_grp = subj_inds[grp]
+                check = bootinds[curr_grp, None] == bootsamp[curr_grp, :i]
+                if check.all(axis=0).any():
+                    duplicated = True
+        # if we broke out because we tried 500 bootstraps and couldn't
+        # generate a new one, just warn that we're using duplicate
+        # bootstraps and give up
+        if count == 500 and not warned:
+            warnings.warn('WARNING: Duplicate bootstraps used.')
+            warned = True
+        # store the bootstrapped indices
+        bootsamp[:, i] = bootinds
+
+    return bootsamp
+
+
+def gen_splits(groups, n_cond, n_split, seed=None, test_size=0.5):
+    """ Generates split-half arrays for `self._split_half()` """
+
+    Y = utils.dummy_code(groups, n_cond)
+    splitsamp = np.zeros(shape=(len(Y), n_split), dtype=bool)
+    subj_inds = np.arange(np.sum(groups), dtype=int)
+    rs = check_random_state(seed)
+    warned = False
+
+    # calculate some variables for permuting conditions within subject
+    # do this here to save on calculation time
+    indices, grps = np.where(Y)
+    grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
+    inds = np.hstack([np.vstack(grp_conds[i:i + n_cond]) for i
+                      in range(0, len(grp_conds), n_cond)])
+    splitinds = np.cumsum(groups)[:-1]
+    check_grps = utils.dummy_code(groups).T.astype(bool)
+
+    for i in range(n_split):
+        count, duplicated = 0, True
+        while duplicated and count < 500:
+            count, duplicated = count + 1, False
+            # empty containter to store current split half attempt
+            split = np.zeros(shape=(subj_inds.size), dtype=bool)
+            # iterate through and split each group separately
+            for grp in check_grps:
+                curr_grp = subj_inds[grp]
+                take = rs.choice([np.ceil, np.floor])
+                num_subj = int(take(curr_grp.size * (1 - test_size)))
+                splinds = rs.choice(curr_grp,
+                                    size=num_subj,
+                                    replace=False)
+                split[splinds] = True
+            # split subjects (with conditions) and stack groups
+            half = np.hstack([f.flatten('F') for f in
+                              np.split(((inds + 1).astype(bool) *
+                                        [split[None]]).T,
+                                       splitinds)])
+            # make sure split half is not a duplicated sequence
+            dupe_seq = half[:, None] == splitsamp[:, :i]
+            if dupe_seq.all(axis=0).any():
+                duplicated = True
+        if count == 500 and not warned:
+            warnings.warn('WARNING: Duplicate split halves used.')
+            warned = True
+        splitsamp[:, i] = half
+
+    return splitsamp
+
+
 class BasePLS():
     """
-    Base PLS class
+    Base PLS class to be subclassed
 
-    Implements most of the math required for PLS, leaving a few functions
-    for PLS sub-classes to implement.
+    Contains most of the math required for PLS, leaving a few functions for PLS
+    subclasses to implement. This will not run without those implementations.
 
     Parameters
     ----------
@@ -93,32 +266,33 @@ class BasePLS():
         res = struct.PLSResults(inputs=self.inputs)
 
         # get original singular vectors / values and variance explained
-        res.lsingvec, res.singvals, res.rsingvec = self.svd(X, Y, seed=self.rs)
+        res.u, res.s, res.v = self.svd(X, Y, seed=self.rs)
 
         # compute permutations and get LV significance; store permsamp
         d_perm, ucorrs, vcorrs = self.permutation(X, Y)
-        res.permres.sprob = compute.perm_sig(res.singvals, d_perm)
+        res.permres.pvals = compute.perm_sig(res.s, d_perm)
+        res.permres.resample = self.permsamp
 
         # get split half reliability results
         if self.inputs.n_split is not None:
-            di = np.linalg.inv(res.singvals)
-            ud, vd = res.lsingvec @ di, res.rsingvec @ di
+            di = np.linalg.inv(res.s)
+            ud, vd = res.u @ di, res.v @ di
             orig_ucorr, orig_vcorr = self.split_half(X, Y, ud, vd)
             # get probabilties for ucorr/vcorr
-            ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)[-1]
-            vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)[-1]
+            ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
+            vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)
             # get confidence intervals for ucorr/vcorr
             ucorr_ll, ucorr_ul = compute.boot_ci(ucorrs, ci=self.inputs.ci)
             vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
             # update results object
-            res.splitres.update(dict(lsingvec_corr=orig_ucorr,
-                                     rsingvec_corr=orig_vcorr,
-                                     lsingvec_corr_pvals=ucorr_prob,
-                                     rsingvec_corr_pvals=vcorr_prob,
-                                     lingsvec_corr_lolim=ucorr_ll,
-                                     rsingvec_corr_lolim=vcorr_ll,
-                                     lsingvec_corr_uplim=ucorr_ul,
-                                     rsingvec_corr_uplim=vcorr_ul))
+            res.splitres.update(dict(ucorr=orig_ucorr,
+                                     vcorr=orig_vcorr,
+                                     ucorr_pvals=ucorr_prob,
+                                     vcorr_pvals=vcorr_prob,
+                                     ucorr_lolim=ucorr_ll,
+                                     vcorr_lolim=vcorr_ll,
+                                     ucorr_uplim=ucorr_ul,
+                                     vcorr_uplim=vcorr_ul))
 
         return res
 
@@ -174,8 +348,13 @@ class BasePLS():
             Right singular vectors, where `R` is the number of bootstraps
         """
 
-        # generate bootstrap resampled indices
-        self.bootsamp = self.gen_bootsamp()
+        # generate bootstrap resampled indices (unless already provided)
+        self.bootsamp = self.inputs.get('bootsamples', None)
+        if self.bootsamp is None:
+            self.bootsamp = gen_bootsamp(self.inputs.groups,
+                                         self.inputs.n_cond,
+                                         self.inputs.n_boot,
+                                         seed=self.rs)
 
         # get original values
         U_orig, d_orig, V_orig = self.svd(X, Y, seed=self.rs)
@@ -215,7 +394,12 @@ class BasePLS():
         """
 
         # generate permuted indices
-        self.X_perms, self.Y_perms = self.gen_permsamp()
+        self.permsamp = self.inputs.get('permsamples')
+        if self.permsamp is None:
+            self.permsamp = gen_permsamp(self.inputs.groups,
+                                         self.inputs.n_cond,
+                                         self.inputs.n_perm,
+                                         seed=self.rs)
 
         # get original values
         U_orig, d_orig, V_orig = self.svd(X, Y, seed=self.rs)
@@ -225,8 +409,8 @@ class BasePLS():
         vcorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
 
         for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
-            Xp, Yp = self.X_perms[:, i], self.Y_perms[:, i]
-            outputs = self.single_perm(X[Xp], Y[Yp], V_orig)
+            inds = self.permsamp[:, i]
+            outputs = self.single_perm(X[inds], Y, V_orig)
             d_perm[:, i] = outputs[0]
             if self.inputs.n_split is not None:
                 ucorrs[:, i], vcorrs[:, i] = outputs[1:]
@@ -301,7 +485,11 @@ class BasePLS():
         """
 
         # generate splits
-        splitsamp = self.gen_splits().astype(bool)
+        splitsamp = gen_splits(self.inputs.groups,
+                               self.inputs.n_cond,
+                               self.inputs.n_split,
+                               seed=self.rs,
+                               test_size=0.5).astype(bool)
 
         # empty arrays to hold split-half correlations
         ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
@@ -332,158 +520,3 @@ class BasePLS():
 
         # return average correlations for singular vectors across `n_split`
         return ucorr.mean(axis=-1), vcorr.mean(axis=-1)
-
-    def gen_permsamp(self, groups=None, n_cond=None, n_perm=None, seed=None):
-        """ Generates permutation arrays for `self._permutation()` """
-
-        Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        permsamp = np.zeros(shape=(len(Y), self.inputs.n_perm), dtype=int)
-        subj_inds = np.arange(np.sum(self.inputs.groups), dtype=int)
-        warned = False
-
-        # calculate some variables for permuting conditions within subject
-        # do this here to save on calculation time
-        indices, grps = np.where(Y)
-        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
-        to_permute = [np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i in
-                      range(0, Y.shape[-1], self.inputs.n_cond)]
-        splitinds = np.cumsum(self.inputs.groups)[:-1]
-        check_grps = utils.dummy_code(self.inputs.groups).T.astype(bool)
-
-        for i in utils.trange(self.inputs.n_perm, desc='Making permutations'):
-            count, duplicated = 0, True
-            while duplicated and count < 500:
-                count, duplicated = count + 1, False
-                # generate conditions permuted w/i subject
-                inds = np.hstack([utils.permute_cols(i, seed=self.rs) for i
-                                  in to_permute])
-                # generate permutation of subjects across groups
-                perm = self.rs.permutation(subj_inds)
-                # confirm subjects *are* mixed across groups
-                if len(self.inputs.groups) > 1:
-                    for grp in check_grps:
-                        if np.all(np.sort(perm[grp]) == subj_inds[grp]):
-                            duplicated = True
-                # permute conditions w/i subjects across groups and stack
-                perminds = np.hstack([f.flatten('F') for f in
-                                      np.split(inds[:, perm].T, splitinds)])
-                # make sure permuted indices are not a duplicate sequence
-                dupe_seq = perminds[:, None] == permsamp[:, :i]
-                if dupe_seq.all(axis=0).any():
-                    duplicated = True
-            # if we broke out because we tried 500 permutations and couldn't
-            # generate a new one, just warn that we're using duplicate
-            # permutations and give up
-            if count == 500 and not warned:
-                warnings.warn('WARNING: Duplicate permutations used.')
-                warned = True
-            # store the permuted indices
-            permsamp[:, i] = perminds
-
-        return permsamp, np.ones_like(permsamp, dtype=bool)
-
-    def gen_bootsamp(self, groups=None, n_cond=None, n_boot=None, seed=None):
-        """ Generates bootstrap arrays for `self._bootstrap()` """
-
-        Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        bootsamp = np.zeros(shape=(len(Y), self.inputs.n_boot), dtype=int)
-        min_subj = int(np.ceil(Y.sum(axis=0).min() * 0.5))
-        subj_inds = np.arange(np.sum(self.inputs.groups), dtype=int)
-        warned = False
-
-        # calculate some variables for ensuring we resample with replacement
-        # subjects across all their conditions. do this here to save on
-        # calculation time
-        indices, grps = np.where(Y)
-        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
-        inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
-                          in range(0, len(grp_conds), self.inputs.n_cond)])
-        splitinds = np.cumsum(self.inputs.groups)[:-1]
-        check_grps = utils.dummy_code(self.inputs.groups).T.astype(bool)
-
-        for i in utils.trange(self.inputs.n_boot, desc='Making bootstraps'):
-            count, duplicated = 0, True
-            while duplicated and count < 500:
-                count, duplicated = count + 1, False
-                # empty container to store current bootstrap attempt
-                boot = np.zeros(shape=(subj_inds.size), dtype=int)
-                # iterate through and resample from w/i groups
-                for grp in check_grps:
-                    curr_grp, all_same = subj_inds[grp], True
-                    while all_same:
-                        num_subj = curr_grp.size
-                        boot[curr_grp] = np.sort(self.rs.choice(curr_grp,
-                                                                size=num_subj,
-                                                                replace=True),
-                                                 axis=0)
-                        # make sure bootstrap has enough unique subjs
-                        if np.unique(boot[curr_grp]).size >= min_subj:
-                            all_same = False
-                # resample subjects (with conditions) and stack groups
-                bootinds = np.hstack([f.flatten('F') for f in
-                                      np.split(inds[:, boot].T, splitinds)])
-                # make sure bootstrap is not a duplicated sequence
-                for grp in check_grps:
-                    curr_grp = subj_inds[grp]
-                    check = bootinds[curr_grp, None] == bootsamp[curr_grp, :i]
-                    if check.all(axis=0).any():
-                        duplicated = True
-            # if we broke out because we tried 500 bootstraps and couldn't
-            # generate a new one, just warn that we're using duplicate
-            # bootstraps and give up
-            if count == 500 and not warned:
-                warnings.warn('WARNING: Duplicate bootstraps used.')
-                warned = True
-            # store the bootstrapped indices
-            bootsamp[:, i] = bootinds
-
-        return bootsamp
-
-    def gen_splits(self, groups=None, n_cond=None, n_split=None, seed=None,
-                   test_size=0.5):
-        """ Generates split-half arrays for `self._split_half()` """
-
-        Y = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        splitsamp = np.zeros(shape=(len(Y), self.inputs.n_split), dtype=bool)
-        subj_inds = np.arange(np.sum(self.inputs.groups), dtype=int)
-        warned = False
-
-        # calculate some variables for permuting conditions within subject
-        # do this here to save on calculation time
-        indices, grps = np.where(Y)
-        grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
-        inds = np.hstack([np.vstack(grp_conds[i:i + self.inputs.n_cond]) for i
-                          in range(0, len(grp_conds), self.inputs.n_cond)])
-        splitinds = np.cumsum(self.inputs.groups)[:-1]
-        check_grps = utils.dummy_code(self.inputs.groups).T.astype(bool)
-
-        for i in range(self.inputs.n_split):
-            count, duplicated = 0, True
-            while duplicated and count < 500:
-                count, duplicated = count + 1, False
-                # empty containter to store current split half attempt
-                split = np.zeros(shape=(subj_inds.size), dtype=bool)
-                # iterate through and split each group separately
-                for grp in check_grps:
-                    curr_grp = subj_inds[grp]
-                    take = self.rs.choice([np.ceil, np.floor])
-                    num_subj = int(take(curr_grp.size * (1 - test_size)))
-                    splinds = self.rs.choice(curr_grp,
-                                             size=num_subj,
-                                             replace=False)
-                    split[splinds] = True
-                # split subjects (with conditions) and stack groups
-                half = np.hstack([f.flatten('F') for f in
-                                  np.split(((inds + 1).astype(bool) *
-                                            [split[None]]).T,
-                                           splitinds)])
-                # make sure split half is not a duplicated sequence
-                dupe_seq = half[:, None] == splitsamp[:, :i]
-                if dupe_seq.all(axis=0).any():
-                    duplicated = True
-            if count == 500 and not warned:
-                warnings.warn('WARNING: Duplicate split halves used.')
-                warned = True
-            splitsamp[:, i] = half
-
-        return splitsamp
