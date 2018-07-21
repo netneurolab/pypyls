@@ -51,7 +51,7 @@ class PLSBaseTest():
 
         attrs = [
             ('u', (Xf, num_lv)),
-            ('s', (num_lv, num_lv)),
+            ('s', (num_lv,)),
             ('v', (behavior, num_lv)),
             ('brainscores', (subj, num_lv)),
             ('behavscores' if self.type == 'behavioral' else 'designscores',
