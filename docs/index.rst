@@ -1,17 +1,19 @@
-=========================================
+=====================================
 pyls: Partial Least Squares in Python
-=========================================
+=====================================
 .. image:: https://travis-ci.org/rmarkello/pyls.svg?branch=master
    :target: https://travis-ci.org/rmarkello/pyls
 .. image:: https://codecov.io/gh/rmarkello/pyls/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/rmarkello/pyls
+.. image:: https://readthedocs.org/projects/pyls/badge/?version=latest
+   :target: http://pyls.readthedocs.io/en/latest
 .. image:: http://img.shields.io/badge/License-GPL%202.0-blue.svg
    :target: https://opensource.org/licenses/GPL-2.0
 
 About
 -----
 ``pyls`` is a Python implementation of Partial Least Squares correlation as
-introduced by `McIntosh et al., (1996)`_ and originally written for `MATLAB`_.
+introduced by `McIntosh et al., (1996)`_ in their `MATLAB toolbox`_.
 
 Usage
 -----
@@ -28,7 +30,7 @@ distribution.
 All trademarks referenced herein are property of their respective holders.
 
 .. _McIntosh et al., (1996): https://www.ncbi.nlm.nih.gov/pubmed/9345485
-.. _MATLAB: https://www.rotman-baycrest.on.ca/index.php?section=84
+.. _MATLAB toolbox: https://www.rotman-baycrest.on.ca/index.php?section=84
 .. _LICENSE: https://github.com/rmarkello/pyls/blob/master/LICENSE
 
 .. toctree::

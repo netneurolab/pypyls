@@ -12,19 +12,19 @@ EXAMPLES = ['mpls_multigroup_onecond_nosplit.mat',
             'bpls_onegroup_onecond_split.mat',
             'resultonly.mat']
 
-attrs = ['u', 's', 'v', 'usc', 'vsc', 'perm_result', 'boot_result', 'inputs']
+attrs = ['u', 's', 'v', 'brainscores', 'permres', 'bootres', 'inputs']
 
 
 def test_import_matlab():
     for fname in EXAMPLES:
         res = pyls.matlab.import_matlab_result(op.join(data_dir, fname))
         # make sure the mat file cast appropriately
-        assert isinstance(res, pyls.base.PLSResults)
+        assert isinstance(res, pyls.struct.PLSResults)
         # make sure all the attributes are there (don't check outputs)
         for attr in attrs:
             assert hasattr(res, attr)
         if '_split' in fname:
-            assert hasattr(res, 'perm_splithalf')
+            assert hasattr(res, 'splitres')
 
 
 def test_errors():

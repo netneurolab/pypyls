@@ -12,22 +12,22 @@ rs = np.random.RandomState(1234)
 
 
 class PLSBaseTest():
-    defaults = pyls.base.PLSInputs(X=rs.rand(subj, Xf),
-                                   Y=rs.rand(subj, Yf),
-                                   groups=None,
-                                   n_cond=1,
-                                   mean_centering=0,
-                                   rotate=True,
-                                   n_perm=20, n_boot=10, n_split=None,
-                                   ci=95, seed=rs)
-    funcs = dict(meancentered=pyls.MeanCenteredPLS,
-                 behavioral=pyls.BehavioralPLS)
+    defaults = pyls.struct.PLSInputs(X=rs.rand(subj, Xf),
+                                     Y=rs.rand(subj, Yf),
+                                     groups=None,
+                                     n_cond=1,
+                                     mean_centering=0,
+                                     rotate=True,
+                                     n_perm=20, n_boot=10, n_split=None,
+                                     ci=95, seed=rs)
+    funcs = dict(meancentered=pyls.meancentered_pls,
+                 behavioral=pyls.behavioral_pls)
 
     def __init__(self, plstype, **kwargs):
-        self.inputs = pyls.base.PLSInputs(**{key: kwargs.get(key, val) for
-                                             (key, val) in
-                                             self.defaults.items()})
-        self.output = self.funcs.get(plstype)(**self.inputs).results
+        self.inputs = pyls.struct.PLSInputs(**{key: kwargs.get(key, val) for
+                                               (key, val) in
+                                               self.defaults.items()})
+        self.output = self.funcs.get(plstype)(**self.inputs)
         self.type = plstype
         self.confirm_outputs()
 
@@ -51,11 +51,11 @@ class PLSBaseTest():
 
         attrs = [
             ('u', (Xf, num_lv)),
-            ('s', (num_lv, num_lv)),
+            ('s', (num_lv,)),
             ('v', (behavior, num_lv)),
-            ('usc', (subj, num_lv)),
-            ('vsc', (subj, num_lv)),
-            ('s_varexp', (num_lv,))
+            ('brainscores', (subj, num_lv)),
+            ('behavscores' if self.type == 'behavioral' else 'designscores',
+             (subj, num_lv))
         ]
 
         return attrs
@@ -101,7 +101,7 @@ def test_MeanCenteredPLS_multigroup_onecondition():
 
 
 def test_MeanCenteredPLS_onegroup_multicondition():
-    kwargs = dict(groups=[subj // 2], n_cond=2)
+    kwargs = dict(n_cond=2)
     for (mc, ns, rt) in itertools.product([0, 2], [None, 5], [True, False]):
         PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
                     **kwargs)
