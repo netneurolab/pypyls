@@ -49,8 +49,7 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by contacting Ross Markello at ross.markello@mail.mcgill.ca or
-Elizabeth DuPre at elizabeth.dupre@mail.mcgill.ca.
+reported by contacting Ross Markello at ross.markello@mail.mcgill.ca.
 Confidentiality will be respected in reporting.
 
 ## Attribution
