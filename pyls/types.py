@@ -10,7 +10,7 @@ from pyls import compute, utils
 
 
 class BehavioralPLS(BasePLS):
-    def __init__(self, X, Y, groups=None, n_cond=1, mean_centering=0,
+    def __init__(self, X, Y, *, groups=None, n_cond=1, mean_centering=0,
                  n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
                  rotate=True, ci=95, seed=None, **kwargs):
 
@@ -190,7 +190,19 @@ class BehavioralPLS(BasePLS):
         return res
 
 
-BehavioralPLS.__doc__ = dedent("""\
+# let's make it a function
+def behavioral_pls(X, Y, *, groups=None, n_cond=1, mean_centering=0,
+                   n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
+                   rotate=True, ci=95, seed=None, **kwargs):
+    pls = BehavioralPLS(X=X, Y=Y, groups=groups, n_cond=n_cond,
+                        mean_centering=mean_centering,
+                        n_perm=n_perm, n_boot=n_boot, n_split=n_split,
+                        test_size=test_size, rotate=rotate, ci=ci, seed=seed,
+                        **kwargs)
+    return pls.results
+
+
+behavioral_pls.__doc__ = dedent("""\
     Performs behavioral PLS on `X` and `Y`.
 
     Behavioral PLS is a multivariate statistical approach that relates two sets
@@ -218,7 +230,7 @@ BehavioralPLS.__doc__ = dedent("""\
     {ci}
     {seed}
 
-    Attributes
+    Returns
     ----------
     {pls_results}
 
@@ -379,7 +391,18 @@ class MeanCenteredPLS(BasePLS):
         return res
 
 
-MeanCenteredPLS.__doc__ = dedent("""\
+def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
+                     n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
+                     rotate=True, ci=95, seed=None, **kwargs):
+    pls = MeanCenteredPLS(X=X, groups=groups, n_cond=n_cond,
+                          mean_centering=mean_centering,
+                          n_perm=n_perm, n_boot=n_boot, n_split=n_split,
+                          test_size=test_size, rotate=rotate, ci=ci, seed=seed,
+                          **kwargs)
+    return pls.results
+
+
+meancentered_pls.__doc__ = dedent("""\
     Performs mean-centered PLS on `X`, sorted into `groups` and `conditions`.
 
     Mean-centered PLS is a multivariate statistical approach that attempts to
@@ -387,7 +410,7 @@ MeanCenteredPLS.__doc__ = dedent("""\
     subgroups within the matrix.
 
     While it carries the name PLS, mean-centered PLS is perhaps more related to
-    principal components analysis than it is to :obj:`pyls.BehavioralPLS`. In
+    principal components analysis than it is to :obj:`pyls.behavioral_pls`. In
     contrast to behavioral PLS, mean-centered PLS does not construct a cross-
     covariance matrix. Instead, it operates by averaging the provided data
     (`X`) within groups and/or conditions. The resultant matrix :math:`M` is
@@ -405,7 +428,7 @@ MeanCenteredPLS.__doc__ = dedent("""\
     {ci}
     {seed}
 
-    Attributes
+    Returns
     ----------
     {pls_results}
 

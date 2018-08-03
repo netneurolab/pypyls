@@ -38,7 +38,7 @@ class ResDict(Bunch):
 
 def _empty_dict(dobj):
     """
-    Returns True if `len(dobj.keys) == 0`; otherwise, returns False
+    Returns True if `dobj` is an empty dictionary; otherwise, returns False
 
     Parameters
     ----------

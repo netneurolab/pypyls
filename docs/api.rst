@@ -7,14 +7,14 @@ API
 
 PLS Decompositions
 ------------------
-.. autoclass:: pyls.BehavioralPLS
-.. autoclass:: pyls.MeanCenteredPLS
+.. autofunction:: pyls.behavioral_pls
+.. autofunction:: pyls.meancentered_pls
 
 PLS Results
 -----------
-.. autoclass:: pyls.PLSResults
+.. autoclass:: pyls.struct.PLSResults
 .. autoclass:: pyls.struct.PLSPermResults
 .. autoclass:: pyls.struct.PLSBootResults
 .. autoclass:: pyls.struct.PLSSplitHalfResults
 .. autoclass:: pyls.struct.PLSCrossValidationResults
-.. autoclass:: pyls.PLSInputs
+.. autoclass:: pyls.struct.PLSInputs

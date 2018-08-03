@@ -13,16 +13,21 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None):
 
     Parameters
     ----------
-    groups : list
+    groups : (G,) list
+        List with number of subjects in each of `G` groups
     n_cond : int
+        Number of conditions, for each subject. Default: 1
     n_perm : int
+        Number of permutations for which to generate resampling arrays
     seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+        Seed for random number generation. Default: None
 
     Returns
     -------
-    permsamp : `numpy.ndarray`
+    permsamp : (S, P) `numpy.ndarray`
+        Subject permutation arrays, where `S` is the number of subjects and `P`
+        is the requested number of permutations (i.e., `P = n_perm`)
     """
-
     Y = utils.dummy_code(groups, n_cond)
     permsamp = np.zeros(shape=(len(Y), n_perm), dtype=int)
     subj_inds = np.arange(np.sum(groups), dtype=int)
@@ -72,8 +77,26 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None):
 
 
 def gen_bootsamp(groups, n_cond, n_boot, seed=None):
-    """ Generates bootstrap arrays for `self._bootstrap()` """
+    """
+    Generates bootstrap arrays for PLS bootstrap resampling
 
+    Parameters
+    ----------
+    groups : (G,) list
+        List with number of subjects in each of `G` groups
+    n_cond : int
+        Number of conditions, for each subject. Default: 1
+    n_boot : int
+        Number of boostraps for which to generate resampling arrays
+    seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+        Seed for random number generation. Default: None
+
+    Returns
+    -------
+    bootsamp : (S, B) `numpy.ndarray`
+        Subject bootstrap arrays, where `S` is the number of subjects and `B`
+        is the requested number of bootstraps (i.e., `B = n_boot`)
+    """
     Y = utils.dummy_code(groups, n_cond)
     bootsamp = np.zeros(shape=(len(Y), n_boot), dtype=int)
     subj_inds = np.arange(np.sum(groups), dtype=int)
@@ -131,8 +154,28 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None):
 
 
 def gen_splits(groups, n_cond, n_split, seed=None, test_size=0.5):
-    """ Generates split-half arrays for `self._split_half()` """
+    """
+    Generates splitting arrays for PLS split-half resampling and CV
 
+    Parameters
+    ----------
+    groups : (G,) list
+        List with number of subjects in each of `G` groups
+    n_cond : int
+        Number of conditions, for each subject. Default: 1
+    n_split : int
+        Number of splits for which to generate resampling arrays
+    seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+        Seed for random number generation. Default: None
+    test_size : (0, 1) float, optional
+        Percent of subjects to include in the split halves. Default: 0.5
+
+    Returns
+    -------
+    splitsamp : (S, I) `numpy.ndarray`
+        Subject split arrays, where `S` is the number of subjects and `I`
+        is the requested number of splits (i.e., `I = n_split`)
+    """
     Y = utils.dummy_code(groups, n_cond)
     splitsamp = np.zeros(shape=(len(Y), n_split), dtype=bool)
     subj_inds = np.arange(np.sum(groups), dtype=int)

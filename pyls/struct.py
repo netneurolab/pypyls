@@ -126,8 +126,8 @@ PLSInputs.__doc__ = dedent("""\
         Input data matrix, where `S` is observations and `B` is features.
     Y : (S, T) array_like
         Behavioral matrix, where `S` is observations and `T` is features.
-        If from :obj:`pyls.BehavioralPLS`, this is the provided behavior
-        matrix; if from :obj:`pyls.MeanCenteredPLS`, this is the dummy-coded
+        If from :obj:`pyls.behavioral_pls`, this is the provided behavior
+        matrix; if from :obj:`pyls.meancentered_pls`, this is a dummy-coded
         group/condition matrix.
     {groups}
     {conditions}
@@ -153,28 +153,28 @@ class PLSResults(ResDict):
         Right singular vectors from original singular value decomposition.
     brainscores : (S, L) `numpy.ndarray`
         Brain scores (`inputs.X @ v`)
-    designscores : (S x L) `numpy.ndarray`
+    designscores : (S, L) `numpy.ndarray`
         Design scores (`inputs.Y @ u`). Only obtained from
-        :obj:`pyls.MeanCenteredPLS`.
-    behavscores : (S x L) `numpy.ndarray`
+        :obj:`pyls.meancentered_pls`.
+    behavscores : (S, L) `numpy.ndarray`
         Behavior scores (`inputs.Y @ u`). Only obtained from
-        :obj:`pyls.BehavioralPLS`.
+        :obj:`pyls.behavioral_pls`.
     brainscores_dm : (S, L) `numpy.ndarray`
         Mean-centered brain scores ((`inputs.X - mean(inputs.X)) @ v`). Only
-        obtained from :obj:`pyls.MeanCenteredPLS`.
+        obtained from :obj:`pyls.meancentered_pls`.
     behavcorr : (J, L) `numpy.ndarray`
         Correlation of `brainscores` with `inputs.Y`. Only obtained from
-        :obj:`pyls.BehavioralPLS`.
-    permres : :obj:`pyls.struct.PLSPermResult`
-        Dictionary-like object containing results of permutation testing.
+        :obj:`pyls.behavioral_pls`.
+    permres : :obj:`pyls.struct.PLSPermResults`
+        Results of permutation testing
     bootres : :obj:`pyls.struct.PLSBootResults`
-        Dictionary-like object containing results of bootstrap resampling.
+        Results of bootstrap resampling
     splitres : :obj:`pyls.struct.PLSSplitHalfResults`
-        Dictionary-like object containing results of split-half resampling.
+        Results of split-half resampling
     cvres : :obj:`pyls.struct.PLSCrossValidationResults`
-        Dictionary-like object containing results of cross-validation testing.
+        Results of cross-validation testing
     inputs : :obj:`pyls.struct.PLSInputs`
-        Dictionary-like object containing inputs provided to original PLS.
+        Inputs provided to original PLS
     """
     allowed = [
         'u', 's', 'v',
@@ -209,28 +209,28 @@ class PLSBootResults(ResDict):
     contrast : (J, L) `numpy.ndarray`
         Group x condition averages of `brainscores_demeaned`. Can be treated as
         a contrast indicating group x condition differences. Only obtained from
-        :obj:`pyls.MeanCenteredPLS`.
+        :obj:`pyls.meancentered_pls`.
     contrast_boot : (J, L, R) `numpy.ndarray`
         Bootstrapped distribution of `contrast`. Only obtained from
-        :obj:`pyls.MeanCenteredPLS`.
+        :obj:`pyls.meancentered_pls`.
     contrast_uplim : (J, L) `numpy.ndarray`
         Upper bound of confidence interval for `contrast`. Only obtained from
-        :obj:`pyls.MeanCenteredPLS`.
+        :obj:`pyls.meancentered_pls`.
     contrast_lolim : (J, L) `numpy.ndarray`
         Lower bound of confidence interval for `contrast`. Only obtained from
-        :obj:`pyls.MeanCenteredPLS`.
+        :obj:`pyls.meancentered_pls`.
     behavcorr : (J, L) `numpy.ndarray`
         Correlation of `brainscores` with `inputs.Y`. Only obtained from
-        :obj:`pyls.BehavioralPLS`.
+        :obj:`pyls.behavioral_pls`.
     behavcorr_boot : (J, L, R) `numpy.ndarray`
         Bootstrapped distribution of `behavcorr`. Only obtained from
-        :obj:`pyls.BehavioralPLS`.
+        :obj:`pyls.behavioral_pls`.
     behavcorr_uplim : (J, L) `numpy.ndarray`
         Upper bound of confidence interval for `behavcorr`. Only obtained from
-        :obj:`pyls.BehavioralPLS`.
+        :obj:`pyls.behavioral_pls`.
     behavcorr_lolim : (J, L) `numpy.ndarray`
         Lower bound of confidence interval for `behavcorr`. Only obtained from
-        :obj:`pyls.BehavioralPLS`.
+        :obj:`pyls.behavioral_pls`.
     bootsamples : (S, R) `numpy.ndarray`
         Indices of bootstrapped samples `S` across `R` resamples.
     """
