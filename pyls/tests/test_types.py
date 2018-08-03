@@ -20,14 +20,14 @@ class PLSBaseTest():
                                      rotate=True,
                                      n_perm=20, n_boot=10, n_split=None,
                                      ci=95, seed=rs)
-    funcs = dict(meancentered=pyls.MeanCenteredPLS,
-                 behavioral=pyls.BehavioralPLS)
+    funcs = dict(meancentered=pyls.meancentered_pls,
+                 behavioral=pyls.behavioral_pls)
 
     def __init__(self, plstype, **kwargs):
         self.inputs = pyls.struct.PLSInputs(**{key: kwargs.get(key, val) for
                                                (key, val) in
                                                self.defaults.items()})
-        self.output = self.funcs.get(plstype)(**self.inputs).results
+        self.output = self.funcs.get(plstype)(**self.inputs)
         self.type = plstype
         self.confirm_outputs()
 
