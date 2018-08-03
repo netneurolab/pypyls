@@ -8,7 +8,13 @@ rs = np.random.RandomState(1234)
 
 
 def test_RefDict():
+    class BlahDict(pyls.utils.ResDict):
+        allowed = ['test']
+
     d = pyls.utils.ResDict()
+    assert str(d) == 'ResDict()'
+    assert(str(BlahDict(test={})) == 'BlahDict()')
+    assert(str(BlahDict(test=10)) == 'BlahDict(test)')
 
 
 def test_zscore():

@@ -149,7 +149,7 @@ def import_matlab_result(fname):
 
     Returns
     -------
-    results : `pyls.base.PLSResults`
+    results : `pyls.struct.PLSResults`
         Matlab results in a Python-friendly format
     """
 
@@ -160,6 +160,7 @@ def import_matlab_result(fname):
 
     # load mat file using scipy.io
     matfile = sio.loadmat(fname)
+
     # if 'result' key is missing then consider this a malformed PLS result mat
     try:
         result = matfile.get('result')[0, 0]
@@ -201,7 +202,7 @@ def import_matlab_result(fname):
         except KeyError:
             continue
 
-    # pack it into a pyls.base.PLSResults class instance for attribute access
+    # pack it into a `PLSResults` class instance for easy attribute access
     return PLSResults(**result)
 
 

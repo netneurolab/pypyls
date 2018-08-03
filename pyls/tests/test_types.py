@@ -101,7 +101,7 @@ def test_MeanCenteredPLS_multigroup_onecondition():
 
 
 def test_MeanCenteredPLS_onegroup_multicondition():
-    kwargs = dict(groups=[subj // 2], n_cond=2)
+    kwargs = dict(n_cond=2)
     for (mc, ns, rt) in itertools.product([0, 2], [None, 5], [True, False]):
         PLSBaseTest('meancentered', n_split=ns, mean_centering=mc, rotate=rt,
                     **kwargs)

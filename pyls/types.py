@@ -253,7 +253,7 @@ class MeanCenteredPLS(BasePLS):
                  n_boot=5000, n_split=100, test_size=0.25, rotate=True, ci=95,
                  seed=None, **kwargs):
         if groups is None:
-            groups = [len(X)]
+            groups = [len(X) // n_cond]
         # check inputs for validity
         if n_cond == 1 and len(groups) == 1:
             raise ValueError('Cannot perform PLS with only one group and one '

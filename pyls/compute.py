@@ -111,28 +111,6 @@ def boot_rel(orig, boot):
     return bsr, u_se
 
 
-def crossblock_cov(singular):
-    """
-    Calculates cross-block covariance of `singular` values
-
-    Cross-block covariances details amount of variance explained
-
-    Parameters
-    ----------
-    singular : (L, L) array_like
-        Diagonal matrix of singular values
-
-    Returns
-    -------
-    cov : (L,) `numpy.ndarray`
-        Cross-block covariance
-    """
-
-    squared_sing = np.diag(singular)**2
-
-    return squared_sing / squared_sing.sum()
-
-
 def procrustes(original, permuted, singular):
     """
     Performs Procrustes rotation on `permuted` to align with `original`
