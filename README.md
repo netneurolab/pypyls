@@ -42,7 +42,7 @@ While the core algorithm of PLS implemented in this package is also present in [
 2. Implements [mean-centered PLS](https://www.ncbi.nlm.nih.gov/pubmed/20656037) for multivariate group/condition comparisons.
 
 #### Development
-This package has largely been developed in the spare time of a single graduate student ([`@rmarkello`](https://github.com/rmarkello)), so while it would be :sparkle: amazing :sparkle: if anyone else finds it helpful, this package is not currently accepting requests for new features.
+This package has largely been developed in the spare time of a single graduate student ([`@rmarkello`](https://github.com/rmarkello)), so while it would be :sparkles: amazing :sparkles: if anyone else finds it helpful, this package is not currently accepting requests for new features.
 
 ## Usage
 `pyls` implement two subtypes of PLS-C: a more traditional form that we call "behavioral PLS" (accessible as the function `behavioral_pls`) and a somewhat newer form that we call "mean-centered PLS" (accessible as the function `meancentered_pls`).
