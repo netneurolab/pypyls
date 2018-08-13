@@ -21,7 +21,7 @@ _pls_input_docs = dict(
     """),
     input_matrix=dedent("""\
     X : (S, B) array_like
-        Input data matrix, where `S` is samples and `B` is features
+        Input data matrix, where `S` is samples and `B` is features\
     """),
     groups=dedent("""\
     groups : (G,) list of int
@@ -55,7 +55,7 @@ _pls_input_docs = dict(
     n_split : int, optional
         Number of split-half resamples to assess during permutation testing.
         This also controls the number of train/test splits examined during
-        cross-validation if `test_size` is not zero. Default: 0
+        cross-validation if `test_size` is not zero. Default: 100
     test_size : [0, 1) float, optional
         Proportion of data to partition to test set during cross-validation.
         Default: 0.25\
@@ -79,7 +79,7 @@ _pls_input_docs = dict(
     """),
     pls_results=dedent("""\
     results : :obj:`pyls.PLSResults`
-        Dictionary-like object containing results from the PLS analysis
+        Dictionary-like object containing results from the PLS analysis\
     """),
     references=dedent("""\
     .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
@@ -95,7 +95,7 @@ _pls_input_docs = dict(
        Revisiting PLS resampling: comparing significance versus reliability
        across range of simulations. In New Perspectives in Partial Least
        Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago
+       Chicago\
     """)
 )
 
