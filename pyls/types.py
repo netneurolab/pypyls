@@ -43,7 +43,7 @@ class BehavioralPLS(BasePLS):
             Cross-covariance matrix
         """
 
-        crosscov = np.row_stack([utils.xcorr(X[grp], Y[grp], norm=False)
+        crosscov = np.row_stack([compute.xcorr(X[grp], Y[grp], norm=False)
                                  for grp in groups.T.astype(bool)])
 
         return crosscov
@@ -78,7 +78,7 @@ class BehavioralPLS(BasePLS):
 
         for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
             boot = self.bootsamp[:, i]
-            tusc = X[boot] @ utils.normalize(U_boot[:, :, i])
+            tusc = X[boot] @ compute.normalize(U_boot[:, :, i])
             distrib[:, :, i] = self.gen_covcorr(tusc, Y[boot], groups)
 
         return distrib
@@ -334,7 +334,7 @@ class MeanCenteredPLS(BasePLS):
             usc = compute.get_mean_center(X[boot], Y,
                                           self.inputs.n_cond,
                                           self.inputs.mean_centering,
-                                          means=False) @ utils.normalize(U)
+                                          means=False) @ compute.normalize(U)
             distrib[:, :, i] = np.row_stack([usc[grp].mean(axis=0) for grp
                                              in Y.T.astype(bool)])
 
