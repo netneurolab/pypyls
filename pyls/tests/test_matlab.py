@@ -30,9 +30,3 @@ def test_import_matlab():
 def test_errors():
     with pytest.raises(ValueError):
         pyls.matlab.import_matlab_result(op.join(data_dir, 'empty.mat'))
-
-
-def test_comp_python_matlab():
-    X = Y = [1, 2, 3]
-    pyls.matlab.comp_python_matlab(X, Y)
-    pyls.matlab.comp_python_matlab([X], [Y])

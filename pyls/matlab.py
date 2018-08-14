@@ -204,33 +204,3 @@ def import_matlab_result(fname):
 
     # pack it into a `PLSResults` class instance for easy attribute access
     return PLSResults(**result)
-
-
-def comp_python_matlab(python, matlab, atol=1e-4):
-    """
-    Compares `python` and `matlab` PLS results
-
-    Parameters
-    ----------
-    python : array_like
-    matlab : array_like
-    atol : float, optional
-        Tolerance for differences between `python` and `matlab`
-
-    Returns
-    -------
-    close : bool
-        Whether the input arrays are close within `atol`
-    maxdiff : float
-        Maximum absolute difference between input arrays
-    """
-
-    # signs may be flipped so just take difference of absolute values
-    diff = np.abs(python) - np.abs(matlab)
-    # the last LV is always screwed up so ignore it
-    if diff.ndim > 1:
-        diff = diff[:, :-1]
-    else:
-        diff = diff[:-1]
-
-    return np.allclose(diff, 0, atol=atol), np.abs(diff).max()
