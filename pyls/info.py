@@ -23,6 +23,10 @@ TESTS_REQUIRE = [
     'pytest-cov'
 ]
 
+EXTRAS_REQUIRE = {
+    'plotting': ['pandas', 'seaborn']
+}
+
 PACKAGE_DATA = {
     'pyls': ['tests/data']
 }
