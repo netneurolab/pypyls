@@ -127,10 +127,10 @@ def _rearrange_df(df, plot_order):
     return df.drop(columns=['Cond_Arrange'])
 
 
-def plot_bargraphs(results, lv=0, cond_labels=None, group_labels=None,
-                   cond_order=None, **kwargs):
+def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
+                  cond_order=None, **kwargs):
     """
-    Plots bargraphs of `results` for a provided `lv`
+    Plots group / condition contrast from `results` for a provided `lv`
 
     Parameters
     ----------
