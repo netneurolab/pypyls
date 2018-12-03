@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from textwrap import dedent
 import warnings
 import numpy as np
 from ..base import BasePLS
@@ -118,10 +117,6 @@ class MeanCenteredPLS(BasePLS):
         res = super().run_pls(X, Y)
         res.brainscores, res.designscores = X @ res.u, Y @ res.v
 
-        # compute bootstraps and BSRs
-        U_boot, V_boot = self.bootstrap(X, Y)
-        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
-
         # get normalized brain scores and contrast
         usc2 = compute.get_mean_center(X, Y,
                                        self.inputs.n_cond,
@@ -131,19 +126,23 @@ class MeanCenteredPLS(BasePLS):
                                  in Y.T.astype(bool)])
         res.brainscores_dm = usc2
 
-        # generate distribution / confidence intervals for contrast
-        distrib = self.boot_distrib(X, Y, U_boot)
-        llusc, ulusc = compute.boot_ci(distrib,
-                                       ci=self.inputs.ci)
+        if self.inputs.n_boot > 0:
+            # compute bootstraps and BSRs
+            U_boot, V_boot = self.bootstrap(X, Y)
+            compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
-        # update results.boot_result dictionary
-        res.bootres.update(dict(bootstrapratios=compare_u,
-                                uboot_se=u_se,
-                                permsamples=self.bootsamp,
-                                contrast=orig_usc,
-                                contrast_boot=distrib,
-                                contrast_lolim=llusc,
-                                contrast_uplim=ulusc))
+            # generate distribution / confidence intervals for contrast
+            distrib = self.boot_distrib(X, Y, U_boot)
+            llusc, ulusc = compute.boot_ci(distrib, ci=self.inputs.ci)
+
+            # update results.boot_result dictionary
+            res.bootres.update(dict(bootstrapratios=compare_u,
+                                    uboot_se=u_se,
+                                    permsamples=self.bootsamp,
+                                    contrast=orig_usc,
+                                    contrast_boot=distrib,
+                                    contrast_lolim=llusc,
+                                    contrast_uplim=ulusc))
 
         # get rid of the stupid diagonal matrix
         res.s = np.diag(res.s)

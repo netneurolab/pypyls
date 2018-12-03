@@ -156,26 +156,27 @@ class BehavioralPLS(BasePLS):
                                      zip(np.split(Y, np.cumsum(grps)[:-1]),
                                          np.split(res.v, len(grps)))])
 
-        # compute bootstraps and BSRs
-        U_boot, V_boot = self.bootstrap(X, Y)
-        compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
-
         # get lvcorrs
         groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         res.behavcorr = self.gen_covcorr(res.brainscores, Y, groups)
 
-        # generate distribution / confidence intervals for lvcorrs
-        distrib = self.boot_distrib(X, Y, U_boot, groups)
-        llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
+        # compute bootstraps and BSRs
+        if self.inputs.n_boot > 0:
+            U_boot, V_boot = self.bootstrap(X, Y)
+            compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
-        # update results.boot_result dictionary
-        res.bootres.update(dict(bootstrapratios=compare_u,
-                                uboot_se=u_se,
-                                bootsamples=self.bootsamp,
-                                behavcorr=res.behavcorr,
-                                behavcorr_boot=distrib,
-                                behavcorr_lolim=llcorr,
-                                behavcorr_uplim=ulcorr))
+            # generate distribution / confidence intervals for lvcorrs
+            distrib = self.boot_distrib(X, Y, U_boot, groups)
+            llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
+
+            # update results.boot_result dictionary
+            res.bootres.update(dict(bootstrapratios=compare_u,
+                                    uboot_se=u_se,
+                                    bootsamples=self.bootsamp,
+                                    behavcorr=res.behavcorr,
+                                    behavcorr_boot=distrib,
+                                    behavcorr_lolim=llcorr,
+                                    behavcorr_uplim=ulcorr))
 
         # compute cross-validated prediction-based metrics
         if self.inputs.n_split is not None and self.inputs.test_size > 0:

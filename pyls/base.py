@@ -242,21 +242,9 @@ class BasePLS():
 
     References
     ----------
-    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
-       (1996). Spatial pattern analysis of functional brain images using
-       partial least squares. Neuroimage, 3(3), 143-157.
-    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
-       analysis of neuroimaging data: applications and advances. Neuroimage,
-       23, S250-S263.
-    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
-       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
-       review. Neuroimage, 56(2), 455-475.
-    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
-       Revisiting PLS resampling: comparing significance versus reliability
-       across range of simulations. In New Perspectives in Partial Least
-       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago
-    """
+
+    {references}
+    """.format(**structures._pls_input_docs)
 
     def __init__(self, X, groups=None, n_cond=1, **kwargs):
         # if groups aren't provided or are provided wrong, fix it
@@ -315,7 +303,7 @@ class BasePLS():
         if self.inputs.n_perm > 0:
             d_perm, ucorrs, vcorrs = self.permutation(X, Y)
             res.permres.pvals = compute.perm_sig(res.s, d_perm)
-            res.permres.resample = self.permsamp
+            res.permres.permsamples = self.permsamp
 
             # get split half reliability results
             if self.inputs.n_split is not None:
