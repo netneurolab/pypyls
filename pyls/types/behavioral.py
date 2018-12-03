@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from textwrap import dedent
 import numpy as np
 from sklearn.metrics import r2_score
 from ..base import BasePLS, gen_splits
@@ -201,47 +200,49 @@ def behavioral_pls(X, Y, *, groups=None, n_cond=1, mean_centering=0,
     return pls.results
 
 
-behavioral_pls.__doc__ = dedent(r"""\
-    Performs behavioral PLS on `X` and `Y`.
+behavioral_pls.__doc__ = r"""\
+Performs behavioral PLS on `X` and `Y`.
 
-    Behavioral PLS is a multivariate statistical approach that relates two sets
-    of variables together. Traditionally, one of these arrays
-    represents a set of brain features (e.g., functional connectivity
-    estimates) and the other represents a set of behavioral variables; however,
-    these arrays can be any two sets of features belonging to a common group of
-    samples.
+Behavioral PLS is a multivariate statistical approach that relates two sets
+of variables together. Traditionally, one of these arrays
+represents a set of brain features (e.g., functional connectivity
+estimates) and the other represents a set of behavioral variables; however,
+these arrays can be any two sets of features belonging to a common group of
+samples.
 
-    Using a singular value decomposition, behavioral PLS attempts to find
-    linear combinations of features from the provided arrays that maximally
-    covary with each other. The decomposition is performed on the cross-
-    covariance matrix :math:`R`, where :math:`R = Y' \\times X`, which
-    represents the covariation of all the input features across samples.
+Using a singular value decomposition, behavioral PLS attempts to find
+linear combinations of features from the provided arrays that maximally
+covary with each other. The decomposition is performed on the cross-
+covariance matrix :math:`R`, where :math:`R = Y^{{T}} \times X`, which
+represents the covariation of all the input features across samples.
 
-    Parameters
-    ----------
-    {input_matrix}
-    Y : (S, T) array_like
-        Input data matrix, where `S` is samples and `T` is features
-    {groups}
-    {conditions}
-    {stat_test}
-    {rotate}
-    {ci}
-    {seed}
+Parameters
+----------
+{input_matrix}
+Y : (S, T) array_like
+    Input data matrix, where `S` is samples and `T` is features
+{groups}
+{conditions}
+{stat_test}
+{rotate}
+{ci}
+{seed}
 
-    Returns
-    ----------
-    {pls_results}
+Returns
+----------
+{pls_results}
 
-    Notes
-    -----
-    {decomposition_narrative}
+Notes
+-----
+{decomposition_narrative}
 
-    References
-    ----------
-    {references}
-    .. [5] Misic, B., Betzel, R. F., de Reus, M. A., van den Heuvel, M.P.,
-       Berman, M. G., McIntosh, A. R., & Sporns, O. (2016). Network level
-       structure-function relationships in human neocortex. Cerebral Cortex,
-       26, 3285-96.
-    """).format(**_pls_input_docs)
+References
+----------
+
+{references}
+
+Misic, B., Betzel, R. F., de Reus, M. A., van den Heuvel, M.P.,
+Berman, M. G., McIntosh, A. R., & Sporns, O. (2016). Network level
+structure-function relationships in human neocortex. Cerebral Cortex,
+26, 3285-96.
+""".format(**_pls_input_docs)

@@ -162,55 +162,55 @@ def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
     return pls.results
 
 
-meancentered_pls.__doc__ = dedent(r"""\
-    Performs mean-centered PLS on `X`, sorted into `groups` and `conditions`.
+meancentered_pls.__doc__ = r"""\
+Performs mean-centered PLS on `X`, sorted into `groups` and `conditions`.
 
-    Mean-centered PLS is a multivariate statistical approach that attempts to
-    find sets of variables in a matrix which maximally discriminate between
-    subgroups within the matrix.
+Mean-centered PLS is a multivariate statistical approach that attempts to
+find sets of variables in a matrix which maximally discriminate between
+subgroups within the matrix.
 
-    While it carries the name PLS, mean-centered PLS is perhaps more related to
-    principal components analysis than it is to :obj:`pyls.behavioral_pls`. In
-    contrast to behavioral PLS, mean-centered PLS does not construct a cross-
-    covariance matrix. Instead, it operates by averaging the provided data
-    (`X`) within groups and/or conditions. The resultant matrix :math:`M` is
-    mean-centered, generating a new matrix :math:`R_{{mean\_centered}}` which
-    is submitted to singular value decomposition.
+While it carries the name PLS, mean-centered PLS is perhaps more related to
+principal components analysis than it is to :obj:`pyls.behavioral_pls`. In
+contrast to behavioral PLS, mean-centered PLS does not construct a cross-
+covariance matrix. Instead, it operates by averaging the provided data
+(`X`) within groups and/or conditions. The resultant matrix :math:`M` is
+mean-centered, generating a new matrix :math:`R_{{mean\_centered}}` which
+is submitted to singular value decomposition.
 
-    Parameters
-    ----------
-    {input_matrix}
-    {groups}
-    {conditions}
-    {mean_centering}
-    {stat_test}
-    {rotate}
-    {ci}
-    {seed}
+Parameters
+----------
+{input_matrix}
+{groups}
+{conditions}
+{mean_centering}
+{stat_test}
+{rotate}
+{ci}
+{seed}
 
-    Returns
-    ----------
-    {pls_results}
+Returns
+----------
+{pls_results}
 
-    Notes
-    -----
-    The provided `mean_centering` argument can be changed to highlight or
-    "boost" potential group / condition differences by modfiying how
-    :math:`R_{{mean\_centered}}` is generated:
+Notes
+-----
+The provided `mean_centering` argument can be changed to highlight or
+"boost" potential group / condition differences by modfiying how
+:math:`R_{{mean\_centered}}` is generated:
 
-    - `mean_centering=0` will remove group means collapsed across conditions,
-      emphasizing potential differences between conditions while removing
-      overall group differences
-    - `mean_centering=1` will remove condition means collapsed across groups,
-      emphasizing potential differences between groups while removing overall
-      condition differences
-    - `mean_centering=2` will remove the grand mean collapsed across both
-      groups _and_ conditions, permitting investigation of the full spectrum of
-      potential group and condition effects.
+- `mean_centering=0` will remove group means collapsed across conditions,
+  emphasizing potential differences between conditions while removing
+  overall group differences
+- `mean_centering=1` will remove condition means collapsed across groups,
+  emphasizing potential differences between groups while removing overall
+  condition differences
+- `mean_centering=2` will remove the grand mean collapsed across both
+  groups _and_ conditions, permitting investigation of the full spectrum of
+  potential group and condition effects.
 
-    {decomposition_narrative}
+{decomposition_narrative}
 
-    References
-    ----------
-    {references}
-    """).format(**_pls_input_docs)
+References
+----------
+{references}
+""".format(**_pls_input_docs)

@@ -55,7 +55,7 @@ _pls_input_docs = dict(
     n_split : int, optional
         Number of split-half resamples to assess during permutation testing.
         This also controls the number of train/test splits examined during
-        cross-validation if `test_size` is not zero. Default: 100
+        cross-validation if :attr:`test_size` is not zero. Default: 100
     test_size : [0, 1) float, optional
         Proportion of data to partition to test set during cross-validation.
         Default: 0.25\
@@ -63,7 +63,7 @@ _pls_input_docs = dict(
     rotate=dedent("""\
     rotate : bool, optional
         Whether to perform Procrustes rotations during permutation testing. Can
-        inflate false-positive rates; see Kovacevic et al., 2013 for more
+        inflate false-positive rates; see Kovacevic et al., (2013) for more
         information. Default: True\
     """),
     ci=dedent("""\
@@ -82,20 +82,21 @@ _pls_input_docs = dict(
         Dictionary-like object containing results from the PLS analysis\
     """),
     references=dedent("""\
-    .. [1] McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L.
-       (1996). Spatial pattern analysis of functional brain images using
-       partial least squares. Neuroimage, 3(3), 143-157.
-    .. [2] McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares
-       analysis of neuroimaging data: applications and advances. Neuroimage,
-       23, S250-S263.
-    .. [3] Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011).
-       Partial Least Squares (PLS) methods for neuroimaging: a tutorial and
-       review. Neuroimage, 56(2), 455-475.
-    .. [4] Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013).
-       Revisiting PLS resampling: comparing significance versus reliability
-       across range of simulations. In New Perspectives in Partial Least
-       Squares and Related Methods (pp. 159-170). Springer, New York, NY.
-       Chicago\
+    McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L. (1996).
+    Spatial pattern analysis of functional brain images using partial least
+    squares. NeuroImage, 3(3), 143-157.
+
+    McIntosh, A. R., & Lobaugh, N. J. (2004). Partial least squares analysis of
+    neuroimaging data: applications and advances. NeuroImage, 23, S250-S263.
+
+    Krishnan, A., Williams, L. J., McIntosh, A. R., & Abdi, H. (2011). Partial
+    Least Squares (PLS) methods for neuroimaging: a tutorial and review.
+    NeuroImage, 56(2), 455-475.
+
+    Kovacevic, N., Abdi, H., Beaton, D., & McIntosh, A. R. (2013). Revisiting
+    PLS resampling: comparing significance versus reliability across range of
+    simulations. In New Perspectives in Partial Least Squares and Related
+    Methods (pp. 159-170). Springer, New York, NY. Chicago\
     """)
 )
 
@@ -126,9 +127,9 @@ PLSInputs.__doc__ = dedent("""\
         Input data matrix, where `S` is observations and `B` is features.
     Y : (S, T) array_like
         Behavioral matrix, where `S` is observations and `T` is features.
-        If from :obj:`pyls.behavioral_pls`, this is the provided behavior
-        matrix; if from :obj:`pyls.meancentered_pls`, this is a dummy-coded
-        group/condition matrix.
+        If from :obj:`.behavioral_pls`, this is the provided behavior matrix;
+        if from :obj:`.meancentered_pls`, this is a dummy-coded group/condition
+        matrix.
     {groups}
     {conditions}
     {mean_centering}
@@ -140,7 +141,7 @@ PLSInputs.__doc__ = dedent("""\
 
 
 class PLSResults(ResDict):
-    """
+    r"""
     Dictionary-like object containing results of PLS analysis
 
     Attributes
@@ -152,28 +153,28 @@ class PLSResults(ResDict):
     v : (J, L) `numpy.ndarray`
         Right singular vectors from original singular value decomposition.
     brainscores : (S, L) `numpy.ndarray`
-        Brain scores (`inputs.X @ v`)
+        Brain scores (:math:`X \times v`), where `X` is :attr:`inputs.X`.
     designscores : (S, L) `numpy.ndarray`
-        Design scores (`inputs.Y @ u`). Only obtained from
-        :obj:`pyls.meancentered_pls`.
+        Design scores (:math:`Y \times u`), where `Y` is :attr:`inputs.Y`.
+        Only obtained from :obj:`.meancentered_pls`.
     behavscores : (S, L) `numpy.ndarray`
-        Behavior scores (`inputs.Y @ u`). Only obtained from
-        :obj:`pyls.behavioral_pls`.
+        Behavior scores (:math:`Y \times u`), where `Y` is :attr:`inputs.Y`.
+        Only obtained from :obj:`.behavioral_pls`.
     brainscores_dm : (S, L) `numpy.ndarray`
-        Mean-centered brain scores ((`inputs.X - mean(inputs.X)) @ v`). Only
-        obtained from :obj:`pyls.meancentered_pls`.
+        Demeaned brain scores (:math:`(X - \bar{{X}}) \times v`), where `X` is
+        :attr:`inputs.X`. Only obtained from :obj:`.meancentered_pls`.
     behavcorr : (J, L) `numpy.ndarray`
-        Correlation of `brainscores` with `inputs.Y`. Only obtained from
-        :obj:`pyls.behavioral_pls`.
-    permres : :obj:`pyls.struct.PLSPermResults`
+        Correlation of :attr:`brainscores` with :attr:`inputs.Y`. Only
+        obtained from :obj:`.behavioral_pls`.
+    permres : :obj:`~.structures.PLSPermResults`
         Results of permutation testing
-    bootres : :obj:`pyls.struct.PLSBootResults`
+    bootres : :obj:`~.structures.PLSBootResults`
         Results of bootstrap resampling
-    splitres : :obj:`pyls.struct.PLSSplitHalfResults`
+    splitres : :obj:`~.structures.PLSSplitHalfResults`
         Results of split-half resampling
-    cvres : :obj:`pyls.struct.PLSCrossValidationResults`
+    cvres : :obj:`~.structures.PLSCrossValidationResults`
         Results of cross-validation testing
-    inputs : :obj:`pyls.struct.PLSInputs`
+    inputs : :obj:`~.structures.PLSInputs`
         Inputs provided to original PLS
     """
     allowed = [
@@ -200,37 +201,36 @@ class PLSBootResults(ResDict):
     ----------
     bootstrapratios : (B, L) `numpy.ndarray`
         Left singular vectors normalized by their standard error obtained
-        from bootstrapping (`uboot_stderr)`. Often referred to as "BSRs",
-        these can be interpreted as a z-score (assuming a non-skewed
-        distribution).
+        from bootstrapping (:attr:`uboot_se`). Often referred to as BSRs, these
+        can be interpreted as a z-score (assuming a Gaussian distribution).
     uboot_se : (B, L) `numpy.ndarray`
         Standard error of bootstrapped distribution of left singular vectors
         vectors
     contrast : (J, L) `numpy.ndarray`
-        Group x condition averages of `brainscores_demeaned`. Can be treated as
-        a contrast indicating group x condition differences. Only obtained from
-        :obj:`pyls.meancentered_pls`.
+        Group x condition averages of :attr:`brainscores_demeaned`. Can be
+        treated as a contrast indicating group x condition differences. Only
+        obtained from :obj:`.meancentered_pls`.
     contrast_boot : (J, L, R) `numpy.ndarray`
-        Bootstrapped distribution of `contrast`. Only obtained from
-        :obj:`pyls.meancentered_pls`.
+        Bootstrapped distribution of :attr:`contrast`. Only obtained from
+        :obj:`.meancentered_pls`.
     contrast_uplim : (J, L) `numpy.ndarray`
-        Upper bound of confidence interval for `contrast`. Only obtained from
-        :obj:`pyls.meancentered_pls`.
+        Upper bound of confidence interval for :attr:`contrast`. Only obtained
+        from :obj:`.meancentered_pls`.
     contrast_lolim : (J, L) `numpy.ndarray`
-        Lower bound of confidence interval for `contrast`. Only obtained from
-        :obj:`pyls.meancentered_pls`.
+        Lower bound of confidence interval for :attr:`contrast`. Only obtained
+        from :obj:`.meancentered_pls`.
     behavcorr : (J, L) `numpy.ndarray`
-        Correlation of `brainscores` with `inputs.Y`. Only obtained from
-        :obj:`pyls.behavioral_pls`.
+        Correlation of :attr:`brainscores` with :attr:`Y`. Only obtained from
+        :obj:`.behavioral_pls`.
     behavcorr_boot : (J, L, R) `numpy.ndarray`
-        Bootstrapped distribution of `behavcorr`. Only obtained from
-        :obj:`pyls.behavioral_pls`.
+        Bootstrapped distribution of :attr:`behavcorr`. Only obtained from
+        :obj:`.behavioral_pls`.
     behavcorr_uplim : (J, L) `numpy.ndarray`
-        Upper bound of confidence interval for `behavcorr`. Only obtained from
-        :obj:`pyls.behavioral_pls`.
+        Upper bound of confidence interval for :attr:`behavcorr`. Only obtained
+        from :obj:`.behavioral_pls`.
     behavcorr_lolim : (J, L) `numpy.ndarray`
-        Lower bound of confidence interval for `behavcorr`. Only obtained from
-        :obj:`pyls.behavioral_pls`.
+        Lower bound of confidence interval for :attr:`behavcorr`. Only obtained
+        from :obj:`.behavioral_pls`.
     bootsamples : (S, R) `numpy.ndarray`
         Indices of bootstrapped samples `S` across `R` resamples.
     """
