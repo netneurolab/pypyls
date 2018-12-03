@@ -201,7 +201,7 @@ def behavioral_pls(X, Y, *, groups=None, n_cond=1, mean_centering=0,
     return pls.results
 
 
-behavioral_pls.__doc__ = dedent("""\
+behavioral_pls.__doc__ = dedent(r"""\
     Performs behavioral PLS on `X` and `Y`.
 
     Behavioral PLS is a multivariate statistical approach that relates two sets

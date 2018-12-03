@@ -162,7 +162,7 @@ def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
     return pls.results
 
 
-meancentered_pls.__doc__ = dedent("""\
+meancentered_pls.__doc__ = dedent(r"""\
     Performs mean-centered PLS on `X`, sorted into `groups` and `conditions`.
 
     Mean-centered PLS is a multivariate statistical approach that attempts to

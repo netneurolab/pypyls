@@ -23,7 +23,6 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None):
         Seed for random number generation. Default: None
 
     Returns
-    -------
     permsamp : (S, P) `numpy.ndarray`
         Subject permutation arrays, where `S` is the number of subjects and `P`
         is the requested number of permutations (i.e., `P = n_perm`)
@@ -208,8 +207,8 @@ def gen_splits(groups, n_cond, n_split, seed=None, test_size=0.5):
                 split[splinds] = True
             # split subjects (with conditions) and stack groups
             half = np.hstack([f.flatten('F') for f in
-                              np.split(((inds + 1).astype(bool) *
-                                        [split[None]]).T,
+                              np.split(((inds + 1).astype(bool)
+                                        * [split[None]]).T,
                                        splitinds)])
             # make sure split half is not a duplicated sequence
             dupe_seq = half[:, None] == splitsamp[:, :i]
