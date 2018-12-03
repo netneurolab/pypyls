@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+Functions for plotting results from a mean-centered PLS
+"""
 
 import numpy as np
 import pandas as pd
@@ -23,6 +26,7 @@ def _set_group_lvls(n_conds, n_grps, grp_lvls=None):
     labels : pd.Series
         Series of group labels aligned to the input data structure
     """
+
     grping = []
     if grp_lvls is None:
         for i in range(n_grps):
@@ -51,6 +55,7 @@ def _set_cond_lvls(n_conds, n_grps, cond_lvls=None):
     labels : pd.Series
         Series of condition labels aligned to the input data structure
     """
+
     if cond_lvls is None:
         cond_lvls = ["Condition" + str(i) for i in range(n_conds)] * n_grps
     else:
@@ -81,6 +86,7 @@ def _define_vars(results, cond_lvls=None, grp_lvls=None):
         A pandas DataFrame with derived estimates (and upper- and lower-
         estimated error) for all latent variables
     """
+
     estimate = results.bootres.contrast
     ul = results.bootres.contrast_uplim
     ll = results.bootres.contrast_lolim
@@ -121,6 +127,7 @@ def _rearrange_df(df, plot_order):
     df : pd.DataFrame
         Provided dataframe `df` with re-ordered conditions
     """
+
     sorter_idx = dict(zip(plot_order, range(len(plot_order))))
     df['Cond_Arrange'] = df['Condition'].map(sorter_idx)
     df = df.sort_values(by=['Group', 'Cond_Arrange'], ascending=[False, True])
@@ -137,13 +144,17 @@ def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
     results : :obj:pyls.PLSResults
         The PLS result dictionary
     lv : int, optional
-        Index of desired latent variable to plot
+        Index of desired latent variable to plot. Uses zero-indexing, so the
+        first latent variables is `lv=0`. Default: 0
     cond_labels : list, optional
-        List of condition labels as they were supplied to the original PLS
+        List of condition labels as they were supplied to the original PLS.
+        If not supplied, uses "ConditionX" as label. Default: None
     group_labels : list, optional
-        List of group labels as they were supplied to the original PLS
+        List of group labels as they were supplied to the original PLS. If
+        not supplied, uses "GroupX" as label. Default: None
     cond_order : list, optional
-        Desired order for plotting conditions
+        Desired order for plotting conditions. If not supplied, plots
+        conditions in order they were provided to original PLS. Default: None
     **kwargs : key, value mappings
         Keywords arguments passed to :obj:seaborn.barplot
 
@@ -152,6 +163,7 @@ def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
     ax : matplotlib.axes.Axis
         A matplotlib axes object for saving or modifying
     """
+
     df = _define_vars(results, cond_lvls=cond_labels, grp_lvls=group_labels)
     if cond_order is not None:
         df = _rearrange_df(df, cond_order)
