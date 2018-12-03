@@ -266,7 +266,7 @@ def get_group_mean(X, Y, n_cond=1, mean_centering=0):
         corresponds to the number of different groups x conditions. A value
         of 1 indicates that an observation belongs to a specific group or
         condition.
-    n_cond : int ,optional
+    n_cond : int, optional
         Number of conditions in dummy coded `Y` array. Default: 1
     mean_centering : {0, 1, 2}, optional
         Mean-centering method. Default: 0
@@ -346,3 +346,26 @@ def get_mean_center(X, Y, n_cond=1, mean_centering=0, means=True):
                                       in enumerate(Y.T.astype(bool))])
 
     return mean_centered
+
+
+def efficient_corr(x, y):
+    """
+    Computes correlation of matching columns in `x` and `y`
+
+    Parameters
+    ----------
+    x, y : (N, M) array_like
+        Input data arrays
+
+    Returns
+    -------
+    corr : (M,) numpy.ndarray
+        Correlations of columns in `x` and `y`
+    """
+
+    if x.shape != y.shape:
+        raise ValueError('Provided inputs x and y must have matching shapes.')
+
+    corr = np.sum(zscore(x, ddof=1) * zscore(y, ddof=1), axis=0) / (len(x) - 1)
+
+    return corr

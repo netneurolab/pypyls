@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from textwrap import dedent
-from pyls.utils import ResDict
+from .utils import ResDict
 
 _pls_input_docs = dict(
     decomposition_narrative=dedent("""\

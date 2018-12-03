@@ -3,7 +3,7 @@
 import collections
 import numpy as np
 import scipy.io as sio
-from pyls.struct import PLSResults
+from ..structures import PLSResults
 
 _result_mapping = (
     ('u', 'u'),

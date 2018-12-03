@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from sklearn.utils.validation import check_random_state
-from pyls import compute, struct, utils
+from . import compute, structures, utils
 
 
 def gen_permsamp(groups, n_cond, n_perm, seed=None):
@@ -265,8 +265,9 @@ class BasePLS():
             groups = [len(X)]
         elif not isinstance(groups, (list, np.ndarray)):
             groups = [groups]
-        self.inputs = struct.PLSInputs(X=X, groups=groups, n_cond=n_cond,
-                                       **kwargs)
+
+        self.inputs = structures.PLSInputs(X=X, groups=groups, n_cond=n_cond,
+                                           **kwargs)
         self.rs = check_random_state(self.inputs.seed)
 
     def gen_covcorr(self, X, Y, groups):
@@ -306,36 +307,37 @@ class BasePLS():
             Array with number of subjects in each of `G` groups
         """
 
-        res = struct.PLSResults(inputs=self.inputs)
+        res = structures.PLSResults(inputs=self.inputs)
 
         # get original singular vectors / values and variance explained
         res.u, res.s, res.v = self.svd(X, Y, seed=self.rs)
 
         # compute permutations and get LV significance; store permsamp
-        d_perm, ucorrs, vcorrs = self.permutation(X, Y)
-        res.permres.pvals = compute.perm_sig(res.s, d_perm)
-        res.permres.resample = self.permsamp
+        if self.inputs.n_perm > 0:
+            d_perm, ucorrs, vcorrs = self.permutation(X, Y)
+            res.permres.pvals = compute.perm_sig(res.s, d_perm)
+            res.permres.resample = self.permsamp
 
-        # get split half reliability results
-        if self.inputs.n_split is not None:
-            di = np.linalg.inv(res.s)
-            ud, vd = res.u @ di, res.v @ di
-            orig_ucorr, orig_vcorr = self.split_half(X, Y, ud, vd)
-            # get probabilties for ucorr/vcorr
-            ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
-            vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)
-            # get confidence intervals for ucorr/vcorr
-            ucorr_ll, ucorr_ul = compute.boot_ci(ucorrs, ci=self.inputs.ci)
-            vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
-            # update results object
-            res.splitres.update(dict(ucorr=orig_ucorr,
-                                     vcorr=orig_vcorr,
-                                     ucorr_pvals=ucorr_prob,
-                                     vcorr_pvals=vcorr_prob,
-                                     ucorr_lolim=ucorr_ll,
-                                     vcorr_lolim=vcorr_ll,
-                                     ucorr_uplim=ucorr_ul,
-                                     vcorr_uplim=vcorr_ul))
+            # get split half reliability results
+            if self.inputs.n_split is not None:
+                di = np.linalg.inv(res.s)
+                ud, vd = res.u @ di, res.v @ di
+                orig_ucorr, orig_vcorr = self.split_half(X, Y, ud, vd)
+                # get probabilties for ucorr/vcorr
+                ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
+                vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)
+                # get confidence intervals for ucorr/vcorr
+                ucorr_ll, ucorr_ul = compute.boot_ci(ucorrs, ci=self.inputs.ci)
+                vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
+                # update results object
+                res.splitres.update(dict(ucorr=orig_ucorr,
+                                         vcorr=orig_vcorr,
+                                         ucorr_pvals=ucorr_prob,
+                                         vcorr_pvals=vcorr_prob,
+                                         ucorr_lolim=ucorr_ll,
+                                         vcorr_lolim=vcorr_ll,
+                                         ucorr_uplim=ucorr_ul,
+                                         vcorr_uplim=vcorr_ul))
 
         return res
 
@@ -540,26 +542,15 @@ class BasePLS():
 
         for i in range(self.inputs.n_split):
             spl = splitsamp[:, i]
+            grps = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
 
-            D1 = self.gen_covcorr(X[spl], Y[spl],
-                                  groups=utils.dummy_code(
-                                      self.inputs.groups,
-                                      self.inputs.n_cond)[spl])
-            D2 = self.gen_covcorr(X[~spl], Y[~spl],
-                                  groups=utils.dummy_code(
-                                      self.inputs.groups,
-                                      self.inputs.n_cond)[~spl])
+            D1 = self.gen_covcorr(X[spl], Y[spl], groups=grps[spl])
+            D2 = self.gen_covcorr(X[~spl], Y[~spl], groups=grps[~spl])
 
             # project cross-covariance matrices onto original SVD to obtain
-            # left & right singular vector
-            U1, U2 = D1.T @ vd, D2.T @ vd
-            V1, V2 = D1 @ ud, D2 @ ud
-
-            # correlate all the singular vectors between split halves
-            ucorr[:, i] = [np.corrcoef(u1, u2)[0, 1] for (u1, u2) in
-                           zip(U1.T, U2.T)]
-            vcorr[:, i] = [np.corrcoef(v1, v2)[0, 1] for (v1, v2) in
-                           zip(V1.T, V2.T)]
+            # left & right singular vector and correlate between split halves
+            ucorr[:, i] = compute.efficient_corr(D1.T @ vd, D2.T @ vd)
+            vcorr[:, i] = compute.efficient_corr(D1 @ ud, D2 @ ud)
 
         # return average correlations for singular vectors across `n_split`
         return ucorr.mean(axis=-1), vcorr.mean(axis=-1)
