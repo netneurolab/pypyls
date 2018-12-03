@@ -16,6 +16,10 @@ from .info import (
     __url__,
     __version__
 )
-from .types import (behavioral_pls, meancentered_pls)
-from .matlab import import_matlab_result
-from .structures import PLSResults
+
+try:
+    from .types import (behavioral_pls, meancentered_pls)
+    from .matlab import import_matlab_result
+    from .structures import PLSResults
+except ImportError:
+    pass
