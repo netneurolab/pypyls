@@ -149,7 +149,7 @@ def import_matlab_result(fname):
 
     Returns
     -------
-    results : `pyls.struct.PLSResults`
+    results : :obj:`~.structures.PLSResults`
         Matlab results in a Python-friendly format
     """
 
@@ -203,4 +203,8 @@ def import_matlab_result(fname):
             continue
 
     # pack it into a `PLSResults` class instance for easy attribute access
-    return PLSResults(**result)
+    results = PLSResults(**result)
+    if results.inputs.get('n_split', None) is None:
+        results.inputs.n_split = 0
+
+    return results

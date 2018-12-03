@@ -110,11 +110,11 @@ class PLSInputs(ResDict):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.get('n_split', None) == 0:
+        if self.get('n_split', 0) == 0:
             self['n_split'] = None
         ts = self.get('test_size', None)
         if ts is not None and (ts < 0 or ts >= 1):
-            raise ValueError('Test_size must be in [0, 1). Provided value: {}'
+            raise ValueError('test_size must be in [0, 1). Provided value: {}'
                              .format(ts))
 
 

@@ -8,8 +8,12 @@ python:
   - 3.6
 
 env:
-  - LINTING=1
-  - DOCTEST=1
+  global:
+    - OPENBLAS_NUM_THREADS=1
+    - MKL_NUM_THREADS=1
+  matrix:
+    - LINTING=1
+    - DOCTEST=1
 
 matrix:
   include:
@@ -23,7 +27,7 @@ matrix:
     dist: xenial
     sudo: required
     env:
-      - LINTING=1
+      - DOCTEST=1
 
 before_install:
   - python -m pip install --upgrade pip
