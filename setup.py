@@ -31,6 +31,7 @@ def main():
         packages=find_packages(exclude=['pyls/tests']),
         package_data=ldict['PACKAGE_DATA'],
         tests_require=ldict['TESTS_REQUIRE'],
+        extras_require=ldict['EXTRAS_REQUIRE'],
         license=ldict['LICENSE'])
 
 
