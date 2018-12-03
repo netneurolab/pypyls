@@ -9,18 +9,21 @@ python:
 
 env:
   - LINTING=1
-  - DOCTEST =1
+  - DOCTEST=1
 
 matrix:
-  include:
-  - python: 3.7
-    dist: xenial
-    sudo: required
   include:
   - python: 3.6
     env:
       - COVERAGE=1
-
+  - python: 3.7
+    dist: xenial
+    sudo: required
+  - python: 3.7
+    dist: xenial
+    sudo: required
+    env:
+      - LINTING=1
 
 before_install:
   - python -m pip install --upgrade pip
@@ -28,14 +31,14 @@ before_install:
         pip install flake8;
     fi
   - if [ "${COVERAGE}" == "1" ]; then
-        pip install coverage coveralls codecov pytest pytest-cov;
+        pip install coverage coveralls codecov;
     fi
 
 install:
   - if [ "${DOCTEST}" == "1" ]; then
         pip install -e .[doc];
     else
-        pip install -e .;
+        pip install -e .[tests];
     fi
 
 script:
@@ -50,7 +53,7 @@ script:
         if [ "${COVERAGE}" == "1" ]; then
             TEST_ARGS="--cov-report term-missing --cov=pyls";
         fi
-        py.test -s ${TEST_ARGS} pyls;
+        py.test ${TEST_ARGS} pyls;
     fi
 
 after_success:
