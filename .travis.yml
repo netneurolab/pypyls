@@ -14,6 +14,7 @@ env:
   matrix:
     - LINTING=1
     - DOCTEST=1
+    - COVERAGE=0
 
 matrix:
   include:
@@ -28,6 +29,11 @@ matrix:
     sudo: required
     env:
       - DOCTEST=1
+  - python: 3.7
+    dist: xenial
+    sudo: required
+    env:
+      - COVERAGE=0
 
 before_install:
   - python -m pip install --upgrade pip

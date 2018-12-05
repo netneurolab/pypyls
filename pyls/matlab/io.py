@@ -137,7 +137,7 @@ def _rename_keys(d, mapping):
     return new_dict
 
 
-def import_matlab_result(fname):
+def import_matlab_result(fname, datamat='datamat_lst'):
     """
     Imports `fname` PLS result from Matlab
 
@@ -146,6 +146,11 @@ def import_matlab_result(fname):
     fname : str
         Filepath to output mat file obtained from Matlab PLS toolbox. Should
         contain at least a result struct object.
+    datamat : str, optional
+        Variable name of datamat ('X' array) provided to original PLS if it
+        exists `fname`. By default the datamat is not stored in the PLS results
+        structure, but if it is was saved in `fname` it can be loaded and
+        cached in the returned results object. Default: 'datamat_lst'
 
     Returns
     -------
@@ -180,7 +185,7 @@ def import_matlab_result(fname):
                             in enumerate(result[attr][0, 0])}
 
     # get input data from results file, if it exists
-    X = matfile.get('datamat_lst')
+    X = matfile.get(datamat)
     result['inputs'] = dict(X=np.vstack(X[:, 0])) if X is not None else dict()
 
     # squeeze all the values so they're a bit more interpretable
@@ -204,7 +209,5 @@ def import_matlab_result(fname):
 
     # pack it into a `PLSResults` class instance for easy attribute access
     results = PLSResults(**result)
-    if results.inputs.get('n_split', None) is None:
-        results.inputs.n_split = 0
 
     return results
