@@ -23,6 +23,7 @@ DOWNLOAD_URL = (
         name=__packagename__, ver=__version__))
 
 REQUIRES = [
+    'h5py',
     'numpy',
     'scikit-learn',
     'scipy',
