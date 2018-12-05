@@ -52,7 +52,10 @@ def save_results(fname, results):
                 if item is not None:
                     grp.attrs[key] = item
 
-    if not str(fname).endswith('.hdf5'):
+    if not isinstance(fname, str):
+        fname = str(fname)
+
+    if not fname.endswith('.hdf5'):
         fname += '.hdf5'
 
     with h5py.File(fname, 'w') as h5:
@@ -103,7 +106,10 @@ def load_results(fname):
 
         return results
 
-    if not str(fname).endswith('.hdf5'):
+    if not isinstance(fname, str):
+        fname = str(fname)
+
+    if not fname.endswith('.hdf5'):
         fname += '.hdf5'
 
     if not h5py.is_hdf5(fname):
