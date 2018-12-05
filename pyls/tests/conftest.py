@@ -8,7 +8,7 @@ import pyls
 @pytest.fixture(scope='session')
 def testdir(tmpdir_factory):
     data_dir = tmpdir_factory.mktemp('data')
-    return data_dir
+    return str(data_dir)
 
 
 @pytest.fixture(scope='session')
