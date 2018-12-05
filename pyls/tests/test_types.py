@@ -12,21 +12,21 @@ rs = np.random.RandomState(1234)
 
 
 class PLSBaseTest():
-    defaults = pyls.struct.PLSInputs(X=rs.rand(subj, Xf),
-                                     Y=rs.rand(subj, Yf),
-                                     groups=None,
-                                     n_cond=1,
-                                     mean_centering=0,
-                                     rotate=True,
-                                     n_perm=20, n_boot=10, n_split=None,
-                                     ci=95, seed=rs)
+    defaults = pyls.structures.PLSInputs(X=rs.rand(subj, Xf),
+                                         Y=rs.rand(subj, Yf),
+                                         groups=None,
+                                         n_cond=1,
+                                         mean_centering=0,
+                                         rotate=True,
+                                         n_perm=20, n_boot=10, n_split=None,
+                                         ci=95, seed=rs)
     funcs = dict(meancentered=pyls.meancentered_pls,
                  behavioral=pyls.behavioral_pls)
 
     def __init__(self, plstype, **kwargs):
-        self.inputs = pyls.struct.PLSInputs(**{key: kwargs.get(key, val) for
-                                               (key, val) in
-                                               self.defaults.items()})
+        self.inputs = pyls.structures.PLSInputs(**{key: kwargs.get(key, val)
+                                                   for (key, val) in
+                                                   self.defaults.items()})
         self.output = self.funcs.get(plstype)(**self.inputs)
         self.type = plstype
         self.confirm_outputs()

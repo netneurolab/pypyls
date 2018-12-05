@@ -12,9 +12,9 @@ PLS Decompositions
 
 PLS Results
 -----------
-.. autoclass:: pyls.struct.PLSResults
-.. autoclass:: pyls.struct.PLSPermResults
-.. autoclass:: pyls.struct.PLSBootResults
-.. autoclass:: pyls.struct.PLSSplitHalfResults
-.. autoclass:: pyls.struct.PLSCrossValidationResults
-.. autoclass:: pyls.struct.PLSInputs
+.. autoclass:: pyls.structures.PLSResults
+.. autoclass:: pyls.structures.PLSPermResults
+.. autoclass:: pyls.structures.PLSBootResults
+.. autoclass:: pyls.structures.PLSSplitHalfResults
+.. autoclass:: pyls.structures.PLSCrossValidationResults
+.. autoclass:: pyls.structures.PLSInputs

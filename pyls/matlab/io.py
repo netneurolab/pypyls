@@ -3,7 +3,7 @@
 import collections
 import numpy as np
 import scipy.io as sio
-from pyls.struct import PLSResults
+from ..structures import PLSResults
 
 _result_mapping = (
     ('u', 'u'),
@@ -149,7 +149,7 @@ def import_matlab_result(fname):
 
     Returns
     -------
-    results : `pyls.struct.PLSResults`
+    results : :obj:`~.structures.PLSResults`
         Matlab results in a Python-friendly format
     """
 
@@ -164,7 +164,7 @@ def import_matlab_result(fname):
     # if 'result' key is missing then consider this a malformed PLS result mat
     try:
         result = matfile.get('result')[0, 0]
-    except (IndexError, TypeError) as e:
+    except (IndexError, TypeError):
         raise ValueError('Cannot get result struct from provided mat file')
 
     # convert result structure to a dictionary using dtypes as keys
@@ -203,4 +203,8 @@ def import_matlab_result(fname):
             continue
 
     # pack it into a `PLSResults` class instance for easy attribute access
-    return PLSResults(**result)
+    results = PLSResults(**result)
+    if results.inputs.get('n_split', None) is None:
+        results.inputs.n_split = 0
+
+    return results

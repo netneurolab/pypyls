@@ -175,8 +175,8 @@ def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
     x = [r.get_x() for r in ax.patches]
     nx = np.sort(x)
     abs_err = np.abs([df[df.columns[lv + (num_sig * 2)]].get_values(),
-                      df[df.columns[lv + num_sig]].get_values()] -
-                     df[df.columns[lv]].get_values())
+                      df[df.columns[lv + num_sig]].get_values()]
+                     - df[df.columns[lv]].get_values())
     ax.errorbar(x=nx + (np.diff(nx).min() / 2),
                 y=df[df.columns[lv]], fmt='none', yerr=abs_err, ecolor='black')
 

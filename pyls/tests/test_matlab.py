@@ -19,7 +19,7 @@ def test_import_matlab():
     for fname in EXAMPLES:
         res = pyls.matlab.import_matlab_result(op.join(data_dir, fname))
         # make sure the mat file cast appropriately
-        assert isinstance(res, pyls.struct.PLSResults)
+        assert isinstance(res, pyls.structures.PLSResults)
         # make sure all the attributes are there (don't check outputs)
         for attr in attrs:
             assert hasattr(res, attr)

@@ -1,38 +1,70 @@
 #!/usr/bin/env python
-
-import os
-import sys
+# -*- coding: utf-8 -*-
 
 
 def main():
+    import versioneer
+    from io import open
+    import os.path as op
+    from inspect import getfile, currentframe
     from setuptools import setup, find_packages
+    from pyls.info import (
+        __author__,
+        __description__,
+        __email__,
+        __license__,
+        __longdesc__,
+        __longdesctype__,
+        __maintainer__,
+        __packagename__,
+        __url__,
+        __version__,
+        CLASSIFIERS,
+        DOWNLOAD_URL,
+        EXTRAS_REQUIRE,
+        PACKAGE_DATA,
+        REQUIRES,
+        TESTS_REQUIRE,
+    )
 
-    if sys.version_info < (3, 5):
-        raise SystemError("You need Python version 3.5 or above to use " +
-                          "pyls.")
+    root_dir = op.dirname(op.abspath(getfile(currentframe())))
 
-    # from nipype setup.py file
-    ldict = locals()
-    curr_path = os.path.dirname(__file__)
-    ver_file = os.path.join(curr_path, 'pyls', 'info.py')
-    with open(ver_file) as infofile:
-        exec(infofile.read(), globals(), ldict)
+    version = None
+    cmdclass = {}
+    if op.isfile(op.join(root_dir, 'pyls', 'VERSION')):
+        with open(op.join(root_dir, 'pyls', 'VERSION')) as vfile:
+            version = vfile.readline().strip()
+        PACKAGE_DATA['pyls'].insert(0, 'VERSION')
+
+    if version is None:
+        version = versioneer.get_version()
+    cmdclass = versioneer.get_cmdclass()
+
+    # get long description from README
+    with open(op.join(root_dir, __longdesc__)) as src:
+        __longdesc__ = src.read()
 
     setup(
-        name=ldict['NAME'],
-        version=ldict['VERSION'],
-        description=ldict['DESCRIPTION'],
-        long_description=ldict['LONG_DESCRIPTION'],
-        maintainer=ldict['MAINTAINER'],
-        maintainer_email=ldict['EMAIL'],
-        url=ldict['URL'],
-        download_url=ldict['DOWNLOAD_URL'],
-        install_requires=ldict['INSTALL_REQUIRES'],
+        name=__packagename__,
+        version=__version__,
+        description=__description__,
+        long_description=__longdesc__,
+        long_description_content_type=__longdesctype__,
+        author=__author__,
+        author_email=__email__,
+        maintainer=__maintainer__,
+        maintainer_email=__email__,
+        url=__url__,
+        license=__license__,
+        classifiers=CLASSIFIERS,
+        download_url=DOWNLOAD_URL,
+        install_requires=REQUIRES,
         packages=find_packages(exclude=['pyls/tests']),
-        package_data=ldict['PACKAGE_DATA'],
-        tests_require=ldict['TESTS_REQUIRE'],
-        extras_require=ldict['EXTRAS_REQUIRE'],
-        license=ldict['LICENSE'])
+        package_data=PACKAGE_DATA,
+        tests_require=TESTS_REQUIRE,
+        extras_require=EXTRAS_REQUIRE,
+        cmdclass=cmdclass
+    )
 
 
 if __name__ == '__main__':

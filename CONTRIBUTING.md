@@ -6,7 +6,7 @@ These guidelines are designed to make it as easy as possible to get involved. If
 
 Before you start you'll need to set up a free [GitHub][link_github] account and sign in. Here are some [instructions][link_signupinstructions].
 
-### Labels
+## Labels
 
 The current list of labels are [here][link_labels] and include:
 
@@ -57,8 +57,6 @@ You can see a list of our current contributors in the [contributors tab][link_co
 ## Thank you!
 
 You're awesome. :wave::smiley:
-
-<br>
 
 *&mdash; Based on contributing guidelines from the [STEMMRoleModels][link_stemmrolemodels] project.*
 
