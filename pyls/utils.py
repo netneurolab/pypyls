@@ -23,8 +23,8 @@ class ResDict(Bunch):
 
     def __str__(self):
         # override dict built-in string repr to display only non-empty keys
-        items = [k for k in self.__class__.allowed if
-                 (self.get(k) is not None and not _empty_dict(self.get(k)))]
+        items = [k for k in self.__class__.allowed
+                 if k in _not_empty_keys(self)]
         return '{name}({keys})'.format(name=self.__class__.__name__,
                                        keys=', '.join(items))
 
@@ -33,7 +33,66 @@ class ResDict(Bunch):
         if key in self.__class__.allowed:
             super().__setitem__(key, val)
 
+    def __eq__(self, value):
+        # easy check -- are objects the same class?
+        if not isinstance(value, self.__class__):
+            return False
+        # another easy check -- are the non-empty keys different?
+        if _not_empty_keys(self) != _not_empty_keys(value):
+            return False
+        # harder check -- iterate through everything and check item equality
+        # potentially recursive checks if sub-items are dictionaries
+        for k, v in self.items():
+            v2 = value.get(k, None)
+            if v2 is None:
+                if v is not None:
+                    return False
+            # recursive dictionary comparison
+            elif isinstance(v2, dict):
+                if not v == v2:
+                    return False
+            # compare using numpy testing suite
+            # this is because arrays may be different size and numpy testing
+            # is way more solid than anything we could come up with
+            else:
+                try:
+                    np.testing.assert_array_almost_equal(v, v2)
+                except AssertionError:
+                    return False
+
+        return True
+
     __repr__ = __str__
+
+
+def _not_empty_keys(dictionary):
+    """
+    Returns list of non-empty keys in `dictionary`
+
+    Non-empty keys are defined as (1) not being None-type and (2) not being an
+    empty dictionary, itself
+
+    Parameters
+    ----------
+    dictionary : dict
+        Object to query for non-empty keys
+
+    Returns
+    -------
+    keys : list
+        Non-empty keys in `dictionary`
+    """
+
+    if not isinstance(dictionary, dict):
+        raise TypeError('Provided input must be type dict, not {}'
+                        .format(type(dictionary)))
+
+    keys = []
+    for key, value in dictionary.items():
+        if value is not None and not _empty_dict(value):
+            keys.append(key)
+
+    return set(keys)
 
 
 def _empty_dict(dobj):
