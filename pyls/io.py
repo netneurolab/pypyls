@@ -2,7 +2,7 @@
 """
 Functions for saving and loading PLS results objects
 
-Most functions adopted from https://codereview.stackexchange.com/a/121308
+Most functions adapted from https://codereview.stackexchange.com/a/121308
 """
 
 import h5py
