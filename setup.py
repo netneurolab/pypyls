@@ -19,7 +19,7 @@ def main():
     with open(op.join(root_dir, ldict['__longdesc__'])) as src:
         ldict['__longdesc__'] = src.read()
 
-    ldict.setdefault('___version__', versioneer.get_version())
+    ldict.setdefault('__version__', versioneer.get_version())
     ldict.setdefault('__cmdclass__', versioneer.get_cmdclass())
     DOWNLOAD_URL = (
         'https://github.com/rmarkello/{name}/archive/{ver}.tar.gz'.format(
