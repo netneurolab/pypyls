@@ -50,14 +50,15 @@ def zscore(data, axis=0, ddof=1, comp=None):
     data : (N, ...) array_like
         Data to be z-scored
     axis : int, optional
-        Axis to use to z-score data. Default: 0
+        Axis along which to z-score. Default: 0
     ddof : int, optional
         Delta degrees of freedom.  The divisor used in calculations is
         `M - ddof`, where `M` is the number of elements along `axis` in
         `comp`. Default: 1
     comp : (M, ...) array_like
-        Distribution to z-score `data`. Should have same dimension as data
-        along `axis`. Default: `data`
+        Distribution to z-score `data`. Should have same dimension as `data`
+        along every axis except `axis`. If not provided, `data` will be used.
+        Default: None
 
     Returns
     -------
@@ -165,10 +166,10 @@ def perm_sig(orig, perm):
         Number of permutations where singular values exceeded original data
         decomposition for each of `L` latent variables normalized by the total
         number of permutations. Can be interpreted as the statistical
-        significance of the latent variables (i.e., non-parameteric p-values).
+        significance of the latent variables (i.e., non-parametric p-value).
     """
 
-    sp = np.sum(perm > np.diag(orig)[:, None], axis=1)
+    sp = np.sum(perm > np.diag(orig)[:, None], axis=1) + 1
     sprob = sp / (perm.shape[-1] + 1)
 
     return sprob
