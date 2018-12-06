@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from pyls._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
-
 __author__ = 'pyls developers'
 __copyright__ = 'Copyright 2018, pyls developers'
-__credits__ = ['Elizabeth DuPre', 'Ross Markello']
+__credits__ = ['Elizabeth DuPre', 'Ross Markello', 'Golia Shafiei']
 __license__ = 'GPLv2'
 __maintainer__ = 'Ross Markello'
 __email__ = 'rossmarkello@gmail.com'
@@ -18,9 +14,6 @@ __description__ = ('pyls is a Python toolbox for performing multivariate '
 __longdesc__ = 'README.md'
 __longdesctype__ = 'text/markdown'
 
-DOWNLOAD_URL = (
-    'https://github.com/rmarkello/{name}/archive/{ver}.tar.gz'.format(
-        name=__packagename__, ver=__version__))
 
 REQUIRES = [
     'h5py',
