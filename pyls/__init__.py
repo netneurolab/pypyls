@@ -7,6 +7,10 @@ __all__ = [
     'PLSResults', 'save_results', 'load_results'
 ]
 
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
+
 from .info import (
     __author__,
     __description__,
@@ -15,13 +19,9 @@ from .info import (
     __maintainer__,
     __packagename__,
     __url__,
-    __version__
 )
 
-try:
-    from .io import load_results, save_results
-    from .matlab import import_matlab_result
-    from .structures import PLSResults
-    from .types import (behavioral_pls, meancentered_pls)
-except ImportError:
-    pass
+from .io import load_results, save_results
+from .matlab import import_matlab_result
+from .structures import PLSResults
+from .types import (behavioral_pls, meancentered_pls)
