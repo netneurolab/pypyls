@@ -30,7 +30,7 @@ def _set_group_lvls(n_conds, n_grps, grp_lvls=None):
     grping = []
     if grp_lvls is None:
         for i in range(n_grps):
-            grping += ["Group" + str(i)] * n_conds
+            grping += ["Group " + str(i)] * n_conds
     else:
         for i in range(n_grps):
             grping.extend([grp_lvls[i]] * n_conds)
@@ -57,7 +57,7 @@ def _set_cond_lvls(n_conds, n_grps, cond_lvls=None):
     """
 
     if cond_lvls is None:
-        cond_lvls = ["Condition" + str(i) for i in range(n_conds)] * n_grps
+        cond_lvls = ["Condition " + str(i) for i in range(n_conds)] * n_grps
     else:
         cond_lvls = cond_lvls * n_grps
 
@@ -98,7 +98,7 @@ def _define_vars(results, cond_lvls=None, grp_lvls=None):
 
     num_est = estimate.shape[1] + 1  # for 1-based indexing in plots
     colnames = []
-    for itm in ['Estimate_LV', 'UL_LV', 'LL_LV']:
+    for itm in ['Estimate LV', 'UL LV', 'LL LV']:
         for i in range(1, num_est):
             colnames.append(itm + str(i))
 
