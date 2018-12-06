@@ -364,8 +364,16 @@ def efficient_corr(x, y):
         Correlations of columns in `x` and `y`
     """
 
+    # we need 2D arrays
+    x, y = np.vstack(x), np.vstack(y)
+
+    # check shapes
     if x.shape != y.shape:
-        raise ValueError('Provided inputs x and y must have matching shapes.')
+        if x.shape[-1] != 1 and y.shape[-1] != 1:
+            raise ValueError('Provided inputs x and y must either have '
+                             'matching shapes or one must be a column '
+                             'vector.\nProvided data:\n\tx: {}\n\ty: {}'
+                             .format(x.shape, y.shape))
 
     corr = np.sum(zscore(x, ddof=1) * zscore(y, ddof=1), axis=0) / (len(x) - 1)
 
