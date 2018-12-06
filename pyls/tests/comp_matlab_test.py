@@ -91,3 +91,8 @@ def make_comparison(fname, corr=0.99, alpha=0.05):
             mk = matlab.permres.pvals < alpha
             assert_pvals_equiv(python.splitres[k][pk], matlab.splitres[k][mk],
                                alpha, drop_last=False)
+
+
+def test_matlab_comparison():
+    for fn in EXAMPLES:
+        make_comparison(fn)
