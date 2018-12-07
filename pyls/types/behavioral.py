@@ -12,12 +12,13 @@ class BehavioralPLS(BasePLS):
                  n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
                  rotate=True, ci=95, seed=None, verbose=True, **kwargs):
 
-        super().__init__(X=np.asarray(X), Y=np.asarray(Y), groups=groups,
+        super().__init__(X=X, Y=Y, groups=groups,
                          n_cond=n_cond, mean_centering=mean_centering,
                          n_perm=n_perm, n_boot=n_boot, n_split=n_split,
                          test_size=test_size, rotate=rotate, ci=ci, seed=seed,
-                         verbose=verbose, **kwargs)
-        self.results = self.run_pls(self.inputs.X, self.inputs.Y)
+                         **kwargs)
+        self.results = self.run_pls(np.asarray(self.inputs.X),
+                                    np.asarray(self.inputs.Y))
 
     def gen_covcorr(self, X, Y, groups, **kwargs):
         """

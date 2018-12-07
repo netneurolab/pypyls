@@ -2,4 +2,4 @@
 
 __all__ = ['meancentered']
 
-import meancentered
+from . import meancentered

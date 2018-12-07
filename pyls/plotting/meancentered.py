@@ -135,7 +135,7 @@ def _rearrange_df(df, plot_order):
 
 
 def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
-                  cond_order=None, **kwargs):
+                  cond_order=None, error_kws=None, legend=True, **kwargs):
     """
     Plots group / condition contrast from `results` for a provided `lv`
 
@@ -145,16 +145,21 @@ def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
         The PLS result dictionary
     lv : int, optional
         Index of desired latent variable to plot. Uses zero-indexing, so the
-        first latent variables is `lv=0`. Default: 0
+        first latent variable is `lv=0`. Default: 0
     cond_labels : list, optional
         List of condition labels as they were supplied to the original PLS.
-        If not supplied, uses "ConditionX" as label. Default: None
+        If not supplied, uses "Condition X" as label. Default: None
     group_labels : list, optional
         List of group labels as they were supplied to the original PLS. If
-        not supplied, uses "GroupX" as label. Default: None
+        not supplied, uses "Group X" as label. Default: None
     cond_order : list, optional
         Desired order for plotting conditions. If not supplied, plots
         conditions in order they were provided to original PLS. Default: None
+    error_kws : dict, optional
+        Dictionary supplying key-word arguments to errorbar plotting. Default:
+        None
+    legend : bool, optional
+        Whether to plot legend automatically. Default: True
     **kwargs : key, value mappings
         Keywords arguments passed to :obj:seaborn.barplot
 
@@ -164,6 +169,10 @@ def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
         A matplotlib axes object for saving or modifying
     """
 
+    error_opts = dict(fmt='none', ecolor='black')
+    if error_kws is not None:
+        error_opts.update(**error_kws)
+
     df = _define_vars(results, cond_lvls=cond_labels, grp_lvls=group_labels)
     if cond_order is not None:
         df = _rearrange_df(df, cond_order)
@@ -171,13 +180,18 @@ def plot_contrast(results, lv=0, cond_labels=None, group_labels=None,
     ax = sns.barplot(x="Group", y=df[df.columns[lv]], hue="Condition",
                      data=df, capsize=0.1, errwidth=1.25, alpha=0.25, ci=None,
                      **kwargs)
-    ax.legend(bbox_to_anchor=(1.1, 1.05))
-    x = [r.get_x() for r in ax.patches]
-    nx = np.sort(x)
+    if legend:
+        ax.legend(bbox_to_anchor=(1.1, 1.05))
+    else:
+        ax.legend_.set_visible(False)
+
+    xbar = np.array([r.get_x() for r in ax.patches])
+    width = np.array([r.get_width() for r in ax.patches])[xbar.argsort()]
+    xbar = xbar[xbar.argsort()]
     abs_err = np.abs([df[df.columns[lv + (num_sig * 2)]].get_values(),
                       df[df.columns[lv + num_sig]].get_values()]
                      - df[df.columns[lv]].get_values())
-    ax.errorbar(x=nx + (np.diff(nx).min() / 2),
-                y=df[df.columns[lv]], fmt='none', yerr=abs_err, ecolor='black')
+    ax.errorbar(x=xbar + (width / 2), y=df[df.columns[lv]], yerr=abs_err,
+                **error_opts)
 
     return ax
