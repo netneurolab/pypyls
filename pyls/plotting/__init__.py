@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ['meancentered']
+__all__ = ['behavioral', 'meancentered']
 
-from . import meancentered
+from . import behavioral, meancentered
