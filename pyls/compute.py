@@ -76,8 +76,9 @@ def zscore(data, axis=0, ddof=1, comp=None):
 
     avg = comp.mean(axis=axis, keepdims=True)
     stdev = comp.std(axis=axis, ddof=ddof, keepdims=True)
-    zeros = stdev == 0
+
     # avoid DivideByZero errors
+    zeros = stdev == 0
     if np.any(zeros):
         avg[zeros] = 0
         stdev[zeros] = 1
@@ -376,5 +377,9 @@ def efficient_corr(x, y):
                              .format(x.shape, y.shape))
 
     corr = np.sum(zscore(x, ddof=1) * zscore(y, ddof=1), axis=0) / (len(x) - 1)
+
+    # fix rounding errors
+    corr[corr > 1] = 1
+    corr[corr < -1] = -1
 
     return corr
