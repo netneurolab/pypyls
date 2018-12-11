@@ -250,7 +250,7 @@ class BasePLS():
     ----------
     {input_matrix}
     {groups}
-    {n_cond}
+    {conditions}
     **kwargs : optional
         Additional key-value pairs; see :obj:`pyls.PLSInputs` for more info
 
