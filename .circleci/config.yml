@@ -21,11 +21,11 @@ jobs:
       - run:
           name: Downloading Matlab PLS results
           command: |
-            if [[ -e /tmp/data ]]; then
+            if [[ -e /tmp/data/matlab ]]; then
               echo "Restoring Matlab PLS results from cache"
             else
-                mkdir -p /tmp/data
-                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz -C /tmp/data
+                mkdir -p /tmp/data/matlab
+                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz -C /tmp/data/matlab
             fi
       - save_cache:
           name: Caching Matlab PLS results
@@ -53,6 +53,6 @@ jobs:
           no_output_timeout: 40m
           command: |
             . venv/bin/activate
-            for mat in /tmp/data/*mat; do
-              python -c "import pyls.tests; pyls.tests.test_matlab_comp.make_matlab_comparison('${mat}')"
+            for mat in /tmp/data/matlab/*mat; do
+              python -c "import pyls.tests; pyls.tests.make_matlab_comparison('${mat}')"
             done
