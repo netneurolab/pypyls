@@ -1,74 +1,55 @@
 version: 2
 jobs:
-
   build:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/src/pyls
-    steps:
-      - checkout
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-              - src/pyls/
-
-  get_data:
-    machine:
-      # Ubuntu 14.04 with Docker 17.10.0-ce
-      image: circleci/classic:201711-01
-    steps:
-      - restore_cache:
-          keys:
-              - data-v1-{{ .Branch }}
-      - run:
-          name: Download Matlab PLS results
-          command: |
-            if [[ -e /tmp/data/matlab ]]; then
-              echo "Restoring Matlab PLS results from cache"
-            else
-                mkdir -p /tmp/data/matlab/
-                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz -C /tmp/data/matlab/
-            fi
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-              - data/matlab/
-      - save_cache:
-          key: data-v1-{{ .Branch }}
-          paths:
-              - /tmp/data
-
-  comparison_test:
     docker:
       - image: circleci/python:3.6
-    working_directory: /tmp/src/pyls
+
+    working_directory: ~/pyls
+
     environment:
         PYTHON_VERSION: "3.6"
         OPENBLAS_NUM_THREADS: "1"
         MKL_NUM_THREADS: "1"
+
     steps:
-      - attach_workspace:
-          at: /tmp
+      - checkout
+      - restore_cache:
+          keys:
+            - data-v1-{{ .Branch }}
+            - data-v1-
       - run:
-          name: Create test environment
+          name: Downloading Matlab PLS results
           command: |
-            python -m pip install --upgrade pip
-            pip install -e .[tests]
+            if [[ -e /tmp/data ]]; then
+              echo "Restoring Matlab PLS results from cache"
+            else
+                mkdir -p /tmp/data
+                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz -C /tmp/data
+            fi
+      - save_cache:
+          name: Caching Matlab PLS results
+          key: data-v1-{{ .Branch }}
+          paths:
+            - /tmp/data
+      - restore_cache:
+          keys:
+            - dependencies-v1-{{ checksum "requirements.txt" }}
+            - dependencies-v1-
       - run:
-          name: Run full Matlab comparison
+          name: Creating test environment
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install .[tests]
+      - save_cache:
+          name: Caching dependencies
+          key: dependencies-v1-{{ checksum "requirements.txt" }}
+          paths:
+            - ./venv
+      - run:
+          name: Running Matlab-Python comparison
           no_output_timeout: 40m
           command: |
-            for mat in /tmp/data/matlab/*mat; do
+            for mat in /tmp/data/*mat; do
               python -c "import pyls.tests; pyls.tests.test_matlab_comp.make_matlab_comparison('${mat}')"
             done
-
-workflows:
-  version: 2
-  build_test:
-    jobs:
-      - build
-      - get_data
-      - comparison_test:
-          requires:
-            - build
-            - get_data
