@@ -43,7 +43,8 @@ _result_mapping = (
     ('boot_result_num_boot', 'n_boot'),
     ('perm_splithalf_num_split', 'n_split'),
     ('boot_result_clim', 'ci'),
-    ('other_input_meancentering_type', 'mean_centering')
+    ('other_input_meancentering_type', 'mean_centering'),
+    ('method', 'method')
 )
 
 _mean_centered_mapping = (

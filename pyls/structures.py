@@ -104,7 +104,7 @@ _pls_input_docs = dict(
 class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
-        'test_size', 'mean_centering', 'rotate', 'ci', 'seed',
+        'test_size', 'mean_centering', 'method', 'rotate', 'ci', 'seed',
         'bootsamples', 'permsamples'
     ]
 
