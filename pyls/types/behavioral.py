@@ -97,7 +97,12 @@ class BehavioralPLS(BasePLS):
                                   U_boot.shape[1],
                                   self.inputs.n_boot,))
 
-        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
+        if self.inputs.verbose:
+            gen = utils.trange(self.inputs.n_boot, desc='Calculating CI')
+        else:
+            gen = range(self.inputs.n_boot)
+
+        for i in gen:
             boot = self.bootsamp[:, i]
             tusc = X[boot] @ compute.normalize(U_boot[:, :, i])
             distrib[:, :, i] = self.gen_covcorr(tusc, Y[boot], groups)

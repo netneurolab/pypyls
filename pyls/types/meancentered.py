@@ -89,7 +89,12 @@ class MeanCenteredPLS(BasePLS):
         distrib = np.zeros(shape=(Y.shape[-1], U_boot.shape[1],
                                   self.inputs.n_boot,))
 
-        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
+        if self.inputs.verbose:
+            gen = utils.trange(self.inputs.n_boot, desc='Calculating CI')
+        else:
+            gen = range(self.inputs.n_boot)
+
+        for i in gen:
             boot, U = self.bootsamp[:, i], U_boot[:, :, i]
             usc = compute.get_mean_center(X[boot], Y,
                                           self.inputs.n_cond,
