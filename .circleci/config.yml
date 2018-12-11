@@ -26,8 +26,8 @@ jobs:
             if [[ -e /tmp/data/matlab ]]; then
               echo "Restoring Matlab PLS results from cache"
             else
-                mkdir -p /tmp/data
-                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz
+                mkdir -p /tmp/data/matlab/
+                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz -C /tmp/data/matlab/
             fi
       - persist_to_workspace:
           root: /tmp
