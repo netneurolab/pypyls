@@ -271,7 +271,7 @@ def make_matlab_comparison(fname, method=None, corr=0.99, alpha=0.05):
 
     method = ['behavioral', 'meancentered'][fcn == pyls.meancentered_pls]
 
-    return compare_matlab_result(python, matlab, method)
+    return compare_matlab_result(python, matlab, method, corr, alpha)
 
 
 @pytest.mark.parametrize('fname', EXAMPLES)

@@ -408,6 +408,29 @@ class BasePLS():
 
         return U_boot, V_boot
 
+    def make_permutation(self, X, Y, perminds):
+        """
+        Permutes `X` according to `perminds`, leaving `Y` un-permuted
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        perminds : (S,) array_like
+            Array by which to permute `X`
+
+        Returns
+        -------
+        Xp : (S, B) array_like
+            `X`, permuted according to `perminds`
+        Yp : (S, T) array_like
+            Identical to `Y`
+        """
+
+        return X[perminds], Y
+
     def permutation(self, X, Y, n_perm=None, n_split=None, seed=None):
         """
         Permutes `X` and `Y` (w/o replacement) and recomputes SVD
@@ -449,7 +472,8 @@ class BasePLS():
 
         for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
             inds = self.permsamp[:, i]
-            outputs = self.single_perm(X[inds], Y, V_orig)
+            Xp, Yp = self.make_permutation(X, Y, inds)
+            outputs = self.single_perm(Xp, Yp, V_orig)
             d_perm[:, i] = outputs[0]
             if self.inputs.n_split is not None:
                 ucorrs[:, i], vcorrs[:, i] = outputs[1:]

@@ -46,6 +46,29 @@ class BehavioralPLS(BasePLS):
 
         return crosscov
 
+    def make_permutation(self, X, Y, perminds):
+        """
+        Permutes `Y` according to `perminds`, leaving `X` un-permuted
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        perminds : (S,) array_like
+            Array by which to permute `Y`
+
+        Returns
+        -------
+        Xp : (S, B) array_like
+            Identical to `X`
+        Yp : (S, T) array_like
+            `Y`, permuted according to `perminds`
+        """
+
+        return X, Y[perminds]
+
     def boot_distrib(self, X, Y, U_boot, groups):
         """
         Generates bootstrapped distribution for contrast
