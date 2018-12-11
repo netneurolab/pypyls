@@ -27,14 +27,14 @@ class MeanCenteredPLS(BasePLS):
             mean_centering = 0
 
         # instantiate base class, generate dummy array, and run PLS analysis
-        super().__init__(X=np.asarray(X), groups=groups, n_cond=n_cond,
+        super().__init__(X=X, groups=groups, n_cond=n_cond,
                          mean_centering=mean_centering, n_perm=n_perm,
                          n_boot=n_boot, n_split=n_split, test_size=test_size,
                          rotate=rotate, ci=ci, seed=seed, verbose=verbose,
                          **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
-        self.results = self.run_pls(self.inputs.X, self.inputs.Y)
+        self.results = self.run_pls(np.asarray(self.inputs.X), self.inputs.Y)
 
     def gen_covcorr(self, X, Y, **kwargs):
         """
