@@ -60,6 +60,14 @@ _pls_input_docs = dict(
         Proportion of data to partition to test set during cross-validation.
         Default: 0.25\
     """),
+    covariance=dedent("""\
+    covariance : bool, optional
+        Whether to use the cross-covariance matrix instead of the cross-
+        correlation during the decomposition. Only set if you are sure this is
+        what you want as many of the results may become more difficult to
+        interpret (i.e., :py:attr:`~.structures.PLSResults.behavcorr` will no
+        longer be intepretable as Pearson correlation r values). Default: False
+    """),
     rotate=dedent("""\
     rotate : bool, optional
         Whether to perform Procrustes rotations during permutation testing. Can
@@ -109,13 +117,13 @@ _pls_input_docs = dict(
 class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
-        'test_size', 'mean_centering', 'rotate', 'ci', 'seed',
+        'test_size', 'mean_centering', 'covariance', 'rotate', 'ci', 'seed',
         'bootsamples', 'permsamples', 'verbose'
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.get('n_split', 0) == 0:
+        if self.get('n_split', None) == 0:
             self['n_split'] = None
         ts = self.get('test_size', None)
         if ts is not None and (ts < 0 or ts >= 1):

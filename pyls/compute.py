@@ -6,7 +6,7 @@ from sklearn.utils.validation import check_array
 from pyls import utils
 
 
-def xcorr(X, Y, norm=True):
+def xcorr(X, Y, norm=True, covariance=False):
     """
     Calculates the cross-covariance matrix of `X` and `Y`
 
@@ -16,6 +16,12 @@ def xcorr(X, Y, norm=True):
         Input matrix, where `S` is samples and `B` is features.
     Y : (S, T) array_like, optional
         Input matrix, where `S` is samples and `T` is features.
+    norm : bool, optional
+        Whether to normalize `X` and `Y` (i.e., sum of squares = 1). Default:
+        True
+    covariance : bool, optional
+        Whether to calculate the cross-covariance matrix instead of the cross-
+        correlation matrix. Default: False
 
     Returns
     -------
@@ -30,7 +36,11 @@ def xcorr(X, Y, norm=True):
     if len(X) != len(Y):
         raise ValueError('The first dim of `X` and `Y` must match.')
 
-    Xn, Yn = zscore(X), zscore(Y)
+    if not covariance:
+        Xn, Yn = zscore(X), zscore(Y)
+    else:
+        Xn, Yn = X - X.mean(0, keepdims=True), Y - Y.mean(0, keepdims=True)
+
     if norm:
         Xn, Yn = normalize(Xn), normalize(Yn)
     xprod = (Yn.T @ Xn) / (len(Xn) - 1)
