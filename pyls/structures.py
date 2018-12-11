@@ -77,6 +77,11 @@ _pls_input_docs = dict(
         Seed to use for random number generation. Helps ensure reproducibility
         of results. Default: None\
     """),
+    verbose=dedent("""\
+    verbose : bool, optional
+        Whether to print status messages about the progress of the PLS analysis
+        as it progresses. Default: True
+    """),
     pls_results=dedent("""\
     results : :obj:`pyls.PLSResults`
         Dictionary-like object containing results from the PLS analysis\
@@ -105,7 +110,7 @@ class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
         'test_size', 'mean_centering', 'method', 'rotate', 'ci', 'seed',
-        'bootsamples', 'permsamples'
+        'bootsamples', 'permsamples', 'verbose'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -137,6 +142,7 @@ PLSInputs.__doc__ = dedent("""\
     {rotate}
     {ci}
     {seed}
+    {verbose}
     """).format(**_pls_input_docs)
 
 
