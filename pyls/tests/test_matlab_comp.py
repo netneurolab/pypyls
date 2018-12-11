@@ -123,19 +123,26 @@ def compare_matlab_result(python, matlab, method, corr=0.99, alpha=0.05):
     return True
 
 
+def make_matlab_comparison(fname, method=None):
+    # load matlab result
+    matlab = pyls.matlab.import_matlab_result(fname)
+
+    # fix n_split default (if not specified in matlab assume 0)
+    if not hasattr(matlab.inputs, 'n_split'):
+        matlab.inputs.n_split = 0
+
+    # run PLS
+    if method is None:
+        fcn = pyls.behavioral_pls if 'bpls' in fname else pyls.meancentered_pls
+    else:
+        fcn = method
+    python = fcn(**matlab.inputs, seed=1234)
+
+    method = ['behavioral', 'meancentered']['mpls' in fname]
+    assert compare_matlab_result(python, matlab, method)
+
+
 def test_matlab_comparison():
     for fname in EXAMPLES:
-        # load matlab result
         fname = resource_filename('pyls', 'tests/data/{}'.format(fname))
-        matlab = pyls.matlab.import_matlab_result(fname)
-
-        # fix n_split default (if not specified in matlab assume 0)
-        if not hasattr(matlab.inputs, 'n_split'):
-            matlab.inputs.n_split = 0
-
-        # run PLS
-        fcn = pyls.behavioral_pls if 'bpls' in fname else pyls.meancentered_pls
-        python = fcn(**matlab.inputs, seed=1234)
-
-        method = ['behavioral', 'meancentered']['mpls' in fname]
-        assert compare_matlab_result(python, matlab, method)
+        make_matlab_comparison(fname)
