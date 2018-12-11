@@ -54,6 +54,6 @@ jobs:
           command: |
             . venv/bin/activate
             for mat in /tmp/data/matlab/*mat; do
-              printf "${mat} "
+              echo "${mat}"
               python -c "import pyls.tests.test_matlab_comp; pyls.tests.test_matlab_comp.test_matlab_comparison('${mat}');"
             done
