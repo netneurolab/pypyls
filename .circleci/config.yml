@@ -1,0 +1,74 @@
+version: 2
+jobs:
+
+  build:
+    machine:
+      image: circleci/classic:201711-01
+    working_directory: /tmp/src/pyls
+    steps:
+      - checkout
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+              - src/pyls/
+
+  get_data:
+    machine:
+      # Ubuntu 14.04 with Docker 17.10.0-ce
+      image: circleci/classic:201711-01
+    steps:
+      - restore_cache:
+          keys:
+              - data-v1-{{ .Branch }}
+      - run:
+          name: Download Matlab PLS results
+          command: |
+            if [[ -e /tmp/data/matlab ]]; then
+              echo "Restoring Matlab PLS results from cache"
+            else
+                mkdir -p /tmp/data
+                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz
+            fi
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+              - data/matlab/
+      - save_cache:
+          key: data-v1-{{ .Branch }}
+          paths:
+              - /tmp/data
+
+  comparison_test:
+    docker:
+      - image: circleci/python:3.6
+    working_directory: /tmp/src/pyls
+    environment:
+        PYTHON_VERSION: "3.6"
+        OPENBLAS_NUM_THREADS: "1"
+        MKL_NUM_THREADS: "1"
+    steps:
+      - attach_workspace:
+          at: /tmp
+      - run:
+          name: Create test environment
+          command: |
+            python -m pip install --upgrade pip
+            pip install -e .[tests]
+      - run:
+          name: Run full Matlab comparison
+          no_output_timeout: 40m
+          command: |
+            for mat in /tmp/data/matlab/*mat; do
+              python -c "import pyls.tests; pyls.tests.test_matlab_comp.make_matlab_comparison('${mat}')"
+            done
+
+workflows:
+  version: 2
+  build_test:
+    jobs:
+      - build
+      - get_data
+      - comparison_test:
+          requires:
+            - build
+            - get_data
