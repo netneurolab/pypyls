@@ -354,12 +354,19 @@ class BasePLS():
         if dummy is None:
             dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         crosscov = self.gen_covcorr(X, Y, groups=dummy)
-        n_comp = min(min(dummy.squeeze().shape), min(crosscov.shape))
-        U, d, V = randomized_svd(crosscov.T,
-                                 n_components=n_comp,
-                                 random_state=check_random_state(seed))
+        n_comp = min(crosscov.shape)
+        if crosscov.shape[0] <= crosscov.shape[1]:
+            U, d, V = randomized_svd(crosscov.T,
+                                     n_components=n_comp,
+                                     random_state=check_random_state(seed))
+            V = V.T
+        else:
+            V, d, U = randomized_svd(crosscov,
+                                     n_components=n_comp,
+                                     random_state=check_random_state(seed))
+            U = U.T
 
-        return U, np.diag(d), V.T
+        return U, np.diag(d), V
 
     def bootstrap(self, X, Y, n_boot=None, seed=None):
         """
