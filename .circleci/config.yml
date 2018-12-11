@@ -14,6 +14,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
+          name: Restoring data cache
           keys:
             - data-v1-{{ .Branch }}
             - data-v1-
@@ -32,6 +33,7 @@ jobs:
           paths:
             - /tmp/data
       - restore_cache:
+          name: Restoring dependencies cache
           keys:
             - dependencies-v1-{{ checksum "requirements.txt" }}
             - dependencies-v1-
@@ -50,6 +52,7 @@ jobs:
           name: Running Matlab-Python comparison
           no_output_timeout: 40m
           command: |
+            . venv/bin/activate
             for mat in /tmp/data/*mat; do
               python -c "import pyls.tests; pyls.tests.test_matlab_comp.make_matlab_comparison('${mat}')"
             done
