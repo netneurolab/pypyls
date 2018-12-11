@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from multiprocessing import cpu_count
 from textwrap import dedent
 from .utils import ResDict
 
@@ -80,15 +81,16 @@ _pls_input_docs = dict(
         roughly corresponds to an alpha rate; e.g., the 95%ile CI is
         approximately equivalent to a two-tailed p <= 0.05. Default: 95\
     """),
-    seed=dedent("""\
+    proc_options=dedent("""\
     seed : {int, :obj:`numpy.random.RandomState`, None}, optional
         Seed to use for random number generation. Helps ensure reproducibility
         of results. Default: None\
-    """),
-    verbose=dedent("""\
     verbose : bool, optional
         Whether to print status messages about the progress of the PLS analysis
         as it progresses. Default: True
+    n_proc : int, optional
+        How many processes to use for parallelizing permutation testing and
+        bootstrap resampling.
     """),
     pls_results=dedent("""\
     results : :obj:`pyls.PLSResults`
@@ -118,13 +120,15 @@ class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
         'test_size', 'mean_centering', 'covariance', 'rotate', 'ci', 'seed',
-        'bootsamples', 'permsamples', 'verbose'
+        'bootsamples', 'permsamples', 'verbose', 'n_proc'
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.get('n_split', None) == 0:
             self['n_split'] = None
+        if self.get('n_proc', None) == 'max':
+            self['n_proc'] = cpu_count()
         ts = self.get('test_size', None)
         if ts is not None and (ts < 0 or ts >= 1):
             raise ValueError('test_size must be in [0, 1). Provided value: {}'
@@ -146,11 +150,11 @@ PLSInputs.__doc__ = dedent("""\
     {groups}
     {conditions}
     {mean_centering}
+    {covariance}
     {stat_test}
     {rotate}
     {ci}
-    {seed}
-    {verbose}
+    {proc_options}
     """).format(**_pls_input_docs)
 
 

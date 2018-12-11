@@ -10,7 +10,7 @@ from .. import compute, utils
 class MeanCenteredPLS(BasePLS):
     def __init__(self, X, groups=None, n_cond=1, mean_centering=0, n_perm=5000,
                  n_boot=5000, n_split=100, test_size=0.25, rotate=True, ci=95,
-                 seed=None, verbose=True, **kwargs):
+                 seed=None, verbose=True, n_proc=1, **kwargs):
         if groups is None:
             groups = [len(X) // n_cond]
         # check inputs for validity
@@ -31,7 +31,7 @@ class MeanCenteredPLS(BasePLS):
                          mean_centering=mean_centering, n_perm=n_perm,
                          n_boot=n_boot, n_split=n_split, test_size=test_size,
                          rotate=rotate, ci=ci, seed=seed, verbose=verbose,
-                         **kwargs)
+                         n_proc=n_proc, **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
@@ -153,12 +153,13 @@ class MeanCenteredPLS(BasePLS):
 
 def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
                      n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
-                     rotate=True, ci=95, seed=None, verbose=True, **kwargs):
+                     rotate=True, ci=95, seed=None, verbose=True, n_proc=1,
+                     **kwargs):
     pls = MeanCenteredPLS(X=X, groups=groups, n_cond=n_cond,
                           mean_centering=mean_centering,
                           n_perm=n_perm, n_boot=n_boot, n_split=n_split,
                           test_size=test_size, rotate=rotate, ci=ci, seed=seed,
-                          verbose=verbose, **kwargs)
+                          verbose=verbose, n_proc=n_proc, **kwargs)
     return pls.results
 
 
@@ -186,8 +187,7 @@ Parameters
 {stat_test}
 {rotate}
 {ci}
-{seed}
-{verbose}
+{proc_options}
 
 Returns
 ----------

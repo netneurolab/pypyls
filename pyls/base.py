@@ -248,14 +248,11 @@ class BasePLS():
 
     Parameters
     ----------
-    X : (S, B) array_like
-        Input data matrix, where `S` is observations and `B` is features
-    groups : (G,) array_like, optional
-        Array with number of subjects in each of `G` groups. Default: `[S]`
-    n_cond : int, optional
-        Number of conditions. Default: 1
+    {input_matrix}
+    {groups}
+    {n_cond}
     **kwargs : optional
-        See `pyls.base.PLSInputs` for more information
+        Additional key-value pairs; see :obj:`pyls.PLSInputs` for more info
 
     References
     ----------
