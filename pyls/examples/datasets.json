@@ -1,0 +1,10 @@
+{
+    "whitaker_vertes_2016": {
+        "urls": [
+            "https://raw.githubusercontent.com/KirstieJane/NSPN_WhitakerVertes_PNAS2016/master/DATA/PLS_gene_predictor_vars.csv",
+            "https://raw.githubusercontent.com/KirstieJane/NSPN_WhitakerVertes_PNAS2016/master/CT_MT_ANALYSES/COMPLETE/PLS/COVARS_none/PLS_MRI_response_vars.csv"
+        ],
+        "X": "PLS_gene_predictor_vars.csv",
+        "Y": "PLS_MRI_response_vars.csv"
+    }
+}

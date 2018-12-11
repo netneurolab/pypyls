@@ -46,7 +46,8 @@ EXTRAS_REQUIRE['all'] = list(
 
 PACKAGE_DATA = {
     'pyls': [
-        'tests/data/*'
+        'tests/data/*mat',
+        'examples/datasets.json'
     ]
 }
 
