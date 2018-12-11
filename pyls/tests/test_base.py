@@ -22,7 +22,7 @@ Y = np.random.rand(100, 100)
 opts = dict(X=X, Y=Y,
             groups=groups, n_cond=n_cond, mean_centering=mean_centering,
             n_perm=n_perm, n_boot=n_boot, n_split=n_split, test_size=test_size,
-            rotate=rotate, ci=95, seed=seed)
+            rotate=rotate, ci=95, seed=seed, verbose=True)
 
 attrs = ['X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
          'test_size', 'mean_centering', 'rotate', 'ci', 'seed']
