@@ -19,7 +19,7 @@ class PLSBaseTest():
                                          mean_centering=0,
                                          rotate=True,
                                          n_perm=20, n_boot=10, n_split=None,
-                                         ci=95, seed=rs)
+                                         ci=95, seed=rs, verbose=False)
     funcs = dict(meancentered=pyls.meancentered_pls,
                  behavioral=pyls.behavioral_pls)
 
