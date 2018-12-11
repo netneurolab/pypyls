@@ -49,12 +49,12 @@ _result_mapping = (
 
 _mean_centered_mapping = (
     ('vsc', 'designscores'),
-    ('distrib', 'contrast_boot')
+    ('boot_result_distrib', 'contrast_boot')
 )
 
 _behavioral_mapping = (
     ('vsc', 'behavscores'),
-    ('distrib', 'behavcorr_boot')
+    ('boot_result_distrib', 'behavcorr_boot')
 )
 
 
@@ -207,6 +207,9 @@ def import_matlab_result(fname, datamat='datamat_lst'):
             result[key] -= 1
         except KeyError:
             continue
+
+    if result.get('n_split', None) is None:
+        result['n_split'] = None
 
     # pack it into a `PLSResults` class instance for easy attribute access
     results = PLSResults(**result)
