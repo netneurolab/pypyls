@@ -15,16 +15,16 @@ EXAMPLES = ['mpls_multigroup_onecond_nosplit.mat',
 attrs = ['u', 's', 'v', 'brainscores', 'permres', 'bootres', 'inputs']
 
 
-def test_import_matlab():
-    for fname in EXAMPLES:
-        res = pyls.matlab.import_matlab_result(op.join(data_dir, fname))
-        # make sure the mat file cast appropriately
-        assert isinstance(res, pyls.structures.PLSResults)
-        # make sure all the attributes are there (don't check outputs)
-        for attr in attrs:
-            assert hasattr(res, attr)
-        if '_split' in fname:
-            assert hasattr(res, 'splitres')
+@pytest.mark.parametrize('fname', EXAMPLES)
+def test_import_matlab(fname):
+    res = pyls.matlab.import_matlab_result(op.join(data_dir, fname))
+    # make sure the mat file cast appropriately
+    assert isinstance(res, pyls.structures.PLSResults)
+    # make sure all the attributes are there (don't check outputs)
+    for attr in attrs:
+        assert hasattr(res, attr)
+    if '_split' in fname:
+        assert hasattr(res, 'splitres')
 
 
 def test_errors():
