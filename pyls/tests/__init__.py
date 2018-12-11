@@ -1,3 +1,3 @@
-__all__ = ['compare_matlab_result', 'make_matlab_comparison']
+__all__ = ['compare_python_matlab', 'assert_matlab_equivalence']
 
-from .test_matlab_comp import compare_matlab_result, make_matlab_comparison
+from .matlab import compare_python_matlab, assert_matlab_equivalence

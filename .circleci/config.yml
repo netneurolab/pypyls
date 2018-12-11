@@ -55,5 +55,5 @@ jobs:
             . venv/bin/activate
             for mat in /tmp/data/matlab/*mat; do
               echo "${mat}"
-              python -c "import pyls.tests.test_matlab_comp; pyls.tests.test_matlab_comp.test_matlab_comparison('${mat}');"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}');"
             done
