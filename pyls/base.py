@@ -7,7 +7,7 @@ from sklearn.utils.validation import check_random_state
 from . import compute, structures, utils
 
 
-def gen_permsamp(groups, n_cond, n_perm, seed=None):
+def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     """
     Generates permutation arrays for PLS permutation testing
 
@@ -21,8 +21,12 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None):
         Number of permutations for which to generate resampling arrays
     seed : {int, :obj:`numpy.random.RandomState`, None}, optional
         Seed for random number generation. Default: None
+    verbose : bool, optional
+        Whether to print status updates as permutations are genereated.
+        Default: True
 
     Returns
+    -------
     permsamp : (S, P) `numpy.ndarray`
         Subject permutation arrays, where `S` is the number of subjects and `P`
         is the requested number of permutations (i.e., `P = n_perm`)
@@ -42,7 +46,12 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None):
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    for i in utils.trange(n_perm, desc='Making permutations'):
+    if verbose:
+        generator = utils.trange(n_perm, desc='Making permutations')
+    else:
+        generator = range(n_perm)
+
+    for i in generator:
         count, duplicated = 0, True
         while duplicated and count < 500:
             count, duplicated = count + 1, False
@@ -75,7 +84,7 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None):
     return permsamp
 
 
-def gen_bootsamp(groups, n_cond, n_boot, seed=None):
+def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
     """
     Generates bootstrap arrays for PLS bootstrap resampling
 
@@ -89,6 +98,9 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None):
         Number of boostraps for which to generate resampling arrays
     seed : {int, :obj:`numpy.random.RandomState`, None}, optional
         Seed for random number generation. Default: None
+    verbose : bool, optional
+        Whether to print status updates as bootstrap samples are genereated.
+        Default: True
 
     Returns
     -------
@@ -113,7 +125,12 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None):
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    for i in utils.trange(n_boot, desc='Making bootstraps'):
+    if verbose:
+        generator = utils.trange(n_boot, desc='Making bootstraps')
+    else:
+        generator = range(n_boot)
+
+    for i in generator:
         count, duplicated = 0, True
         while duplicated and count < 500:
             count, duplicated = count + 1, False
@@ -386,14 +403,20 @@ class BasePLS():
             self.bootsamp = gen_bootsamp(self.inputs.groups,
                                          self.inputs.n_cond,
                                          self.inputs.n_boot,
-                                         seed=self.rs)
+                                         seed=self.rs,
+                                         verbose=self.inputs.verbose)
 
         # get original values
         U_orig, d_orig, V_orig = self.svd(X, Y, seed=self.rs)
         U_boot = np.zeros(shape=U_orig.shape + (self.inputs.n_boot,))
         V_boot = np.zeros(shape=V_orig.shape + (self.inputs.n_boot,))
 
-        for i in utils.trange(self.inputs.n_boot, desc='Running bootstraps'):
+        if self.inputs.verbose:
+            gen = utils.trange(self.inputs.n_boot, desc='Running bootstraps')
+        else:
+            gen = range(self.inputs.n_boot)
+
+        for i in gen:
             inds = self.bootsamp[:, i]
             U, d, V = self.svd(X[inds], Y[inds], seed=self.rs)
             U_boot[:, :, i], rotate = compute.procrustes(U_orig, U, d)
@@ -431,7 +454,8 @@ class BasePLS():
             self.permsamp = gen_permsamp(self.inputs.groups,
                                          self.inputs.n_cond,
                                          self.inputs.n_perm,
-                                         seed=self.rs)
+                                         seed=self.rs,
+                                         verbose=self.inputs.verbose)
 
         # get original values
         U_orig, d_orig, V_orig = self.svd(X, Y, seed=self.rs)
@@ -440,7 +464,12 @@ class BasePLS():
         ucorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
         vcorrs = np.zeros(shape=(len(d_orig), self.inputs.n_perm))
 
-        for i in utils.trange(self.inputs.n_perm, desc='Running permutations'):
+        if self.inputs.verbose:
+            gen = utils.trange(self.inputs.n_perm, desc='Running permutations')
+        else:
+            gen = range(self.inputs.n_perm)
+
+        for i in gen:
             inds = self.permsamp[:, i]
             outputs = self.single_perm(X[inds], Y, V_orig)
             d_perm[:, i] = outputs[0]
