@@ -54,5 +54,6 @@ jobs:
           command: |
             . venv/bin/activate
             for mat in /tmp/data/matlab/*mat; do
-              python -c "import pyls.tests; equiv, reason = pyls.tests.make_matlab_comparison('${mat}'); raise AssertionError('{} {}'.format('${mat}', reason)) if not equiv else print('Passed')"
+              printf "${mat} "
+              python -c "import pyls.tests.test_matlab_comp; pyls.tests.test_matlab_comp.test_matlab_comparison('${mat}');"
             done

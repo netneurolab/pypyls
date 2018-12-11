@@ -11,6 +11,8 @@ EXAMPLES = [
     'bpls_onegroup_onecond_nosplit.mat',
     'bpls_onegroup_onecond_split.mat'
 ]
+EXAMPLES = [resource_filename('pyls', 'tests/data/{}'.format(f))
+            for f in EXAMPLES]
 
 
 def assert_num_equiv(a, b, atol=1e-5, drop_last=True):
@@ -85,6 +87,7 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
         diff = a - b
         assert np.all(np.sign(diff) == 1) or np.all(np.sign(diff) == -1)
         return
+
     if a.ndim > 1:
         corrs = pyls.compute.efficient_corr(a, b)
         if drop_last:
@@ -209,9 +212,8 @@ def compare_matlab_result(python, matlab, method, corr=0.99, alpha=0.05):
             # functionally speaking
             for k in ['ucorr_pvals', 'vcorr_pvals']:
                 pk = python.permres.pvals < alpha
-                mk = matlab.permres.pvals < alpha
                 assert_pvals_equiv(python.splitres[k][pk],
-                                   matlab.splitres[k][mk],
+                                   matlab.splitres[k][pk],
                                    alpha, drop_last=False)
         except AssertionError:
             return False, 'splitres.{}'.format(k)
@@ -276,7 +278,6 @@ def make_matlab_comparison(fname, method=None, corr=0.99, alpha=0.05):
 
 @pytest.mark.parametrize('fname', EXAMPLES)
 def test_matlab_comparison(fname):
-    fname = resource_filename('pyls', 'tests/data/{}'.format(fname))
     equiv, reason = make_matlab_comparison(fname)
     if not equiv:
         raise AssertionError('compare_matlab_result failed: {}'.format(reason))
