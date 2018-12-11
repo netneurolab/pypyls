@@ -8,15 +8,15 @@ from .. import compute, utils
 
 
 class BehavioralPLS(BasePLS):
-    def __init__(self, X, Y, *, groups=None, n_cond=1, mean_centering=0,
-                 n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
+    def __init__(self, X, Y, *, groups=None, n_cond=1, n_perm=5000,
+                 n_boot=5000, n_split=100, test_size=0.25, covariance=False,
                  rotate=True, ci=95, seed=None, verbose=True, **kwargs):
 
         super().__init__(X=np.asarray(X), Y=np.asarray(Y), groups=groups,
-                         n_cond=n_cond, mean_centering=mean_centering,
-                         n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                         test_size=test_size, rotate=rotate, ci=ci, seed=seed,
-                         verbose=verbose, **kwargs)
+                         n_cond=n_cond, n_perm=n_perm, n_boot=n_boot,
+                         n_split=n_split, test_size=test_size,
+                         covariance=covariance, rotate=rotate, ci=ci,
+                         seed=seed, verbose=verbose, **kwargs)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
     def gen_covcorr(self, X, Y, groups, **kwargs):
@@ -41,10 +41,13 @@ class BehavioralPLS(BasePLS):
             Cross-covariance matrix
         """
 
-        crosscov = np.row_stack([compute.xcorr(X[grp], Y[grp], norm=False)
-                                 for grp in groups.T.astype(bool)])
+        crosscov = []
+        for grp in groups.T.astype(bool):
+            crosscov.append(compute.xcorr(X[grp], Y[grp],
+                                          norm=False,
+                                          covariance=self.inputs.covariance))
 
-        return crosscov
+        return np.row_stack(crosscov)
 
     def boot_distrib(self, X, Y, U_boot, groups):
         """
@@ -190,14 +193,14 @@ class BehavioralPLS(BasePLS):
 
 
 # let's make it a function
-def behavioral_pls(X, Y, *, groups=None, n_cond=1, mean_centering=0,
-                   n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
-                   rotate=True, ci=95, seed=None, verbose=True, **kwargs):
+def behavioral_pls(X, Y, *, groups=None, n_cond=1, n_perm=5000, n_boot=5000,
+                   n_split=100, test_size=0.25, covariance=False, rotate=True,
+                   ci=95, seed=None, verbose=True, **kwargs):
     pls = BehavioralPLS(X=X, Y=Y, groups=groups, n_cond=n_cond,
-                        mean_centering=mean_centering,
                         n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                        test_size=test_size, rotate=rotate, ci=ci, seed=seed,
-                        verbose=verbose, **kwargs)
+                        test_size=test_size, covariance=covariance,
+                        rotate=rotate, ci=ci, seed=seed, verbose=verbose,
+                        **kwargs)
     return pls.results
 
 
@@ -225,6 +228,7 @@ Y : (S, T) array_like
 {groups}
 {conditions}
 {stat_test}
+{covariance}
 {rotate}
 {ci}
 {seed}
