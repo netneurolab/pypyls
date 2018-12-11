@@ -93,7 +93,7 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
         if drop_last:
             a, b = a[:-1], b[:-1]
         corrs = np.corrcoef(a, b)[0, 1]
-    assert np.all(np.abs(corrs) > corr)
+    assert np.all(np.abs(np.around(corrs, 2)) >= corr)
 
 
 def assert_pvals_equiv(a, b, alpha=0.05, drop_last=True):
