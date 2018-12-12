@@ -3,7 +3,7 @@
 import numpy as np
 import tqdm
 from sklearn.utils import Bunch
-from sklearn.utils.validation import check_random_state
+from sklearn.utils.validation import check_array, check_random_state
 try:
     from joblib import Parallel, delayed
     joblib_avail = True
@@ -49,12 +49,9 @@ class ResDict(Bunch):
         # potentially recursive checks if sub-items are dictionaries
         for k, v in self.items():
             v2 = value.get(k, None)
-            if v2 is None:
-                if v is not None:
-                    return False
             # recursive dictionary comparison
-            elif isinstance(v2, dict):
-                if not v == v2:
+            if isinstance(v, dict) and isinstance(v2, dict):
+                if v != v2:
                     return False
             # compare using numpy testing suite
             # this is because arrays may be different size and numpy testing
@@ -62,10 +59,13 @@ class ResDict(Bunch):
             else:
                 try:
                     np.testing.assert_array_almost_equal(v, v2)
-                except AssertionError:
+                except (TypeError, AssertionError):
                     return False
 
         return True
+
+    def __ne__(self, value):
+        return not self == value
 
     __repr__ = __str__
 
@@ -143,7 +143,8 @@ def trange(n_iter, verbose=True, **kwargs):
     if not verbose:
         return range(n_iter)
 
-    form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
+    form = ('{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
+            ' | {elapsed}<{remaining}')
     defaults = dict(ascii=True, leave=False, bar_format=form)
     defaults.update(kwargs)
 
@@ -214,6 +215,8 @@ def permute_cols(x, seed=None):
         Permuted array
     """
 
+    # can't permute row with only 1 sample...
+    x = check_array(x)
     rs = check_random_state(seed)
     ix_i = rs.random_sample(x.shape).argsort(axis=0)
     ix_j = np.tile(np.arange(x.shape[1]), (x.shape[0], 1))

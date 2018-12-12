@@ -46,7 +46,6 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    # can only use tqdm progress bar if not parallel processing
     for i in utils.trange(n_perm, verbose=verbose, desc='Making permutations'):
         count, duplicated = 0, True
         while duplicated and count < 500:
