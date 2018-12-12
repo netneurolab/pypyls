@@ -125,11 +125,13 @@ class PLSInputs(ResDict):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.get('n_split', None) == 0:
+        if self.get('n_split') == 0:
             self['n_split'] = None
-        if self.get('n_proc', None) == 'max':
+        if self.get('n_proc') == 'max':
             self['n_proc'] = cpu_count()
-        ts = self.get('test_size', None)
+        elif self.get('n_proc') is None:
+            self['n_proc'] = 1
+        ts = self.get('test_size')
         if ts is not None and (ts < 0 or ts >= 1):
             raise ValueError('test_size must be in [0, 1). Provided value: {}'
                              .format(ts))
