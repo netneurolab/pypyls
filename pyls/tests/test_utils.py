@@ -1,28 +1,149 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import pyls
+from pyls import utils
+import pytest
+import tqdm
 
-rs = np.random.RandomState(1234)
+
+def test_empty_dict():
+    assert utils._empty_dict({})
+    assert utils._empty_dict(dict())
+    assert not utils._empty_dict(dict(d=10))
+    assert not utils._empty_dict(dict(d=dict(d=dict(d=10))))
+    assert not utils._empty_dict([])
+    assert not utils._empty_dict(None)
+    assert not utils._empty_dict('test')
+    assert not utils._empty_dict(10)
+    assert not utils._empty_dict(10.0)
+    assert not utils._empty_dict(set())
 
 
-def test_RefDict():
-    class BlahDict(pyls.utils.ResDict):
-        allowed = ['test']
+def test_not_empty_keys():
+    assert utils._not_empty_keys(dict()) == set()
+    assert utils._not_empty_keys(dict(test=10)) == {'test'}
+    assert utils._not_empty_keys(dict(test=10, temp=None)) == {'test'}
+    assert utils._not_empty_keys(dict(test=10, temp={})) == {'test'}
 
-    d = pyls.utils.ResDict()
+    with pytest.raises(TypeError):
+        utils._not_empty_keys([10, 20, 30])
+
+
+def test_ResDict():
+    # toy example with some allowed keys
+    class TestDict(utils.ResDict):
+        allowed = ['test', 'temp']
+
+    # confirm string representations work
+    d = utils.ResDict()
     assert str(d) == 'ResDict()'
-    assert(str(BlahDict(test={})) == 'BlahDict()')
-    assert(str(BlahDict(test=10)) == 'BlahDict(test)')
+    assert str(TestDict(test={})) == 'TestDict()'
+    assert str(TestDict(test=None)) == 'TestDict()'
+    assert d != TestDict()
+
+    # confirm general key checking works
+    test1 = TestDict(test=10)
+    test2 = TestDict(test=11)
+    test3 = TestDict(test=10, temp=11)
+    assert str(test1) == 'TestDict(test)'
+    assert str(test2) == 'TestDict(test)'
+    assert str(test3) == 'TestDict(test, temp)'
+    assert test1 == test1
+    assert test1 != test2
+    assert test1 != test3
+
+    # confirm numpy array comparisons work
+    test1 = TestDict(test=np.arange(9))
+    test2 = TestDict(test=np.arange(9) + 1e-6)  # should work
+    test3 = TestDict(test=np.arange(9) + 1e-5)  # too high
+    test4 = TestDict(test=np.arange(10))  # totally different
+    assert test1 == test1
+    assert test1 == test2
+    assert test1 != test3
+    assert test1 != test4
+
+    # confirm nested dictionary comparisons work
+    test1 = TestDict(test=test1)
+    test2 = TestDict(test=test3)
+    assert test1 == test1
+    assert test1 != test2
+
+    # confirm item assignment holds
+    test1.temp = 10
+    assert test1.temp == 10
+    assert test1 == test1
+    assert test1 != test2
+
+    # confirm rejection of item assignment not in cls.allowed
+    test1.blargh = 10
+    assert not hasattr(test1, 'blargh')
+
+    test1.temp = None
+    test2.temp = None
+    assert test1 != test2
 
 
-def test_dummycode():
+def test_trange():
+    # test that verbose=False generates a range object
+    out = utils.trange(1000, verbose=False, desc='Test tqdm')
+    assert out == range(1000)
+    # test that function will accept arbitrary kwargs and overwrite defaults
+    out = utils.trange(1000, desc='Test tqdm', mininterval=0.5, ascii=False)
+    assert isinstance(out, tqdm.tqdm)
+
+
+def test_dummy_label():
     groups = [10, 12, 11]
-    dummy = pyls.utils.dummy_code(groups)
-    assert dummy.shape == (np.sum(groups), len(groups))
+    expected = [[10, 12, 11], [10, 10, 12, 12, 11, 11]]
+    for n_cond in range(1, 3):
+        dummy = utils.dummy_label(groups, n_cond=n_cond)
+        assert dummy.shape == (np.sum(groups) * n_cond,)
+        assert np.unique(dummy).size == len(groups) * n_cond
+        for n, grp in enumerate(np.unique(dummy)):
+            assert np.sum(dummy == grp) == expected[n_cond - 1][n]
 
-    for n, grp in enumerate(dummy.T.astype(bool)):
-        assert grp.sum() == groups[n]
 
-    dummy_cond = pyls.utils.dummy_code(groups, n_cond=3)
-    assert dummy_cond.shape == (np.sum(groups) * 3, len(groups) * 3)
+def test_dummy_code():
+    groups = [10, 12, 11]
+    expected = [[10, 12, 11], [10, 10, 12, 12, 11, 11]]
+    for n_cond in range(1, 3):
+        dummy = utils.dummy_code(groups, n_cond=n_cond)
+        assert dummy.shape == (np.sum(groups) * n_cond, len(groups) * n_cond)
+        assert np.all(np.unique(dummy) == [0, 1])
+        for n, grp in enumerate(dummy.T):
+            assert grp.sum() == expected[n_cond - 1][n]
+
+
+def test_permute_cols():
+    x = np.arange(9).reshape(3, 3)
+    expected = np.array([[0, 1, 5], [6, 4, 2], [3, 7, 8]])
+
+    out = utils.permute_cols(x, seed=np.random.RandomState(1234))
+    assert not np.all(out == x) and np.all(out == expected)
+
+    # don't accept 1D arrays
+    with pytest.raises(ValueError):
+        utils.permute_cols(np.arange(9))
+
+
+def test_unravel():
+    expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert utils._unravel(range(10)) == expected
+    expected = [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
+    assert utils._unravel(x ** 2 for x in range(10)) == expected
+
+
+def test_get_par_func():
+    def fcn(x):
+        return x
+
+    if not utils.joblib_avail:
+        par, func = utils.get_par_func(1000, fcn)
+        assert par == utils._unravel
+        assert fcn == func
+    else:
+        import joblib
+        par, func = utils.get_par_func(1000, fcn)
+        assert isinstance(par, joblib.Parallel)
+        assert par.n_jobs == 1000
+        assert not fcn == func

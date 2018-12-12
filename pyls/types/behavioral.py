@@ -9,14 +9,23 @@ from .. import compute, utils
 
 class BehavioralPLS(BasePLS):
     def __init__(self, X, Y, *, groups=None, n_cond=1, n_perm=5000,
-                 n_boot=5000, n_split=100, test_size=0.25, covariance=False,
-                 rotate=True, ci=95, seed=None, verbose=True, **kwargs):
+                 n_boot=5000, n_split=100, test_size=0.25, test_split=100,
+                 covariance=False, rotate=True, ci=95, seed=None, verbose=True,
+                 n_proc=None, **kwargs):
+
+        # check that inputs are valid
+        if len(X) != len(Y):
+            raise ValueError('Provided `X` and `Y` matrices must have the '
+                             'same number of samples. Provided matrices '
+                             'differed: X: {}, Y: {}'.format(len(X), len(Y)))
 
         super().__init__(X=np.asarray(X), Y=np.asarray(Y), groups=groups,
                          n_cond=n_cond, n_perm=n_perm, n_boot=n_boot,
                          n_split=n_split, test_size=test_size,
-                         covariance=covariance, rotate=rotate, ci=ci,
-                         seed=seed, verbose=verbose, **kwargs)
+                         test_split=test_split, covariance=covariance,
+                         rotate=rotate, ci=ci, seed=seed, verbose=verbose,
+                         n_proc=n_proc, **kwargs)
+
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
     def gen_covcorr(self, X, Y, groups, **kwargs):
@@ -49,9 +58,9 @@ class BehavioralPLS(BasePLS):
 
         return np.row_stack(crosscov)
 
-    def boot_distrib(self, X, Y, U_boot, groups):
+    def boot_distrib(self, X, Y, U_boot, groups, verbose=True):
         """
-        Generates bootstrapped distribution for contrast
+        Generates bootstrapped distribution for behavioral correlations
 
         Parameters
         ----------
@@ -60,31 +69,62 @@ class BehavioralPLS(BasePLS):
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
         U_boot : (K, L, B) array_like
-            Bootstrapped values of the right singular vectors, where `L` is the
+            Bootstrapped values of the left singular vectors, where `L` is the
             number of latent variables and `B` is the number of bootstraps
         groups : (S, J) array_like
             Dummy coded input array, where `S` is observations and `J`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
+        verbose : bool, optional
+            Whether to print status updates as CI is calculated. Default: True
 
         Returns
         -------
         distrib : (G, L, B) np.ndarray
         """
 
-        distrib = np.zeros(shape=(groups.shape[-1] * Y.shape[-1],
-                                  U_boot.shape[1],
-                                  self.inputs.n_boot,))
+        parallel, func = utils.get_par_func(self.inputs.n_proc,
+                                            self.__class__._single_distrib)
+        generator = utils.trange(self.inputs.n_boot, verbose=verbose,
+                                 desc='Calculating CI')
+        out = parallel(func(self, X=X, Y=Y, groups=groups,
+                            inds=self.bootsamp[:, i],
+                            original=U_boot[..., i]) for i in generator)
 
-        for i in utils.trange(self.inputs.n_boot, desc='Calculating CI'):
-            boot = self.bootsamp[:, i]
-            tusc = X[boot] @ compute.normalize(U_boot[:, :, i])
-            distrib[:, :, i] = self.gen_covcorr(tusc, Y[boot], groups)
+        return np.stack(out, axis=-1)
 
-        return distrib
+    def _single_distrib(self, X, Y, groups, inds, original):
+        """
+        Finds behavioral correlations for single bootstrap resample
 
-    def crossval(self, X, Y):
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        groups : (S, J) array_like
+            Dummy coded input array, where `S` is observations and `J`
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
+        inds : (S,) array_like
+            Bootstrap resampling array
+        boot : (B, L) array_like
+            Left singular vectors from bootstrap
+
+        Returns
+        -------
+        distrib : (T, L)
+            Behavioral correlations for single bootstrap resample
+        """
+
+        tusc = X[inds] @ compute.normalize(original)
+
+        return self.gen_covcorr(tusc, Y[inds], groups)
+
+    def crossval(self, X, Y, seed=None, verbose=True):
         """
         Performs cross-validation of SVD of `X` and `Y`
 
@@ -94,6 +134,10 @@ class BehavioralPLS(BasePLS):
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
+        verbose : bool, optional
+            Whether to print status updates as CV is calculated. Default: True
 
         Returns
         -------
@@ -106,36 +150,53 @@ class BehavioralPLS(BasePLS):
         # use gen_splits to handle grouping/condition vars in train/test split
         splits = gen_splits(self.inputs.groups,
                             self.inputs.n_cond,
-                            self.inputs.n_split,
-                            seed=self.rs,
+                            self.inputs.test_split,
+                            seed=seed,
                             test_size=self.inputs.test_size)
         dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        r_scores = np.zeros((Y.shape[-1], self.inputs.n_split))
-        r2_scores = np.zeros((Y.shape[-1], self.inputs.n_split))
 
-        for i in utils.trange(self.inputs.n_split, desc='Running cross-val'):
-            # subset appropriately into train/test sets
-            split = splits[:, i]
-            X_train, Y_train, dummy_train = X[split], Y[split], dummy[split]
-            X_test, Y_test, dummy_test = X[~split], Y[~split], dummy[~split]
-            # perform initial decomposition on train set
-            U, d, V = self.svd(X_train, Y_train,
-                               dummy=dummy_train,
-                               seed=self.rs)
-            # rescale test set prediction, handling grouping/condition vars
-            Y_pred = np.row_stack([compute.rescale_test(X_train[tr_grp],
-                                                        X_test[te_grp],
-                                                        Y_train[tr_grp],
-                                                        U, V_spl)
-                                   for V_spl, tr_grp, te_grp in
-                                   zip(np.split(V, dummy.shape[-1]),
-                                       dummy_train.T.astype(bool),
-                                       dummy_test.T.astype(bool))])
-            # calculate r & r-squared from comp of rescaled test & true values
-            r_scores[:, i] = [np.corrcoef(Y_test[:, i], Y_pred[:, i])[0, 1]
-                              for i in range(Y_test.shape[-1])]
-            r2_scores[:, i] = r2_score(Y_test, Y_pred,
-                                       multioutput='raw_values')
+        parallel, func = utils.get_par_func(self.inputs.n_proc,
+                                            self.__class__._single_crossval)
+        generator = utils.trange(self.inputs.test_split, verbose=verbose,
+                                 desc='Running cross-validation')
+        out = parallel(func(self, X=X, Y=Y, dummy=dummy,
+                            inds=splits[:, i], seed=i) for i in generator)
+        r_scores, r2_scores = [np.stack(o, axis=-1) for o in zip(*out)]
+
+        return r_scores, r2_scores
+
+    def _single_crossval(self, X, Y, dummy, inds, seed=None):
+        """
+        Generates single cross-validated r and r^2 score
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
+        """
+
+        X_train, Y_train, dummy_train = X[inds], Y[inds], dummy[inds]
+        X_test, Y_test, dummy_test = X[~inds], Y[~inds], dummy[~inds]
+        # perform initial decomposition on train set
+        U, d, V = self.svd(X_train, Y_train, dummy=dummy_train, seed=seed)
+
+        # rescale the test set based on the training set
+        Y_pred = []
+        for n, V_spl in enumerate(np.split(V, dummy.shape[-1])):
+            tr_grp = dummy_train[:, n].astype(bool)
+            te_grp = dummy_test[:, n].astype(bool)
+            rescaled = compute.rescale_test(X_train[tr_grp], X_test[te_grp],
+                                            Y_train[tr_grp], U, V_spl)
+            Y_pred.append(rescaled)
+        Y_pred = np.row_stack(Y_pred)
+
+        # calculate r & r-squared from comp of rescaled test & true values
+        r_scores = compute.efficient_corr(Y_test, Y_pred)
+        r2_scores = r2_score(Y_test, Y_pred, multioutput='raw_values')
 
         return r_scores, r2_scores
 
@@ -165,11 +226,12 @@ class BehavioralPLS(BasePLS):
 
         # compute bootstraps and BSRs
         if self.inputs.n_boot > 0:
-            U_boot, V_boot = self.bootstrap(X, Y)
+            U_boot, V_boot = self.bootstrap(X, Y, seed=self.rs)
             compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
 
             # generate distribution / confidence intervals for lvcorrs
-            distrib = self.boot_distrib(X, Y, U_boot, groups)
+            distrib = self.boot_distrib(X, Y, U_boot, groups,
+                                        verbose=self.inputs.verbose)
             llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
             # update results.boot_result dictionary
@@ -182,8 +244,9 @@ class BehavioralPLS(BasePLS):
                                     behavcorr_uplim=ulcorr))
 
         # compute cross-validated prediction-based metrics
-        if self.inputs.n_split is not None and self.inputs.test_size > 0:
-            r, r2 = self.crossval(X, Y)
+        if self.inputs.test_split is not None and self.inputs.test_size > 0:
+            r, r2 = self.crossval(X, Y, seed=self.rs,
+                                  verbose=self.inputs.verbose)
             res.cvres.update(dict(pearson_r=r, r_squared=r2))
 
         # get rid of the stupid diagonal matrix
@@ -194,13 +257,14 @@ class BehavioralPLS(BasePLS):
 
 # let's make it a function
 def behavioral_pls(X, Y, *, groups=None, n_cond=1, n_perm=5000, n_boot=5000,
-                   n_split=100, test_size=0.25, covariance=False, rotate=True,
-                   ci=95, seed=None, verbose=True, **kwargs):
+                   n_split=100, test_size=0.25, test_split=100,
+                   covariance=False, rotate=True, ci=95, seed=None,
+                   verbose=True, n_proc=None, **kwargs):
     pls = BehavioralPLS(X=X, Y=Y, groups=groups, n_cond=n_cond,
                         n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                        test_size=test_size, covariance=covariance,
-                        rotate=rotate, ci=ci, seed=seed, verbose=verbose,
-                        **kwargs)
+                        test_size=test_size, test_split=test_split,
+                        covariance=covariance, rotate=rotate, ci=ci, seed=seed,
+                        verbose=verbose, n_proc=n_proc, **kwargs)
     return pls.results
 
 
@@ -228,11 +292,11 @@ Y : (S, T) array_like
 {groups}
 {conditions}
 {stat_test}
+{cross_val}
 {covariance}
 {rotate}
 {ci}
-{seed}
-{verbose}
+{proc_options}
 
 Returns
 ----------
