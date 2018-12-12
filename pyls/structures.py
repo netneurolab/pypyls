@@ -57,6 +57,11 @@ _pls_input_docs = dict(
         Number of split-half resamples to assess during permutation testing.
         This also controls the number of train/test splits examined during
         cross-validation if :attr:`test_size` is not zero. Default: 100
+    """),
+    cross_val=dedent("""\
+    test_split : int, optional
+        Number of splits for generating test sets during cross-validation.
+        Default: 100
     test_size : [0, 1) float, optional
         Proportion of data to partition to test set during cross-validation.
         Default: 0.25\
@@ -119,18 +124,18 @@ _pls_input_docs = dict(
 class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
-        'test_size', 'mean_centering', 'covariance', 'rotate', 'ci', 'seed',
-        'bootsamples', 'permsamples', 'verbose', 'n_proc'
+        'test_split', 'test_size', 'mean_centering', 'covariance', 'rotate',
+        'ci', 'seed', 'verbose', 'n_proc', 'bootsamples', 'permsamples'
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.get('n_split') == 0:
             self['n_split'] = None
+        if self.get('test_split') == 0:
+            self['test_split'] = None
         if self.get('n_proc') == 'max':
             self['n_proc'] = cpu_count()
-        elif self.get('n_proc') is None:
-            self['n_proc'] = 1
         ts = self.get('test_size')
         if ts is not None and (ts < 0 or ts >= 1):
             raise ValueError('test_size must be in [0, 1). Provided value: {}'

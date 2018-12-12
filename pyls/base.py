@@ -6,16 +6,6 @@ from sklearn.utils.extmath import randomized_svd
 from sklearn.utils.validation import check_random_state
 from . import compute, structures, utils
 
-try:
-    from joblib import Parallel, delayed
-    joblib_avail = True
-except ImportError:
-    joblib_avail = False
-
-
-def _unravel(x):
-    return [f for f in x]
-
 
 def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     """
@@ -32,7 +22,7 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     seed : {int, :obj:`numpy.random.RandomState`, None}, optional
         Seed for random number generation. Default: None
     verbose : bool, optional
-        Whether to print status updates as permutations are genereated.
+        Whether to print status updates as permutations are generated.
         Default: True
 
     Returns
@@ -56,12 +46,8 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    if verbose:
-        generator = utils.trange(n_perm, desc='Making permutations')
-    else:
-        generator = range(n_perm)
-
-    for i in generator:
+    # can only use tqdm progress bar if not parallel processing
+    for i in utils.trange(n_perm, verbose=verbose, desc='Making permutations'):
         count, duplicated = 0, True
         while duplicated and count < 500:
             count, duplicated = count + 1, False
@@ -135,12 +121,7 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    if verbose:
-        generator = utils.trange(n_boot, desc='Making bootstraps')
-    else:
-        generator = range(n_boot)
-
-    for i in generator:
+    for i in utils.trange(n_boot, verbose=verbose, desc='Making bootstraps'):
         count, duplicated = 0, True
         while duplicated and count < 500:
             count, duplicated = count + 1, False
@@ -280,7 +261,8 @@ class BasePLS():
         self.inputs = structures.PLSInputs(X=X, groups=groups, n_cond=n_cond,
                                            **kwargs)
         self.rs = check_random_state(self.inputs.get('seed'))
-        if self.inputs.get('n_proc') > 1 and not joblib_avail:
+        if self.inputs.get('n_proc') > 1 and not utils.joblib_avail:
+            self.inputs.n_proc = 1
             warnings.warn('Setting n_proc > 1 requires the joblib module. '
                           'Considering installing joblib and re-running this '
                           'if you would like parallelization. Resetting '
@@ -337,8 +319,10 @@ class BasePLS():
             # get split half reliability results
             if self.inputs.n_split is not None:
                 di = np.linalg.inv(res.s)
-                ud, vd = res.u @ di, res.v @ di
-                orig_ucorr, orig_vcorr = self.split_half(X, Y, ud, vd)
+                orig_ucorr, orig_vcorr = self.split_half(X, Y,
+                                                         res.u @ di,
+                                                         res.v @ di,
+                                                         seed=self.rs)
                 # get probabilties for ucorr/vcorr
                 ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
                 vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)
@@ -368,7 +352,7 @@ class BasePLS():
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
-            Seed for pseudo-random number generation. Default: None
+            Seed for random number generation. Default: None
 
         Returns
         -------
@@ -390,7 +374,7 @@ class BasePLS():
 
         return U, np.diag(d), V.T
 
-    def bootstrap(self, X, Y, n_boot=None, seed=None):
+    def bootstrap(self, X, Y, seed=None):
         """
         Bootstraps `X` and `Y` (w/replacement) and recomputes SVD
 
@@ -400,6 +384,8 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
 
         Returns
         -------
@@ -409,38 +395,54 @@ class BasePLS():
             Right singular vectors, where `R` is the number of bootstraps
         """
 
-        if joblib_avail:
-            par = Parallel(n_jobs=self.inputs.n_proc, max_nbytes=1e6,
-                           mmap_mode='r')
-            boot = delayed(BasePLS._single_boot)
-        else:
-            par = _unravel
-            boot = BasePLS._single_boot
-
         # generate bootstrap resampled indices (unless already provided)
         self.bootsamp = self.inputs.get('bootsamples', None)
         if self.bootsamp is None:
             self.bootsamp = gen_bootsamp(self.inputs.groups,
                                          self.inputs.n_cond,
                                          self.inputs.n_boot,
-                                         seed=self.rs,
+                                         seed=seed,
                                          verbose=self.inputs.verbose)
 
         # get original values
-        U_orig, *rest = self.svd(X, Y, seed=self.rs)
+        U_orig, *rest = self.svd(X, Y, seed=seed)
 
-        if self.inputs.verbose and self.inputs.n_proc == 1:
-            gen = utils.trange(self.inputs.n_boot, desc='Running bootstraps')
-        else:
-            gen = range(self.inputs.n_boot)
-
-        out = par(boot(self, X=X, Y=Y, inds=self.bootsamp[:, i],
-                       original=U_orig, seed=i) for i in gen)
+        # get bootstrapped values (parallelizing as requested)
+        parallel, func = utils.get_par_func(self.inputs.n_proc,
+                                            self.__class__._single_boot)
+        gen = utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
+                           desc='Running bootstraps')
+        out = parallel(func(self, X=X, Y=Y, inds=self.bootsamp[:, i],
+                            original=U_orig, seed=i) for i in gen)
         U_boot, V_boot = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return U_boot, V_boot
 
     def _single_boot(self, X, Y, inds, original, seed=None):
+        """
+        Bootstraps `X` and `Y` (w/replacement) and recomputes SVD
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        inds : (S,) array_like
+            Bootstrap resampling array
+        original : (B, L) array_like
+            Left singular vector from original decomposition of `X` and `Y`.
+            Used to perform Procrustes rotation on permuted singular vectors
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
+
+        Returns
+        -------
+        U_boot : (B, L, R) `numpy.ndarray`
+            Left singular vectors, where `R` is the number of bootstraps
+        V_boot : (J, L, R) `numpy.ndarray`
+            Right singular vectors, where `R` is the number of bootstraps
+        """
         # perform SVD of bootstrapped arrays
         U, d, V = self.svd(X[inds], Y[inds], seed=seed)
 
@@ -460,6 +462,8 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
 
         Returns
         -------
@@ -474,15 +478,7 @@ class BasePLS():
             `self.inputs.n_split != 0`
         """
 
-        if joblib_avail:
-            par = Parallel(n_jobs=self.inputs.n_proc, max_nbytes=1e6,
-                           mmap_mode='r')
-            perm = delayed(BasePLS._single_perm)
-        else:
-            par = _unravel
-            perm = BasePLS._single_perm
-
-        # generate permuted indices
+        # generate permuted indices (unless already provided)
         self.permsamp = self.inputs.get('permsamples')
         if self.permsamp is None:
             self.permsamp = gen_permsamp(self.inputs.groups,
@@ -494,21 +490,52 @@ class BasePLS():
         # get original values
         *rest, V_orig = self.svd(X, Y, seed=seed)
 
-        if self.inputs.verbose and self.inputs.n_proc == 1:
-            gen = utils.trange(self.inputs.n_perm, desc='Running permutations')
-        else:
-            gen = range(self.inputs.n_perm)
-
-        out = par(perm(self, X=X, Y=Y, inds=self.permsamp[:, i],
-                       original=V_orig, seed=i) for i in gen)
+        # get permuted values (parallelizing as requested)
+        parallel, func = utils.get_par_func(self.inputs.n_proc,
+                                            self.__class__._single_perm)
+        gen = utils.trange(self.inputs.n_perm, verbose=self.inputs.verbose,
+                           desc='Running permutations')
+        out = parallel(func(self, X=X, Y=Y, inds=self.permsamp[:, i],
+                            original=V_orig, seed=i) for i in gen)
         d_perm, ucorrs, vcorrs = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return d_perm, ucorrs, vcorrs
 
     def _single_perm(self, X, Y, inds, original, seed=None):
+        """
+        Permutes `X` (w/o replacement) and recomputes SVD
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        inds : (S,) array_like
+            Permutation resampling array
+        original : (J, L) array_like
+            Right singular vector from original decomposition of `X` and `Y`.
+            Used to perform Procrustes rotation on permuted singular values,
+            if desired
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
+
+        Returns
+        -------
+        d_perm : (L,) `numpy.ndarray`
+            Permuted singular values, where `L` is the number of singular
+            values
+        ucorrs : (L,) `numpy.ndarray`
+            Split-half correlations of left singular values. Only set if
+            `self.inputs.n_split != 0`
+        vcorrs : (L,) `numpy.ndarray`
+            Split-half correlations of right singular values. Only set if
+            `self.inputs.n_split != 0`
+        """
+
         # perform SVD of permuted array
         X = X[inds]
-        U, d, V = self.svd(X, Y, seed=self.rs)
+        U, d, V = self.svd(X, Y, seed=seed)
 
         # optionally get rotated/rescaled singular values (or not)
         if self.inputs.rotate:
@@ -520,13 +547,13 @@ class BasePLS():
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
             di = np.linalg.inv(d)
-            ucorr, vcorr = self.split_half(X, Y, U @ di, V @ di)
+            ucorr, vcorr = self.split_half(X, Y, U @ di, V @ di, seed=seed)
         else:
             ucorr, vcorr = None, None
 
         return ssd, ucorr, vcorr
 
-    def split_half(self, X, Y, ud, vd):
+    def split_half(self, X, Y, ud, vd, seed=None):
         """
         Parameters
         ----------
@@ -538,6 +565,8 @@ class BasePLS():
             Left singular vectors, scaled by singular values
         vd : (J, L) array_like
             Right singular vectors, scaled by singular values
+        seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+            Seed for random number generation. Default: None
 
         Returns
         -------
@@ -551,7 +580,7 @@ class BasePLS():
         splitsamp = gen_splits(self.inputs.groups,
                                self.inputs.n_cond,
                                self.inputs.n_split,
-                               seed=self.rs,
+                               seed=seed,
                                test_size=0.5).astype(bool)
 
         # empty arrays to hold split-half correlations

@@ -4,6 +4,11 @@ import numpy as np
 import tqdm
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_random_state
+try:
+    from joblib import Parallel, delayed
+    joblib_avail = True
+except ImportError:
+    joblib_avail = False
 
 
 class ResDict(Bunch):
@@ -116,7 +121,7 @@ def _empty_dict(dobj):
         return False
 
 
-def trange(n_iter, **kwargs):
+def trange(n_iter, verbose=True, **kwargs):
     """
     Wrapper for :obj:`tqdm.trange` with some default options set
 
@@ -124,11 +129,19 @@ def trange(n_iter, **kwargs):
     ----------
     n_iter : int
         Number of iterations for progress bar
+    verbose : bool, optional
+        Whether to return an :obj:`tqdm.tqdm` progress bar instead of a range
+        generator. Default: True
+    kwargs
+        Key-value arguments provided to :func:`tqdm.trange`
 
     Returns
     -------
     progbar : :obj:`tqdm.tqdm`
     """
+
+    if not verbose:
+        return range(n_iter)
 
     form = '{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
     defaults = dict(ascii=True, leave=False, bar_format=form)
@@ -205,3 +218,47 @@ def permute_cols(x, seed=None):
     ix_i = rs.random_sample(x.shape).argsort(axis=0)
     ix_j = np.tile(np.arange(x.shape[1]), (x.shape[0], 1))
     return x[ix_i, ix_j]
+
+
+def _unravel(x):
+    """
+    Small utility to unravel generator object into a list
+
+    Parameters
+    ----------
+    x : generator
+
+    Returns
+    -------
+    y : list
+    """
+
+    return [f for f in x]
+
+
+def get_par_func(n_proc, func):
+    """
+    Creates joblib-style parallelization function if joblib is available
+
+    Parameters
+    ----------
+    n_proc : int
+        Number of processors (i.e., jobs) to use for parallelization
+    func : function
+        Function to parallelize
+
+    Returns
+    -------
+    parallel : :obj:`joblib.Parallel` object
+        Object to parallelize over `func`
+    func : :obj:`joblib.delayed` object
+        Provided `func` wrapped in `joblib.delayed`
+    """
+
+    if joblib_avail:
+        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r')
+        func = delayed(func)
+    else:
+        parallel = _unravel
+
+    return parallel, func
