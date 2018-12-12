@@ -124,9 +124,6 @@ def test_permute_cols():
     # don't accept 1D arrays
     with pytest.raises(ValueError):
         utils.permute_cols(np.arange(9))
-    # don't accept array with single row
-    with pytest.raises(ValueError):
-        utils.permute_cols(np.arange(9).reshape(1, -1))
 
 
 def test_unravel():
