@@ -11,7 +11,7 @@ class BehavioralPLS(BasePLS):
     def __init__(self, X, Y, *, groups=None, n_cond=1, n_perm=5000,
                  n_boot=5000, n_split=100, test_size=0.25, test_split=100,
                  covariance=False, rotate=True, ci=95, seed=None, verbose=True,
-                 n_proc=1, **kwargs):
+                 n_proc=None, **kwargs):
 
         # check that inputs are valid
         if len(X) != len(Y):
@@ -259,7 +259,7 @@ class BehavioralPLS(BasePLS):
 def behavioral_pls(X, Y, *, groups=None, n_cond=1, n_perm=5000, n_boot=5000,
                    n_split=100, test_size=0.25, test_split=100,
                    covariance=False, rotate=True, ci=95, seed=None,
-                   verbose=True, n_proc=1, **kwargs):
+                   verbose=True, n_proc=None, **kwargs):
     pls = BehavioralPLS(X=X, Y=Y, groups=groups, n_cond=n_cond,
                         n_perm=n_perm, n_boot=n_boot, n_split=n_split,
                         test_size=test_size, test_split=test_split,

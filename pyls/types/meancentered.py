@@ -9,19 +9,19 @@ from .. import compute, utils
 
 class MeanCenteredPLS(BasePLS):
     def __init__(self, X, groups=None, n_cond=1, mean_centering=0, n_perm=5000,
-                 n_boot=5000, n_split=100, test_size=0.25, rotate=True, ci=95,
-                 seed=None, verbose=True, n_proc=1, **kwargs):
+                 n_boot=5000, n_split=100, rotate=True, ci=95, seed=None,
+                 verbose=True, n_proc=None, **kwargs):
 
         # check that groups and conditions are set appropriately
         if groups is None:
-            groups = [len(X) / n_cond]
+            if len(X) // n_cond != len(X) / n_cond:
+                raise ValueError('Provided `X` matrix with {} samples is not '
+                                 'evenly divisible into {} conditions. Please '
+                                 'confirm inputs are correct and try again. '
+                                 .format(len(X), n_cond))
+            groups = [len(X) // n_cond]
         elif not isinstance(groups, (list, np.ndarray)):
             groups = [groups]
-        if groups[0] != int(groups[0]):
-            raise ValueError('Provided `X` matrix with {} samples is not '
-                             'evenly divisible into {} conditions. Please '
-                             'confirm inputs are correct and try again. '
-                             .format(len(X), n_cond))
 
         # check inputs for validity
         if n_cond == 1 and len(groups) == 1:
@@ -39,9 +39,8 @@ class MeanCenteredPLS(BasePLS):
         # instantiate base class, generate dummy array, and run PLS analysis
         super().__init__(X=np.asarray(X), groups=groups, n_cond=n_cond,
                          mean_centering=mean_centering, n_perm=n_perm,
-                         n_boot=n_boot, n_split=n_split, test_size=test_size,
-                         rotate=rotate, ci=ci, seed=seed, verbose=verbose,
-                         n_proc=n_proc, **kwargs)
+                         n_boot=n_boot, n_split=n_split, rotate=rotate, ci=ci,
+                         seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
@@ -66,8 +65,7 @@ class MeanCenteredPLS(BasePLS):
             Mean-centered matrix
         """
 
-        mean_centered = compute.get_mean_center(X, Y,
-                                                self.inputs.n_cond,
+        mean_centered = compute.get_mean_center(X, Y, self.inputs.n_cond,
                                                 self.inputs.mean_centering,
                                                 means=True)
         return mean_centered
@@ -134,6 +132,7 @@ class MeanCenteredPLS(BasePLS):
         usc = compute.get_mean_center(X[inds], Y, self.inputs.n_cond,
                                       self.inputs.mean_centering, means=False)
         usc = usc @ compute.normalize(boot)
+
         return np.row_stack([usc[g].mean(axis=0) for g in Y.T.astype(bool)])
 
     def run_pls(self, X, Y):
@@ -149,36 +148,40 @@ class MeanCenteredPLS(BasePLS):
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
+
+        Returns
+        -------
+        res : :obj:`pyls.PLSResults`
+            PLS results object
         """
 
         res = super().run_pls(X, Y)
         res.brainscores, res.designscores = X @ res.u, Y @ res.v
 
         # get normalized brain scores and contrast
-        usc2 = compute.get_mean_center(X, Y,
-                                       self.inputs.n_cond,
-                                       self.inputs.mean_centering,
-                                       means=False) @ res.u
-        orig_usc = np.row_stack([usc2[grp].mean(axis=0) for grp
+        brainscores_dm = compute.get_mean_center(X, Y, self.inputs.n_cond,
+                                                 self.inputs.mean_centering,
+                                                 means=False) @ res.u
+        contrast = np.row_stack([brainscores_dm[grp].mean(axis=0) for grp
                                  in Y.T.astype(bool)])
-        res.brainscores_dm = usc2
+        res.brainscores_dm = brainscores_dm
 
         if self.inputs.n_boot > 0:
             # compute bootstraps and BSRs
             U_boot, V_boot = self.bootstrap(X, Y, seed=self.rs)
-            compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
+            bootstrapratios, uboot_se = compute.boot_rel(res.u @ res.s, U_boot)
 
             # generate distribution / confidence intervals for contrast
-            distrib = self.boot_distrib(X, Y, U_boot,
-                                        verbose=self.inputs.verbose)
-            llusc, ulusc = compute.boot_ci(distrib, ci=self.inputs.ci)
+            contrast_boot = self.boot_distrib(X, Y, U_boot,
+                                              verbose=self.inputs.verbose)
+            llusc, ulusc = compute.boot_ci(contrast_boot, ci=self.inputs.ci)
 
             # update results.boot_result dictionary
-            res.bootres.update(dict(bootstrapratios=compare_u,
-                                    uboot_se=u_se,
+            res.bootres.update(dict(bootstrapratios=bootstrapratios,
+                                    uboot_se=uboot_se,
                                     bootsamples=self.bootsamp,
-                                    contrast=orig_usc,
-                                    contrast_boot=distrib,
+                                    contrast=contrast,
+                                    contrast_boot=contrast_boot,
                                     contrast_lolim=llusc,
                                     contrast_uplim=ulusc))
 
@@ -189,14 +192,13 @@ class MeanCenteredPLS(BasePLS):
 
 
 def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
-                     n_perm=5000, n_boot=5000, n_split=100, test_size=0.25,
-                     rotate=True, ci=95, seed=None, verbose=True, n_proc=1,
-                     **kwargs):
+                     n_perm=5000, n_boot=5000, n_split=100, rotate=True, ci=95,
+                     seed=None, verbose=True, n_proc=None, **kwargs):
     pls = MeanCenteredPLS(X=X, groups=groups, n_cond=n_cond,
                           mean_centering=mean_centering,
                           n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                          test_size=test_size, rotate=rotate, ci=ci, seed=seed,
-                          verbose=verbose, n_proc=n_proc, **kwargs)
+                          rotate=rotate, ci=ci, seed=seed, verbose=verbose,
+                          n_proc=n_proc, **kwargs)
     return pls.results
 
 

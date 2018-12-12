@@ -252,16 +252,30 @@ class BasePLS():
     """.format(**structures._pls_input_docs)
 
     def __init__(self, X, groups=None, n_cond=1, **kwargs):
-        # if groups aren't provided or are provided wrong, fix it
+        # if groups aren't provided or are provided wrong, fix them
         if groups is None:
             groups = [len(X)]
         elif not isinstance(groups, (list, np.ndarray)):
             groups = [groups]
 
+        # coerce groups to integers
+        groups = [int(g) for g in groups]
+
+        # check that X / groups + n_cond inputs jibe
+        n_samples = sum([g * n_cond for g in groups])
+        if len(X) != n_samples:
+            raise ValueError('Number of samples specified by `groups` and '
+                             '`n_cond` does not match expected number of '
+                             'samples in input array(s).\n'
+                             '    EXPECTED: {}\n'
+                             '    ACTUAL:   {} (groups: {} * n_cond: {})'
+                             .format(len(X), n_samples, groups, n_cond))
+
         self.inputs = structures.PLSInputs(X=X, groups=groups, n_cond=n_cond,
                                            **kwargs)
         self.rs = check_random_state(self.inputs.get('seed'))
-        if self.inputs.get('n_proc') > 1 and not utils.joblib_avail:
+        n_proc = self.inputs.get('n_proc')
+        if n_proc is not None and n_proc > 1 and not utils.joblib_avail:
             self.inputs.n_proc = 1
             warnings.warn('Setting n_proc > 1 requires the joblib module. '
                           'Considering installing joblib and re-running this '
