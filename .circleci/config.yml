@@ -1,28 +1,28 @@
-version: 2
-jobs:
-  build:
+version: 2.1
+
+executors:
+  exeggutor:
     docker:
       - image: circleci/python:3.6
-
     working_directory: ~/pyls
-
     environment:
-        PYTHON_VERSION: "3.6"
-        OPENBLAS_NUM_THREADS: "1"
-        MKL_NUM_THREADS: "1"
-        DROPBOX_URL: "https://www.dropbox.com/s/e6jfvekw6habeud/matlab_pls.tar.gz?dl=1"
+      PYTHON_VERSION: "3.6"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      DROPBOX_URL: "https://www.dropbox.com/s/e6jfvekw6habeud/matlab_pls.tar.gz?dl=1"
 
+jobs:
+  setup:
+    executor: exeggutor
     steps:
       - checkout
       - run:
           name: Generating checksum to cache Matlab PLS results
-          command: |
-            mkdir -p /tmp/data
-            echo "${DROPBOX_URL}" > /tmp/data/check.txt
+          command: echo "${DROPBOX_URL}" > checksum.txt
       - restore_cache:
           name: Checking for cached Matlab PLS results
           keys:
-            - data-v2-{{ checksum "/tmp/data/check.txt" }}
+            - data-v2-{{ checksum "checksum.txt" }}
             - data-v2-
       - run:
           name: Preparing Matlab PLS results
@@ -35,14 +35,14 @@ jobs:
             fi
       - save_cache:
           name: Caching Matlab PLS results
-          key: data-v2-{{ checksum "/tmp/data/check.txt" }}
+          key: data-v2-{{ checksum "checksum.txt" }}
           paths:
             - /tmp/data
       - restore_cache:
           name: Restoring cached dependencies
           keys:
-            - dependencies-v1-{{ checksum "requirements.txt" }}
-            - dependencies-v1-
+            - dependencies-v2-{{ checksum "requirements.txt" }}
+            - dependencies-v2-
       - run:
           name: Creating test environment
           command: |
@@ -51,15 +51,77 @@ jobs:
             pip install .[tests]
       - save_cache:
           name: Caching dependencies
-          key: dependencies-v1-{{ checksum "requirements.txt" }}
+          key: dependencies-v2-{{ checksum "requirements.txt" }}
           paths:
             - ./venv
+      - persist_to_workspace:
+          name: Persisting workspace
+          root: ./
+          paths:
+            - requirements.txt
+            - checksum.txt
+
+
+  behavioral_pls:
+    executor: exeggutor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
+      - restore_cache:
+          name: Loading Matlab PLS results
+          keys:
+            - data-v2-{{ checksum "checksum.txt" }}
+            - data-v2-
+      - restore_cache:
+          name: Loading dependencies
+          keys:
+          - dependencies-v2-{{ checksum "requirements.txt" }}
+          - dependencies-v2-
       - run:
           name: Running Matlab-Python comparison
-          no_output_timeout: 40m
           command: |
             . venv/bin/activate
-            for mat in /tmp/data/matlab/*mat; do
+            pip install joblib
+            for mat in /tmp/data/matlab/bpls*mat; do
               echo "${mat}"
-              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}');"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc=2, n_perm=2500, n_split=100);"
             done
+
+  meancentered_pls:
+    executor: exeggutor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
+      - restore_cache:
+          name: Loading Matlab PLS results
+          keys:
+            - data-v2-{{ checksum "checksum.txt" }}
+            - data-v2-
+      - restore_cache:
+          name: Loading dependencies
+          keys:
+          - dependencies-v2-{{ checksum "requirements.txt" }}
+          - dependencies-v2-
+      - run:
+          name: Running Matlab-Python comparison
+          command: |
+            . venv/bin/activate
+            pip install joblib
+            for mat in /tmp/data/matlab/mpls*mat; do
+              echo "${mat}"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc=2, n_perm=2500, n_split=100);"
+            done
+
+workflows:
+  version: 2.1
+  regression_tests:
+    jobs:
+      - setup
+      - behavioral_pls:
+          requires:
+            - setup
+      - meancentered_pls:
+          requires:
+            - setup
