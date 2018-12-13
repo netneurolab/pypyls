@@ -15,12 +15,14 @@ env:
   matrix:
     - LINTING=1
     - DOCTEST=1
+    - JOBLIB=1
 
 matrix:
   include:
   - python: 3.6
     env:
       - COVERAGE=1
+      - JOBLIB=1
   - python: 3.7
     dist: xenial
     sudo: required
@@ -37,6 +39,9 @@ before_install:
     fi
   - if [ "${COVERAGE}" == "1" ]; then
         pip install coverage coveralls codecov;
+    fi
+  - if [ "${JOBLIB}" == "1" ]; then
+        pip install joblib;
     fi
 
 install:

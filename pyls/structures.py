@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from multiprocessing import cpu_count
 from textwrap import dedent
 from .utils import ResDict
 
@@ -55,10 +56,23 @@ _pls_input_docs = dict(
     n_split : int, optional
         Number of split-half resamples to assess during permutation testing.
         This also controls the number of train/test splits examined during
-        cross-validation if :attr:`test_size` is not zero. Default: 100
+        cross-validation if :attr:`test_size` is not zero. Default: 100\
+    """),
+    cross_val=dedent("""\
+    test_split : int, optional
+        Number of splits for generating test sets during cross-validation.
+        Default: 100
     test_size : [0, 1) float, optional
         Proportion of data to partition to test set during cross-validation.
         Default: 0.25\
+    """),
+    covariance=dedent("""\
+    covariance : bool, optional
+        Whether to use the cross-covariance matrix instead of the cross-
+        correlation during the decomposition. Only set if you are sure this is
+        what you want as many of the results may become more difficult to
+        interpret (i.e., :py:attr:`~.structures.PLSResults.behavcorr` will no
+        longer be intepretable as Pearson correlation values). Default: False\
     """),
     rotate=dedent("""\
     rotate : bool, optional
@@ -72,15 +86,18 @@ _pls_input_docs = dict(
         roughly corresponds to an alpha rate; e.g., the 95%ile CI is
         approximately equivalent to a two-tailed p <= 0.05. Default: 95\
     """),
-    seed=dedent("""\
+    proc_options=dedent("""\
     seed : {int, :obj:`numpy.random.RandomState`, None}, optional
         Seed to use for random number generation. Helps ensure reproducibility
-        of results. Default: None\
-    """),
-    verbose=dedent("""\
+        of results. Default: None
     verbose : bool, optional
-        Whether to print status messages about the progress of the PLS analysis
-        as it progresses. Default: True
+        Whether to show progress bars as the analysis runs. Note that progress
+        bars will not persist after the analysis is completed. Default: True
+    n_proc : int, optional
+        How many processes to use for parallelizing permutation testing and
+        bootstrap resampling. If not specified will default to serialized
+        processing (i.e., one processor). Can optionally specify 'max' to use
+        all available processors. Default: None\
     """),
     pls_results=dedent("""\
     results : :obj:`pyls.PLSResults`
@@ -109,15 +126,22 @@ _pls_input_docs = dict(
 class PLSInputs(ResDict):
     allowed = [
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
-        'test_size', 'mean_centering', 'method', 'rotate', 'ci', 'seed',
-        'bootsamples', 'permsamples', 'verbose'
+        'test_split', 'test_size', 'mean_centering', 'covariance', 'rotate',
+        'ci', 'seed', 'verbose', 'n_proc', 'bootsamples', 'permsamples'
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.get('n_split', 0) == 0:
+        if self.get('n_split') == 0:
             self['n_split'] = None
-        ts = self.get('test_size', None)
+
+        if self.get('test_split') == 0:
+            self['test_split'] = None
+
+        if self.get('n_proc') == 'max':
+            self['n_proc'] = cpu_count()
+
+        ts = self.get('test_size')
         if ts is not None and (ts < 0 or ts >= 1):
             raise ValueError('test_size must be in [0, 1). Provided value: {}'
                              .format(ts))
@@ -138,11 +162,11 @@ PLSInputs.__doc__ = dedent("""\
     {groups}
     {conditions}
     {mean_centering}
+    {covariance}
     {stat_test}
     {rotate}
     {ci}
-    {seed}
-    {verbose}
+    {proc_options}
     """).format(**_pls_input_docs)
 
 
