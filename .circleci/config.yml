@@ -14,11 +14,15 @@ jobs:
 
     steps:
       - checkout
+      - run:
+          command: |
+            mkdir -p /tmp/data
+            echo "${DROPBOX_URL}" > /tmp/data/check.txt
       - restore_cache:
           name: Restoring data cache
           keys:
-            - data-v1-{{ checksum "${DROPBOX_URL}" }}
-            - data-v1-
+            - data-v2-{{ checksum "/tmp/data/check.txt" }}
+            - data-v2-
       - run:
           name: Downloading Matlab PLS results
           command: |
@@ -30,7 +34,7 @@ jobs:
             fi
       - save_cache:
           name: Caching Matlab PLS results
-          key: data-v1-{{ checksum "${DROPBOX_URL}" }}
+          key: data-v2-{{ checksum "/tmp/data/check.txt" }}
           paths:
             - /tmp/data
       - restore_cache:
