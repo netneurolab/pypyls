@@ -10,13 +10,14 @@ jobs:
         PYTHON_VERSION: "3.6"
         OPENBLAS_NUM_THREADS: "1"
         MKL_NUM_THREADS: "1"
+        DROPBOX_URL: "https://www.dropbox.com/s/e6jfvekw6habeud/matlab_pls.tar.gz?dl=1"
 
     steps:
       - checkout
       - restore_cache:
           name: Restoring data cache
           keys:
-            - data-v1-{{ .Branch }}
+            - data-v1-{{ checksum "${DROPBOX_URL}" }}
             - data-v1-
       - run:
           name: Downloading Matlab PLS results
@@ -25,11 +26,11 @@ jobs:
               echo "Restoring Matlab PLS results from cache"
             else
                 mkdir -p /tmp/data/matlab
-                curl -L https://www.dropbox.com/s/e6jfvekw6habeud/matlab_pls.tar.gz?dl=1 | tar xz -C /tmp/data/matlab
+                curl -L "${DROPBOX_URL}" | tar xz -C /tmp/data/matlab
             fi
       - save_cache:
           name: Caching Matlab PLS results
-          key: data-v1-{{ .Branch }}
+          key: data-v1-{{ checksum "${DROPBOX_URL}" }}
           paths:
             - /tmp/data
       - restore_cache:
