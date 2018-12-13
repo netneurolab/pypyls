@@ -15,16 +15,17 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Generating checksum to cache Matlab PLS results
           command: |
             mkdir -p /tmp/data
             echo "${DROPBOX_URL}" > /tmp/data/check.txt
       - restore_cache:
-          name: Restoring data cache
+          name: Checking for cached Matlab PLS results
           keys:
             - data-v2-{{ checksum "/tmp/data/check.txt" }}
             - data-v2-
       - run:
-          name: Downloading Matlab PLS results
+          name: Preparing Matlab PLS results
           command: |
             if [[ -e /tmp/data/matlab ]]; then
               echo "Restoring Matlab PLS results from cache"
@@ -38,7 +39,7 @@ jobs:
           paths:
             - /tmp/data
       - restore_cache:
-          name: Restoring dependencies cache
+          name: Restoring cached dependencies
           keys:
             - dependencies-v1-{{ checksum "requirements.txt" }}
             - dependencies-v1-
