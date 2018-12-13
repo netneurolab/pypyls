@@ -210,7 +210,8 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
     return True, ''
 
 
-def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05):
+def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05,
+                              **kwargs):
     """
     Compares Matlab PLS results stored in `fname` with Python-generated results
 
@@ -222,7 +223,8 @@ def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05):
     fname : str
         Path to Matlab PLS results
     method : function, optional
-        PLS function to use to re-run analysis from `fname`
+        PLS function to use to re-run analysis from `fname`. If not specified
+        will try and determine method from `fname`. Default: None
     corr : [0, 1] float, optional
         Minimum correlation expected between Matlab and Python PLS results that
         can't be expected to retain numerical equivalency (i.e., permutation
@@ -231,6 +233,9 @@ def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05):
         Alpha level for assessing significance of latent variables, used to
         compare whether Matlab and Python PLS results retain same functional
         significance
+    kwargs : optional
+        Key-value arguments to provide to PLS analysis. May override arguments
+        specified in `fname`
 
     Raises
     ------
@@ -258,7 +263,12 @@ def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05):
     else:
         fcn = method
 
-    python = fcn(**matlab.inputs, seed=1234, verbose=False)
+    # use seed for reproducibility of re-analysis
+    matlab.inputs.seed = 1234
+    matlab.inputs.verbose = False
+    matlab.inputs.update(kwargs)
+
+    python = fcn(**matlab.inputs)
     method = ['behavioral', 'meancentered'][fcn == pyls.meancentered_pls]
     equiv, reason = compare_python_matlab(python, matlab, method, corr, alpha)
 
