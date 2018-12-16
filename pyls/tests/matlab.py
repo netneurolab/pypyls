@@ -73,6 +73,9 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
 
     # can't perform correlation on length 2 array...
     if len(a) <= 2 and len(b) <= 2:
+        if drop_last:  # only one measurement, can't do anything, just return
+            return
+        # ensure that the sign change is consistent between arrays
         diff = a - b
         assert np.all(np.sign(diff) == 1) or np.all(np.sign(diff) == -1)
         return
@@ -203,7 +206,7 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
                 pk = python.permres.pvals < alpha
                 assert_pvals_equiv(python.splitres[k][pk],
                                    matlab.splitres[k][pk],
-                                   alpha, drop_last=False)
+                                   alpha, drop_last=drop_last)
         except AssertionError:
             return False, 'splitres.{}'.format(k)
 

@@ -41,17 +41,18 @@ jobs:
       - restore_cache:
           name: Restoring cached dependencies
           keys:
-            - dependencies-v2-{{ checksum "requirements.txt" }}
-            - dependencies-v2-
+            - dependencies-v3-{{ checksum "requirements.txt" }}
+            - dependencies-v3-
       - run:
           name: Creating test environment
           command: |
             python3 -m venv venv
             . venv/bin/activate
             pip install .[tests]
+            pip install joblib
       - save_cache:
           name: Caching dependencies
-          key: dependencies-v2-{{ checksum "requirements.txt" }}
+          key: dependencies-v3-{{ checksum "requirements.txt" }}
           paths:
             - ./venv
       - persist_to_workspace:
@@ -76,13 +77,12 @@ jobs:
       - restore_cache:
           name: Loading dependencies
           keys:
-          - dependencies-v2-{{ checksum "requirements.txt" }}
-          - dependencies-v2-
+          - dependencies-v3-{{ checksum "requirements.txt" }}
+          - dependencies-v3-
       - run:
           name: Running Matlab-Python comparison
           command: |
             . venv/bin/activate
-            pip install joblib
             for mat in /tmp/data/matlab/bpls*mat; do
               echo "${mat}"
               python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc=2, n_perm=2500, n_split=100);"
@@ -102,13 +102,12 @@ jobs:
       - restore_cache:
           name: Loading dependencies
           keys:
-          - dependencies-v2-{{ checksum "requirements.txt" }}
-          - dependencies-v2-
+          - dependencies-v3-{{ checksum "requirements.txt" }}
+          - dependencies-v3-
       - run:
           name: Running Matlab-Python comparison
           command: |
             . venv/bin/activate
-            pip install joblib
             for mat in /tmp/data/matlab/mpls*mat; do
               echo "${mat}"
               python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc=2, n_perm=2500, n_split=100);"
