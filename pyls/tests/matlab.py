@@ -34,10 +34,7 @@ def assert_num_equiv(a, b, atol=1e-5, drop_last=True):
 
     # the last LV is always screwed up so ignore it
     if drop_last:
-        if diff.ndim > 1:
-            diff = diff[:, :-1]
-        else:
-            diff = diff[:-1]
+        diff = diff[..., :-1]
 
     assert np.allclose(diff, 0, atol=atol)
 
@@ -71,10 +68,12 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
         If `a` and `b` are not functionally equivalent
     """
 
-    # can't perform correlation on length 2 array...
-    if len(a) <= 2 and len(b) <= 2:
-        if drop_last:  # only one measurement, can't do anything, just return
-            return
+    if drop_last:
+        a, b = a[..., :-1], b[..., :-1]
+
+    if len(a) == 1 and len(b) == 1:  # can't do anything here, really...
+        return
+    elif len(a) <= 2 and len(b) <= 2:  # can't correlate length 2 array...
         # ensure that the sign change is consistent between arrays
         diff = a - b
         assert np.all(np.sign(diff) == 1) or np.all(np.sign(diff) == -1)
@@ -82,12 +81,9 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
 
     if a.ndim > 1:
         corrs = pyls.compute.efficient_corr(a, b)
-        if drop_last:
-            corrs = corrs[:-1]
     else:
-        if drop_last:
-            a, b = a[:-1], b[:-1]
         corrs = np.corrcoef(a, b)[0, 1]
+
     assert np.all(np.abs(np.around(corrs, 2)) >= corr)
 
 
@@ -165,10 +161,10 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
     # only do this for singular values that are > 0
     keep = ~np.isclose(python.s, 0)
     for k in python.keys():
-        if isinstance(k, np.ndarray):
+        if isinstance(python[k], np.ndarray):
             try:
-                assert_num_equiv(python[k][:, keep], matlab[k][:, keep],
-                                 drop_last=drop_last)
+                assert_func_equiv(python[k][..., keep], matlab[k][..., keep],
+                                  drop_last=drop_last)
             except AssertionError:
                 return False, k
 
@@ -253,24 +249,40 @@ def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05,
     if not hasattr(matlab.inputs, 'n_split'):
         matlab.inputs.n_split = 0
 
-    # run PLS
+    # get PLS method
     if method is None:
         if matlab.inputs.method == 1:
             fcn = pyls.meancentered_pls
         elif matlab.inputs.method == 3:
             fcn = pyls.behavioral_pls
         else:
-            raise ValueError('Cannot determine PLS method used to generate {}'
-                             'from file. Please provide `method` function '
-                             'to make_matlab_comparison() call.'.format(fname))
+            fcn = None
+    elif isinstance(method, str):
+        if method == 'meancentered':
+            fcn = pyls.meancentered_pls
+        elif method == 'behavioral':
+            fcn = pyls.behavioral_pls
+        else:
+            fcn = None
+    elif callable(method):
+        if method in [pyls.meancentered_pls, pyls.behavioral_pls]:
+            fcn = method
+        else:
+            fcn = None
     else:
-        fcn = method
+        fcn = None
+
+    if fcn is None:
+        raise ValueError('Cannot determine PLS method used to generate {}'
+                         'from file. Please provide `method` argument.'
+                         .format(fname))
 
     # use seed for reproducibility of re-analysis
     matlab.inputs.seed = 1234
     matlab.inputs.verbose = False
     matlab.inputs.update(kwargs)
 
+    # run PLS
     python = fcn(**matlab.inputs)
     method = ['behavioral', 'meancentered'][fcn == pyls.meancentered_pls]
     equiv, reason = compare_python_matlab(python, matlab, method, corr, alpha)
