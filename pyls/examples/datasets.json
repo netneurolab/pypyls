@@ -1,4 +1,10 @@
 {
+    "mirchi_2018": {
+        "urls": [
+            "https://s3.amazonaws.com/openneuro/ds000031/ds000031_R1.0.4/uncompressed/sub-01/sub-01_sessions.tsv",
+            "https://s3.amazonaws.com/openneuro/ds000031/ds000031_R1.0.2/uncompressed/derivatives/sub-01/ses-{0:03d}/sub-01_ses-{0:03d}_task-rest_run-001_parcel-timeseries.txt"
+        ]
+    },
     "whitaker_vertes_2016": {
         "urls": [
             "https://raw.githubusercontent.com/KirstieJane/NSPN_WhitakerVertes_PNAS2016/master/DATA/PLS_gene_predictor_vars.csv",
