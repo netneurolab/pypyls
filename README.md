@@ -3,6 +3,7 @@
 This package provides a Python interface for partial least squares (PLS) analysis, a multivariate statistical technique used to relate two sets of variables.
 
 [![Build Status](https://travis-ci.org/rmarkello/pyls.svg?branch=master)](https://travis-ci.org/rmarkello/pyls)
+[![CircleCI](https://circleci.com/gh/rmarkello/pyls.svg?style=shield)](https://circleci.com/gh/rmarkello/pyls)
 [![Codecov](https://codecov.io/gh/rmarkello/pyls/branch/master/graph/badge.svg)](https://codecov.io/gh/rmarkello/pyls)
 [![Documentation Status](https://readthedocs.org/projects/pyls/badge/?version=latest)](http://pyls.readthedocs.io/en/latest/?badge=latest)
 
