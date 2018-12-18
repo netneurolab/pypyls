@@ -4,7 +4,7 @@ import numpy as np
 import pyls
 
 
-def assert_num_equiv(a, b, atol=5e-5):
+def assert_num_equiv(a, b, atol=1e-4):
     """
     Asserts numerical equivalence of `a` and `b`
 
@@ -17,7 +17,7 @@ def assert_num_equiv(a, b, atol=5e-5):
     a, b : array_like
         Arrays to compare for numerical equivalence
     atol : float, optional
-        Absolute tolerance for differences in `a` and `b`. Default: 1e-5
+        Absolute tolerance for differences in `a` and `b`. Default: 1e-4
 
     Raises
     ------
