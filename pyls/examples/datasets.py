@@ -10,9 +10,14 @@ import requests
 import urllib
 
 import numpy as np
-import pandas as pd
 
 from ..structures import PLSInputs
+
+try:
+    import pandas as pd
+    pandas_avail = True
+except ImportError:
+    pandas_avail = False
 
 with open(resource_filename('pyls', 'examples/datasets.json'), 'r') as src:
     _DATASETS = json.load(src)
@@ -132,7 +137,10 @@ def load_dataset(name, data_dir=None, verbose=1, return_reference=False):
         if isinstance(value, str) and key in PLSInputs.allowed:
             fname = os.path.join(data_dir, name, value)
             if fname.endswith('.csv'):
-                value = pd.read_csv(fname, index_col=0)
+                if pandas_avail:
+                    value = pd.read_csv(fname, index_col=0)
+                else:
+                    value = np.loadtxt(fname, skiprows=1, delimiter=',')[:, 1:]
             elif fname.endswith('.txt'):
                 value = np.loadtxt(fname)
             elif fname.endswith('.npy'):
