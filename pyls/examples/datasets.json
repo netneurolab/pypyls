@@ -1,9 +1,15 @@
 {
     "mirchi_2018": {
         "urls": [
-            "https://s3.amazonaws.com/openneuro/ds000031/ds000031_R1.0.4/uncompressed/sub-01/sub-01_sessions.tsv",
-            "https://s3.amazonaws.com/openneuro/ds000031/ds000031_R1.0.2/uncompressed/derivatives/sub-01/ses-{0:03d}/sub-01_ses-{0:03d}_task-rest_run-001_parcel-timeseries.txt"
-        ]
+            "https://www.dropbox.com/s/29pmo4uf19go442/myconnectome_fc.npy?dl=1",
+            "https://www.dropbox.com/s/w7px20kxwvqx1d1/myconnectome_panas.csv?dl=1"
+        ],
+        "X": "myconnectome_fc.npy",
+        "Y": "myconnectome_panas.csv",
+        "n_perm": 10000,
+        "n_boot": 10000,
+        "test_size": 0.25,
+        "test_split": 100
     },
     "whitaker_vertes_2016": {
         "urls": [
@@ -11,6 +17,7 @@
             "https://raw.githubusercontent.com/KirstieJane/NSPN_WhitakerVertes_PNAS2016/master/CT_MT_ANALYSES/COMPLETE/PLS/COVARS_none/PLS_MRI_response_vars.csv"
         ],
         "X": "PLS_gene_predictor_vars.csv",
-        "Y": "PLS_MRI_response_vars.csv"
+        "Y": "PLS_MRI_response_vars.csv",
+        "n_perm": 1000
     }
 }

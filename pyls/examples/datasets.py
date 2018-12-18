@@ -9,6 +9,7 @@ from pkg_resources import resource_filename
 import requests
 import urllib
 
+import numpy as np
 import pandas as pd
 
 from ..structures import PLSInputs
@@ -91,7 +92,17 @@ def load_dataset(name, data_dir=None, verbose=1):
     dataset = PLSInputs()
     for key, value in _DATASETS.get(name, {}).items():
         if isinstance(value, str):
-            value = pd.read_csv(os.path.join(data_path, value), index_col=0)
+            fname = os.path.join(data_path, value)
+            if fname.endswith('.csv'):
+                value = pd.read_csv(fname, index_col=0)
+            elif fname.endswith('.txt'):
+                value = np.loadtxt(fname)
+            elif fname.endswith('.npy'):
+                value = np.load(fname)
+            else:
+                raise ValueError('Cannot recognize datatype of {}. Please '
+                                 'create an issue on GitHub with dataset you '
+                                 'are trying to load ({})'.format(fname, name))
         dataset[key] = value
 
     # make some dataset-specific corrections
@@ -122,5 +133,5 @@ def _get_dataset(name, data_dir, verbose=1):
 
         if not os.path.exists(fname):
             out = requests.get(url)
-            with open(fname, 'w') as dest:
-                dest.write(out.text)
+            with open(fname, 'wb') as dest:
+                dest.write(out.content)
