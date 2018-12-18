@@ -4,14 +4,16 @@
         "reference": "Mirchi, N., Betzel, R. F., Bernhardt, B. C., Dagher, A., & Mišić, B. (2018). Tracking mood fluctuations with functional network patterns. Social Cognitive and Affective Neuroscience.",
         "urls": [
             "https://www.dropbox.com/s/29pmo4uf19go442/myconnectome_fc.npy?dl=1",
-            "https://www.dropbox.com/s/w7px20kxwvqx1d1/myconnectome_panas.csv?dl=1"
+            "https://www.dropbox.com/s/w7px20kxwvqx1d1/myconnectome_panas.csv?dl=1",
+            "http://web.stanford.edu/group/poldracklab/myconnectome-data/base/parcellation/parcel_data.txt"
         ],
         "X": "myconnectome_fc.npy",
         "Y": "myconnectome_panas.csv",
         "n_perm": 10000,
         "n_boot": 10000,
         "test_size": 0.25,
-        "test_split": 100
+        "test_split": 100,
+        "parcellation": "parcel_data.txt"
     },
     "whitaker_vertes_2016": {
         "description": "Study examining the relationship between developmental brain changes derived from structural magnetic resonance imaging (sMRI) and genetic expression in the brain using the NeuroScience in Psychiatry Network (NSPN) dataset",

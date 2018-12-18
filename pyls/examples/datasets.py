@@ -18,7 +18,7 @@ with open(resource_filename('pyls', 'examples/datasets.json'), 'r') as src:
     _DATASETS = json.load(src)
 
 
-def available_datasets():
+def available_datasets(name=None):
     """
     Lists available datasets to download
 
@@ -27,6 +27,14 @@ def available_datasets():
     datasets : list
         List of available datasets
     """
+
+    if name is not None:
+        if name not in _DATASETS.keys():
+            raise ValueError('Provided dataset {} is not available. Dataset '
+                             'must be one of: {}.'
+                             .format(name, available_datasets()))
+        else:
+            return name
 
     return list(_DATASETS.keys())
 
@@ -49,9 +57,7 @@ def query_dataset(name, key='description'):
         Value specified by `key` for dataset `name`
     """
 
-    if name not in available_datasets():
-        raise ValueError('Provided dataset {} not available. Must be one of {}'
-                         .format(name, available_datasets()))
+    name = available_datasets(name)
     if key is None:
         return list(_DATASETS.get(name).keys())
 
@@ -117,17 +123,14 @@ def load_dataset(name, data_dir=None, verbose=1, return_reference=False):
         :func:`pyls.meancentered_pls(**dataset)`, as appropriate
     """
 
-    if name not in available_datasets():
-        raise ValueError('Provided dataset {} not available. Must be one of {}'
-                         .format(name, available_datasets()))
-
-    data_path = os.path.join(_get_data_dir(data_dir), name)
-    _get_dataset(name, data_path, verbose=verbose)
+    name = available_datasets(name)
+    data_dir = _get_data_dir(data_dir)
+    _get_dataset(name, data_dir, verbose=verbose)
 
     dataset = PLSInputs()
     for key, value in _DATASETS.get(name, {}).items():
-        if isinstance(value, str) and value in PLSInputs.allowed:
-            fname = os.path.join(data_path, value)
+        if isinstance(value, str) and key in PLSInputs.allowed:
+            fname = os.path.join(data_dir, name, value)
             if fname.endswith('.csv'):
                 value = pd.read_csv(fname, index_col=0)
             elif fname.endswith('.txt'):
@@ -150,7 +153,7 @@ def load_dataset(name, data_dir=None, verbose=1, return_reference=False):
     return dataset
 
 
-def _get_dataset(name, data_dir, verbose=1):
+def _get_dataset(name, data_dir=None, verbose=1):
     """
     Downloads dataset defined by `name`
 
@@ -162,6 +165,7 @@ def _get_dataset(name, data_dir, verbose=1):
         Path to use as data directory to store dataset
     """
 
+    data_dir = os.path.join(_get_data_dir(data_dir), name)
     os.makedirs(data_dir, exist_ok=True)
 
     for url in _DATASETS.get(name, {}).get('urls', []):
