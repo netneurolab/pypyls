@@ -31,6 +31,39 @@ def available_datasets():
     return list(_DATASETS.keys())
 
 
+def query_dataset(name, key='description'):
+    """
+    Queries dataset `name` for information specified by `key`
+
+    Parameters
+    ----------
+    name : str
+        Name of dataset. Must be in :func:`pyls.examples.available_datasets()`
+    key : str, optional
+        Key to query from `name`. If not specified will return a list of
+        available keys. Default: 'description'
+
+    Returns
+    -------
+    value
+        Value specified by `key` for dataset `name`
+    """
+
+    if name not in available_datasets():
+        raise ValueError('Provided dataset {} not available. Must be one of {}'
+                         .format(name, available_datasets()))
+    if key is None:
+        return list(_DATASETS.get(name).keys())
+
+    value = _DATASETS.get(name).get(key, None)
+    if value is None:
+        raise KeyError('Provided key {} not specified for dataset {}. '
+                       'Available keys are {}'
+                       .format(name, key, list(_DATASETS.get(name).keys())))
+
+    return value
+
+
 def _get_data_dir(data_dir=None):
     """
     Gets path to pyls data directory
@@ -57,15 +90,14 @@ def _get_data_dir(data_dir=None):
     return data_dir
 
 
-def load_dataset(name, data_dir=None, verbose=1):
+def load_dataset(name, data_dir=None, verbose=1, return_reference=False):
     """
     Loads dataset provided by `name` into a :obj:`PLSInputs` object
 
     Parameters
     ----------
     name : str
-        Name of dataset. Must be one of the datasets listed in
-        :func:`pyls.examples.available_datasets()`
+        Name of dataset. Must be in :func:`pyls.examples.available_datasets()`
     data_dir : str, optional
         Path to use as data directory to store dataset. If not specified, will
         check for environmental variable 'PYLS_DATA'; if that is not set, will
@@ -73,6 +105,9 @@ def load_dataset(name, data_dir=None, verbose=1):
     verbose : int, optional
         Level of verbosity for status messages about fetching/loading dataset.
         Set to 0 for no updates. Default: 1
+    return_reference : bool, optional
+        Whether to return APA-style reference for dataset specified by `name`.
+        Default: False
 
     Returns
     -------
@@ -91,7 +126,7 @@ def load_dataset(name, data_dir=None, verbose=1):
 
     dataset = PLSInputs()
     for key, value in _DATASETS.get(name, {}).items():
-        if isinstance(value, str):
+        if isinstance(value, str) and value in PLSInputs.allowed:
             fname = os.path.join(data_path, value)
             if fname.endswith('.csv'):
                 value = pd.read_csv(fname, index_col=0)
@@ -109,6 +144,9 @@ def load_dataset(name, data_dir=None, verbose=1):
     if name == 'whitaker_vertes_2016':
         dataset.X = dataset.X.T
 
+    if return_reference:
+        return dataset, query_dataset(name, 'reference')
+
     return dataset
 
 
@@ -119,8 +157,7 @@ def _get_dataset(name, data_dir, verbose=1):
     Parameters
     ----------
     name : str
-        Name of dataset. Must be one of the datasets listed in
-        :func:`pyls.examples.available_datasets()`
+        Name of dataset. Must be in :func:`pyls.examples.available_datasets()`
     data_dir : str
         Path to use as data directory to store dataset
     """

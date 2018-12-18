@@ -1,5 +1,7 @@
 {
     "mirchi_2018": {
+        "description": "Study examining the relationship between changes in functional brain connectivity derived from resting-state functional magnetic resonance imaging (rsfMRI) and behavioral mood scores using the MyConnectome database.",
+        "reference": "Mirchi, N., Betzel, R. F., Bernhardt, B. C., Dagher, A., & Mišić, B. (2018). Tracking mood fluctuations with functional network patterns. Social Cognitive and Affective Neuroscience.",
         "urls": [
             "https://www.dropbox.com/s/29pmo4uf19go442/myconnectome_fc.npy?dl=1",
             "https://www.dropbox.com/s/w7px20kxwvqx1d1/myconnectome_panas.csv?dl=1"
@@ -12,6 +14,8 @@
         "test_split": 100
     },
     "whitaker_vertes_2016": {
+        "description": "Study examining the relationship between developmental brain changes derived from structural magnetic resonance imaging (sMRI) and genetic expression in the brain using the NeuroScience in Psychiatry Network (NSPN) dataset",
+        "reference": "Whitaker, K. J., Vértes, P. E., Romero-Garcia, R., Váša, F., Moutoussis, M., Prabhu, G., Weiskopf, N., Callaghan, M. F., Wagstyl, K., Rittman, T., Tait, R., Ooi, C., Suckling, J., Inkster, B., Fonagy, P., Dolan, R. J., Jones, P. B., Goodyer, I. M., Bullmore, E. T. (2016). Adolescence is associated with genomically patterned consolidation of the hubs of the human brain connectome. Proceedings of the National Academy of Sciences, 113(32), 9105-9110.",
         "urls": [
             "https://raw.githubusercontent.com/KirstieJane/NSPN_WhitakerVertes_PNAS2016/master/DATA/PLS_gene_predictor_vars.csv",
             "https://raw.githubusercontent.com/KirstieJane/NSPN_WhitakerVertes_PNAS2016/master/CT_MT_ANALYSES/COMPLETE/PLS/COVARS_none/PLS_MRI_response_vars.csv"
