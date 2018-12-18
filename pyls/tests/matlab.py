@@ -4,7 +4,7 @@ import numpy as np
 import pyls
 
 
-def assert_num_equiv(a, b, atol=1e-5, drop_last=True):
+def assert_num_equiv(a, b, atol=1e-5):
     """
     Asserts numerical equivalence of `a` and `b`
 
@@ -18,8 +18,6 @@ def assert_num_equiv(a, b, atol=1e-5, drop_last=True):
         Arrays to compare for numerical equivalence
     atol : float, optional
         Absolute tolerance for differences in `a` and `b`. Default: 1e-5
-    drop_last : bool, optional
-        Whether to consider the last feature of `a` and `b`. Default: True
 
     Raises
     ------
@@ -32,14 +30,10 @@ def assert_num_equiv(a, b, atol=1e-5, drop_last=True):
     flip[flip == 0] = -1
     diff = a - (b * flip)
 
-    # the last LV is always screwed up so ignore it
-    if drop_last:
-        diff = diff[..., :-1]
-
     assert np.allclose(diff, 0, atol=atol)
 
 
-def assert_func_equiv(a, b, corr=0.99, drop_last=True):
+def assert_func_equiv(a, b, corr=0.99):
     """
     Asserts "functional" equivalence of `a` and `b`
 
@@ -59,17 +53,12 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
     corr : [0, 1] float, optional
         Correlation that must be surpassed in order to achieve functional
         equivalence between `a` and `b`. Default: 0.99
-    drop_last : bool, optional
-        Whether to consider the last feature of `a` and `b`. Default: True
 
     Raises
     ------
     AssertionError
         If `a` and `b` are not functionally equivalent
     """
-
-    if drop_last:
-        a, b = a[..., :-1], b[..., :-1]
 
     if len(a) == 1 and len(b) == 1:  # can't do anything here, really...
         return
@@ -87,7 +76,7 @@ def assert_func_equiv(a, b, corr=0.99, drop_last=True):
     assert np.all(np.abs(np.around(corrs, 2)) >= corr)
 
 
-def assert_pvals_equiv(a, b, alpha=0.05, drop_last=True):
+def assert_pvals_equiv(a, b, alpha=0.05):
     """
     Asserts that p-values in `a` and `b` achieve same statistical significance
 
@@ -101,8 +90,6 @@ def assert_pvals_equiv(a, b, alpha=0.05, drop_last=True):
         Arrays of p-values to be considered
     alpha : [0, 1] float, optional
         Alpha to set statistical significance threshold. Default: 0.05
-    drop_last : bool, optional
-        Whether to consider the last feature of `a` and `b`. Default: True
 
     Raises
     ------
@@ -113,12 +100,11 @@ def assert_pvals_equiv(a, b, alpha=0.05, drop_last=True):
 
     if a.shape != b.shape:
         assert False
-    if drop_last:
-        a, b = a[:-1], b[:-1]
+
     assert np.all((a < alpha) == (b < alpha))
 
 
-def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
+def compare_python_matlab(python, matlab, corr=0.99, alpha=0.05):
     """
     Compares PLS results generated from `python` and `matlab`
 
@@ -136,8 +122,6 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
         PLSResults object generated from Python
     matlab : :obj:`pyls.PLSResults`
         PLSResults object generated from Matlab
-    method : {'behavioral', 'meancentered'}
-        Type of PLS used to generate `python` and `matlab` results
     corr : [0, 1] float, optional
         Minimum correlation expected between `python` and `matlab` results
         that can't be expected to retain numerical equivalency
@@ -147,7 +131,7 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
         significance
 
     Returns
-    ------
+    -------
     equivalent : bool
         Whether PLSResults objects stored in `python` and `matlab` are
         functionally (not necessarily exactly numerically) equivalent
@@ -155,26 +139,26 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
         If `equivalent=False`, reason for failure; otherwise, empty string
     """
 
-    drop_last = method == 'meancentered'
-
-    # check top-level results attributes for numerical equivalence
-    # only do this for singular values that are > 0
+    # singular values close to 0 cannot be considered because they're random
     keep = ~np.isclose(python.s, 0)
+
+    # check top-level results
     for k in python.keys():
         if isinstance(python[k], np.ndarray):
             try:
-                assert_func_equiv(python[k][..., keep], matlab[k][..., keep],
-                                  drop_last=drop_last)
+                assert_num_equiv(python[k][..., keep], matlab[k][..., keep])
             except AssertionError:
                 return False, k
 
     # check pvals for functional equivalence
     if matlab.get('permres', {}).get('pvals') is not None:
         try:
-            assert_func_equiv(python.permres.pvals, matlab.permres.pvals,
-                              corr, drop_last=drop_last)
-            assert_pvals_equiv(python.permres.pvals, matlab.permres.pvals,
-                               alpha, drop_last=drop_last)
+            assert_func_equiv(python.permres.pvals[keep],
+                              matlab.permres.pvals[keep],
+                              corr)
+            assert_pvals_equiv(python.permres.pvals[keep],
+                               matlab.permres.pvals[keep],
+                               alpha)
         except AssertionError:
             return False, 'permres.pvals'
 
@@ -183,7 +167,7 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
         try:
             assert_func_equiv(python.bootres.bootstrapratios[:, keep],
                               matlab.bootres.bootstrapratios[:, keep],
-                              corr, drop_last=drop_last)
+                              corr)
         except AssertionError:
             return False, 'bootres.bootstrapratios'
 
@@ -193,8 +177,7 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
         try:
             for k in ['ucorr', 'vcorr']:
                 assert_func_equiv(python.splitres[k][keep],
-                                  matlab.splitres[k][keep], corr,
-                                  drop_last=drop_last)
+                                  matlab.splitres[k][keep], corr)
             # only consider the splithalf pvalues of the permuted LVs that are
             # significant as these are the only ones that we would consider,
             # functionally speaking
@@ -202,7 +185,7 @@ def compare_python_matlab(python, matlab, method, corr=0.99, alpha=0.05):
                 pk = python.permres.pvals < alpha
                 assert_pvals_equiv(python.splitres[k][pk],
                                    matlab.splitres[k][pk],
-                                   alpha, drop_last=drop_last)
+                                   alpha)
         except AssertionError:
             return False, 'splitres.{}'.format(k)
 
@@ -250,27 +233,20 @@ def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05,
         matlab.inputs.n_split = 0
 
     # get PLS method
+    fcn = None
     if method is None:
         if matlab.inputs.method == 1:
             fcn = pyls.meancentered_pls
         elif matlab.inputs.method == 3:
             fcn = pyls.behavioral_pls
-        else:
-            fcn = None
     elif isinstance(method, str):
         if method == 'meancentered':
             fcn = pyls.meancentered_pls
         elif method == 'behavioral':
             fcn = pyls.behavioral_pls
-        else:
-            fcn = None
     elif callable(method):
         if method in [pyls.meancentered_pls, pyls.behavioral_pls]:
             fcn = method
-        else:
-            fcn = None
-    else:
-        fcn = None
 
     if fcn is None:
         raise ValueError('Cannot determine PLS method used to generate {}'
@@ -284,8 +260,7 @@ def assert_matlab_equivalence(fname, method=None, corr=0.99, alpha=0.05,
 
     # run PLS
     python = fcn(**matlab.inputs)
-    method = ['behavioral', 'meancentered'][fcn == pyls.meancentered_pls]
-    equiv, reason = compare_python_matlab(python, matlab, method, corr, alpha)
+    equiv, reason = compare_python_matlab(python, matlab, corr, alpha)
 
     if not equiv:
         raise AssertionError('compare_matlab_result failed: {}'.format(reason))
