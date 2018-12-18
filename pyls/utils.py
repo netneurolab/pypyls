@@ -191,7 +191,7 @@ def dummy_label(groups, n_cond=1):
         Dummy-label group array
     """
 
-    num_labels = len(groups * n_cond)
+    num_labels = len(groups) * n_cond
 
     return np.repeat(np.arange(num_labels) + 1, np.repeat(groups, n_cond))
 

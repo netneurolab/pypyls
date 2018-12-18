@@ -45,7 +45,7 @@ class PLSBaseTest():
         dummy = len(self.output.inputs.groups) * self.output.inputs.n_cond
         if self.type == 'behavioral':
             behavior = Yf * dummy
-            num_lv = min([f for f in [subj, Xf, Yf, dummy] if f != 1])
+            num_lv = min([f for f in [Xf, behavior] if f != 1])
         else:
             behavior = num_lv = dummy
 

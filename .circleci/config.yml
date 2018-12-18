@@ -1,74 +1,126 @@
-version: 2
-jobs:
+version: 2.1
 
-  build:
-    machine:
-      image: circleci/classic:201711-01
-    working_directory: /tmp/src/pyls
+executors:
+  exeggutor:
+    docker:
+      - image: circleci/python:3.6
+    working_directory: ~/pyls
+    environment:
+      PYTHON_VERSION: "3.6"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      DROPBOX_URL: "https://www.dropbox.com/s/e6jfvekw6habeud/matlab_pls.tar.gz?dl=1"
+
+jobs:
+  setup:
+    executor: exeggutor
     steps:
       - checkout
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-              - src/pyls/
-
-  get_data:
-    machine:
-      # Ubuntu 14.04 with Docker 17.10.0-ce
-      image: circleci/classic:201711-01
-    steps:
-      - restore_cache:
-          keys:
-              - data-v1-{{ .Branch }}
       - run:
-          name: Download Matlab PLS results
+          name: Generating checksum to cache Matlab PLS results
+          command: echo "${DROPBOX_URL}" > checksum.txt
+      - restore_cache:
+          name: Checking for cached Matlab PLS results
+          keys:
+            - data-v2-{{ checksum "checksum.txt" }}
+            - data-v2-
+      - run:
+          name: Preparing Matlab PLS results
           command: |
             if [[ -e /tmp/data/matlab ]]; then
               echo "Restoring Matlab PLS results from cache"
             else
-                mkdir -p /tmp/data
-                curl -L https://www.dropbox.com/s/8h1fpq194022y50/matpls.tar.gz?dl=1 | tar xz
+                mkdir -p /tmp/data/matlab
+                curl -L "${DROPBOX_URL}" | tar xz -C /tmp/data/matlab
             fi
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-              - data/matlab/
       - save_cache:
-          key: data-v1-{{ .Branch }}
+          name: Caching Matlab PLS results
+          key: data-v2-{{ checksum "checksum.txt" }}
           paths:
-              - /tmp/data
+            - /tmp/data
+      - restore_cache:
+          name: Restoring cached dependencies
+          keys:
+            - dependencies-v3-{{ checksum "requirements.txt" }}
+            - dependencies-v3-
+      - run:
+          name: Creating test environment
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install .[tests]
+            pip install joblib
+      - save_cache:
+          name: Caching dependencies
+          key: dependencies-v3-{{ checksum "requirements.txt" }}
+          paths:
+            - ./venv
+      - persist_to_workspace:
+          name: Persisting workspace
+          root: ./
+          paths:
+            - requirements.txt
+            - checksum.txt
 
-  comparison_test:
-    docker:
-      - image: circleci/python:3.6
-    working_directory: /tmp/src/pyls
-    environment:
-        PYTHON_VERSION: "3.6"
-        OPENBLAS_NUM_THREADS: "1"
-        MKL_NUM_THREADS: "1"
+
+  behavioral_pls:
+    executor: exeggutor
     steps:
+      - checkout
       - attach_workspace:
-          at: /tmp
+          at: ./
+      - restore_cache:
+          name: Loading Matlab PLS results
+          keys:
+            - data-v2-{{ checksum "checksum.txt" }}
+            - data-v2-
+      - restore_cache:
+          name: Loading dependencies
+          keys:
+          - dependencies-v3-{{ checksum "requirements.txt" }}
+          - dependencies-v3-
       - run:
-          name: Create test environment
+          name: Running Matlab-Python comparison
           command: |
-            python -m pip install --upgrade pip
-            pip install -e .[tests]
+            . venv/bin/activate
+            for mat in /tmp/data/matlab/bpls*mat; do
+              echo "${mat}"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc=2, n_perm=2500, n_split=100);"
+            done
+
+  meancentered_pls:
+    executor: exeggutor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
+      - restore_cache:
+          name: Loading Matlab PLS results
+          keys:
+            - data-v2-{{ checksum "checksum.txt" }}
+            - data-v2-
+      - restore_cache:
+          name: Loading dependencies
+          keys:
+          - dependencies-v3-{{ checksum "requirements.txt" }}
+          - dependencies-v3-
       - run:
-          name: Run full Matlab comparison
-          no_output_timeout: 40m
+          name: Running Matlab-Python comparison
           command: |
-            for mat in /tmp/data/matlab/*mat; do
-              python -c "import pyls.tests; pyls.tests.test_matlab_comp.make_matlab_comparison('${mat}')"
+            . venv/bin/activate
+            for mat in /tmp/data/matlab/mpls*mat; do
+              echo "${mat}"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc=2, n_perm=2500, n_split=100);"
             done
 
 workflows:
-  version: 2
-  build_test:
+  version: 2.1
+  regression_tests:
     jobs:
-      - build
-      - get_data
-      - comparison_test:
+      - setup
+      - behavioral_pls:
           requires:
-            - build
-            - get_data
+            - setup
+      - meancentered_pls:
+          requires:
+            - setup
