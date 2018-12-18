@@ -6,7 +6,6 @@ Functions and utilities for getting datasets for PLS examples
 import json
 import os
 from pkg_resources import resource_filename
-import requests
 import urllib
 
 import numpy as np
@@ -181,6 +180,6 @@ def _get_dataset(name, data_dir=None, verbose=1):
         fname = os.path.join(data_dir, os.path.basename(parse.path))
 
         if not os.path.exists(fname):
-            out = requests.get(url)
+            out = urllib.request.urlopen(url)
             with open(fname, 'wb') as dest:
                 dest.write(out.content)
