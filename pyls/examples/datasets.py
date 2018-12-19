@@ -135,14 +135,12 @@ def load_dataset(name, data_dir=None, verbose=1, return_reference=False):
     for key, value in _DATASETS.get(name, {}).items():
         if isinstance(value, str) and key in PLSInputs.allowed:
             fname = os.path.join(data_dir, name, value)
-            if fname.endswith('.csv'):
+            if fname.endswith('.csv') or fname.endswith('.txt'):
                 if pandas_avail:
                     value = pd.read_csv(fname, index_col=0)
                 else:
                     value = np.genfromtxt(fname, skip_header=True,
                                           delimiter=',')[:, 1:]
-            elif fname.endswith('.txt'):
-                value = np.loadtxt(fname)
             elif fname.endswith('.npy'):
                 value = np.load(fname)
             else:

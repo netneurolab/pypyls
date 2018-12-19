@@ -23,9 +23,9 @@ def test_available_datasets():
         assert f == pyls.examples.available_datasets(f)
 
     # check that providing non-valid dataset name errors
-    with pytest.raises(ValueError):
-        pyls.examples.available_datasets('thisisnotadataset')
-        pyls.exampleipyts.available_datasets(10)
+    for f in ['thisisnotadataset', 10]:
+        with pytest.raises(ValueError):
+            pyls.examples.available_datasets(f)
 
 
 @pytest.mark.parametrize(('dataset', 'keys'), [
@@ -76,3 +76,6 @@ def test_load_dataset(tmpdir, dataset, keys):
     assert isinstance(ds, pyls.structures.PLSInputs)
     for k in keys:
         assert hasattr(ds, k) and getattr(ds, k) is not None
+    ds, ref = pyls.examples.load_dataset(dataset, str(tmpdir),
+                                         return_reference=True)
+    assert isinstance(ref, str)
