@@ -15,8 +15,8 @@ import sys
 # -- Project information -----------------------------------------------------
 
 project = 'pyls'
-copyright = '2018, Ross Markello'
-author = 'Ross Markello'
+copyright = '2018, pyls developers'
+author = 'pyls developers'
 
 # Import project to get version info
 sys.path.insert(0, os.path.abspath(os.path.pardir))
@@ -25,7 +25,6 @@ import pyls  # noqa
 version = pyls.__version__
 # The full version, including alpha/beta/rc tags
 release = pyls.__version__
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -71,7 +70,6 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -91,12 +89,10 @@ html_show_sourcelink = False
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'pylsdoc'
-
 
 # -- Extension configuration -------------------------------------------------
 intersphinx_mapping = {
