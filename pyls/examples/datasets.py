@@ -139,7 +139,8 @@ def load_dataset(name, data_dir=None, verbose=1, return_reference=False):
                 if pandas_avail:
                     value = pd.read_csv(fname, index_col=0)
                 else:
-                    value = np.loadtxt(fname, skiprows=1, delimiter=',')[:, 1:]
+                    value = np.genfromtxt(fname, skip_header=True,
+                                          delimiter=',')[:, 1:]
             elif fname.endswith('.txt'):
                 value = np.loadtxt(fname)
             elif fname.endswith('.npy'):
