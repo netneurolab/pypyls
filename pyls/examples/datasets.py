@@ -182,4 +182,4 @@ def _get_dataset(name, data_dir=None, verbose=1):
         if not os.path.exists(fname):
             out = urllib.request.urlopen(url)
             with open(fname, 'wb') as dest:
-                dest.write(out.content)
+                dest.write(out.read())

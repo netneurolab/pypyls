@@ -41,7 +41,7 @@ def test_query_dataset(dataset, keys):
     # check that default return string (description)
     assert isinstance(pyls.examples.query_dataset(dataset), str)
     # check that supplying None returns all available keys
-    assert pyls.examples.query_dataset(dataset, None) == keys
+    assert set(pyls.examples.query_dataset(dataset, None)) == set(keys)
     # check that all valid keys return something
     for k in keys:
         assert pyls.examples.query_dataset(dataset, k) is not None
@@ -59,7 +59,7 @@ def test_get_data_dir(tmpdir):
     assert os.path.basename(data_dir) == 'pyls-data'
 
     # check supplying directory returns same directory
-    assert pyls.examples.datasets._get_data_dir(tmpdir) == str(tmpdir)
+    assert pyls.examples.datasets._get_data_dir(str(tmpdir)) == str(tmpdir)
     assert os.path.exists(str(tmpdir))
 
     # check that _get_data_dir() pulls from environmental variable correctly
@@ -72,7 +72,7 @@ def test_get_data_dir(tmpdir):
     ('whitaker_vertes_2016', ['X', 'Y', 'n_perm'])
 ])
 def test_load_dataset(tmpdir, dataset, keys):
-    ds = pyls.examples.load_dataset(dataset, tmpdir)
+    ds = pyls.examples.load_dataset(dataset, str(tmpdir))
     assert isinstance(ds, pyls.structures.PLSInputs)
     for k in keys:
         assert hasattr(ds, k) and getattr(ds, k) is not None
