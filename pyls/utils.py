@@ -239,7 +239,7 @@ def _unravel(x):
     return [f for f in x]
 
 
-def get_par_func(n_proc, func):
+def get_par_func(n_proc, func, **kwargs):
     """
     Creates joblib-style parallelization function if joblib is available
 
@@ -259,7 +259,8 @@ def get_par_func(n_proc, func):
     """
 
     if joblib_avail:
-        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r')
+        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r',
+                            **kwargs)
         func = delayed(func)
     else:
         parallel = _unravel

@@ -304,6 +304,12 @@ class BasePLS():
 
         raise NotImplementedError
 
+    def gen_distrib(self, X, Y, groups, original):
+        """
+        """
+
+        raise NotImplementedError
+
     def run_pls(self, X, Y):
         """
         Runs PLS analysis
@@ -322,6 +328,7 @@ class BasePLS():
 
         # get original singular vectors / values and variance explained
         res.u, res.s, res.v = self.svd(X, Y, seed=self.rs)
+        res.brainscores = X @ res.u
 
         # compute permutations and get LV significance; store permsamp
         if self.inputs.n_perm > 0:
@@ -425,20 +432,24 @@ class BasePLS():
                                          verbose=self.inputs.verbose)
 
         # get original values
+        groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         U_orig, *rest = self.svd(X, Y, seed=seed)
 
         # get bootstrapped values (parallelizing as requested)
+        self.u_sum = np.zeros_like(U_orig)
+        self.u_square = np.zeros_like(U_orig)
         parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_boot)
+                                            self.__class__._single_boot,
+                                            require='sharedmem')
         gen = utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
                            desc='Running bootstraps')
-        out = parallel(func(self, X=X, Y=Y, inds=self.bootsamp[:, i],
+        out = parallel(func(self, X=X[self.bootsamp[:, i]],
+                            Y=Y[self.bootsamp[:, i]], groups=groups,
                             original=U_orig, seed=i) for i in gen)
-        U_boot, V_boot = [np.stack(o, axis=-1) for o in zip(*out)]
 
-        return U_boot, V_boot
+        return np.stack(out, axis=-1), self.u_sum, self.u_square
 
-    def _single_boot(self, X, Y, inds, original, seed=None):
+    def _single_boot(self, X, Y, groups, original, seed=None):
         """
         Bootstraps `X` and `Y` (w/replacement) and recomputes SVD
 
@@ -448,8 +459,11 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
-        inds : (S,) array_like
-            Bootstrap resampling array
+        groups : (S, J) array_like
+            Dummy coded input array, where `S` is observations and `J`
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
         original : (B, L) array_like
             Left singular vector from original decomposition of `X` and `Y`.
             Used to perform Procrustes rotation on permuted singular vectors
@@ -458,19 +472,20 @@ class BasePLS():
 
         Returns
         -------
-        U_boot : (B, L, R) `numpy.ndarray`
-            Left singular vectors, where `R` is the number of bootstraps
-        V_boot : (J, L, R) `numpy.ndarray`
-            Right singular vectors, where `R` is the number of bootstraps
+
         """
-        # perform SVD of bootstrapped arrays
-        U, d, V = self.svd(X[inds], Y[inds], seed=seed)
+        # perform SVD of bootstrapped arrays and rotate singular vector
+        U, d, V = self.svd(X, Y, seed=seed)
+        U_boot = compute.procrustes(original, U, d)[0]
 
-        # get rotated singular vectors
-        U_boot, rotate = compute.procrustes(original, U, d)
-        V_boot = V @ d @ rotate
+        # store rotate singular vectors for bootstrap ratio estimation
+        self.u_sum += U_boot
+        self.u_square += U_boot ** 2
 
-        return U_boot, V_boot
+        # get contrast / behavcorrs
+        distrib = self.gen_distrib(X, Y, original, groups)
+
+        return distrib
 
     def make_permutation(self, X, Y, perminds):
         """

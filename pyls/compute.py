@@ -214,7 +214,7 @@ def boot_ci(boot, ci=95):
     return lower, upper
 
 
-def boot_rel(orig, boot):
+def boot_rel(orig, u_sum, u_square, n_boot):
     """
     Determines bootstrap ratios (BSR) of saliences from bootstrap distributions
 
@@ -222,8 +222,12 @@ def boot_rel(orig, boot):
     ----------
     orig : (G, L) array_like
         Original singular vectors
-    boot : (G, L, B) array_like
-        Bootstrapped singular vectors, where `B` is bootstraps
+    u_sum : (G, L) array_like
+        Sum of bootstrapped singular vectors
+    u_square : (G, L) array_like
+        Sum of squared bootstraped singular vectors
+    n_boot : int
+        Number of bootstraps used in generating `u_sum` and `u_square`
 
     Returns
     -------
@@ -231,7 +235,8 @@ def boot_rel(orig, boot):
         Bootstrap ratios for provided singular vectors
     """
 
-    u_se = boot.std(axis=-1, ddof=1)  # matlab PLS doesn't use stderr
+    u_sum2 = (u_sum ** 2) / n_boot
+    u_se = np.sqrt(np.abs(u_square - u_sum2) / (n_boot - 1))
     bsr = orig / u_se
 
     return bsr, u_se

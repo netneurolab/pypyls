@@ -81,43 +81,7 @@ class BehavioralPLS(BasePLS):
 
         return X, Y[perminds]
 
-    def boot_distrib(self, X, Y, U_boot, groups, verbose=True):
-        """
-        Generates bootstrapped distribution for behavioral correlations
-
-        Parameters
-        ----------
-        X : (S, B) array_like
-            Input data matrix, where `S` is observations and `B` is features
-        Y : (S, T) array_like
-            Input data matrix, where `S` is observations and `T` is features
-        U_boot : (K, L, B) array_like
-            Bootstrapped values of the left singular vectors, where `L` is the
-            number of latent variables and `B` is the number of bootstraps
-        groups : (S, J) array_like
-            Dummy coded input array, where `S` is observations and `J`
-            corresponds to the number of different groups x conditions. A value
-            of 1 indicates that an observation belongs to a specific group or
-            condition.
-        verbose : bool, optional
-            Whether to print status updates as CI is calculated. Default: True
-
-        Returns
-        -------
-        distrib : (G, L, B) np.ndarray
-        """
-
-        parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_distrib)
-        generator = utils.trange(self.inputs.n_boot, verbose=verbose,
-                                 desc='Calculating CI')
-        out = parallel(func(self, X=X, Y=Y, groups=groups,
-                            inds=self.bootsamp[:, i],
-                            original=U_boot[..., i]) for i in generator)
-
-        return np.stack(out, axis=-1)
-
-    def _single_distrib(self, X, Y, groups, inds, original):
+    def gen_distrib(self, X, Y, original, groups, *args, **kwargs):
         """
         Finds behavioral correlations for single bootstrap resample
 
@@ -127,15 +91,13 @@ class BehavioralPLS(BasePLS):
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        original : (B, L) array_like
+            Left singular vectors from bootstrap
         groups : (S, J) array_like
             Dummy coded input array, where `S` is observations and `J`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
-        inds : (S,) array_like
-            Bootstrap resampling array
-        boot : (B, L) array_like
-            Left singular vectors from bootstrap
 
         Returns
         -------
@@ -143,9 +105,9 @@ class BehavioralPLS(BasePLS):
             Behavioral correlations for single bootstrap resample
         """
 
-        tusc = X[inds] @ compute.normalize(original)
+        tusc = X @ compute.normalize(original)
 
-        return self.gen_covcorr(tusc, Y[inds], groups)
+        return self.gen_covcorr(tusc, Y, groups=groups)
 
     def crossval(self, X, Y, seed=None, verbose=True):
         """
@@ -236,7 +198,7 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.brainscores = X @ res.u
+
         # mechanism for splitting outputs along group / condition indices
         grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
         res.behavscores = np.vstack([y @ v for (y, v) in
@@ -249,17 +211,18 @@ class BehavioralPLS(BasePLS):
 
         # compute bootstraps and BSRs
         if self.inputs.n_boot > 0:
-            U_boot, V_boot = self.bootstrap(X, Y, seed=self.rs)
-            compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
+            distrib, u_sum, u_square = self.bootstrap(X, Y, self.rs)
 
-            # generate distribution / confidence intervals for lvcorrs
-            distrib = self.boot_distrib(X, Y, U_boot, groups,
-                                        verbose=self.inputs.verbose)
+            # add original scaled singular vectors back in
+            bs = res.u @ res.s
+            u_sum, u_square = u_sum + bs, u_square + (bs ** 2)
+            bsrs, uboot_se = compute.boot_rel(bs, u_sum, u_square,
+                                              self.inputs.n_boot + 1)
             llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
             # update results.boot_result dictionary
-            res.bootres.update(dict(bootstrapratios=compare_u,
-                                    uboot_se=u_se,
+            res.bootres.update(dict(bootstrapratios=bsrs,
+                                    uboot_se=uboot_se,
                                     bootsamples=self.bootsamp,
                                     behavcorr=res.behavcorr,
                                     behavcorr_boot=distrib,

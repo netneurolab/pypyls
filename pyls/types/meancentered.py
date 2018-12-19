@@ -70,42 +70,7 @@ class MeanCenteredPLS(BasePLS):
                                                 means=True)
         return mean_centered
 
-    def boot_distrib(self, X, Y, U_boot, verbose=True):
-        """
-        Generates bootstrapped distribution for contrast
-
-        Parameters
-        ----------
-        X : (S, B) array_like
-            Input data matrix, where `S` is observations and `B` is features
-        Y : (S, T) array_like
-            Dummy coded input array, where `S` is observations and `T`
-            corresponds to the number of different groups x conditions. A value
-            of 1 indicates that an observation belongs to a specific group or
-            condition.
-        U_boot : (B, L, R) array_like
-            Bootstrapped values of the left singular vectors, where `B` is the
-            same as in `X`, `L` is the number of latent variables and `R` is
-            the number of bootstraps
-        verbose : bool, optional
-            Whether to print status updates as CI is calculated. Default: True
-
-        Returns
-        -------
-        distrib : (T, L, R) np.ndarray
-        """
-
-        parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_distrib)
-        generator = utils.trange(self.inputs.n_boot, verbose=verbose,
-                                 desc='Calculating CI')
-        out = parallel(func(self, X=X, Y=Y,
-                            inds=self.bootsamp[:, i],
-                            boot=U_boot[..., i]) for i in generator)
-
-        return np.stack(out, axis=-1)
-
-    def _single_distrib(self, X, Y, inds, boot):
+    def gen_distrib(self, X, Y, original, *args, **kwargs):
         """
         Finds contrast for single bootstrap resample
 
@@ -118,9 +83,7 @@ class MeanCenteredPLS(BasePLS):
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
-        inds : (S,) array_like
-            Bootstrap resampling array
-        boot : (B, L) array_like
+        original : (B, L) array_like
             Left singular vectors from bootstrap
 
         Returns
@@ -129,9 +92,9 @@ class MeanCenteredPLS(BasePLS):
             Contrast for single bootstrap resample
         """
 
-        usc = compute.get_mean_center(X[inds], Y, self.inputs.n_cond,
+        usc = compute.get_mean_center(X, Y, self.inputs.n_cond,
                                       self.inputs.mean_centering, means=False)
-        usc = usc @ compute.normalize(boot)
+        usc = usc @ compute.normalize(original)
 
         return np.row_stack([usc[g].mean(axis=0) for g in Y.T.astype(bool)])
 
@@ -156,7 +119,7 @@ class MeanCenteredPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.brainscores, res.designscores = X @ res.u, Y @ res.v
+        res.designscores = Y @ res.v
 
         # get normalized brain scores and contrast
         brainscores_dm = compute.get_mean_center(X, Y, self.inputs.n_cond,
@@ -167,23 +130,19 @@ class MeanCenteredPLS(BasePLS):
         res.brainscores_dm = brainscores_dm
 
         if self.inputs.n_boot > 0:
-            # compute bootstraps and BSRs
-            U_boot, V_boot = self.bootstrap(X, Y, seed=self.rs)
-            bootstrapratios, uboot_se = compute.boot_rel(res.u @ res.s, U_boot)
-
-            # generate distribution / confidence intervals for contrast
-            contrast_boot = self.boot_distrib(X, Y, U_boot,
-                                              verbose=self.inputs.verbose)
-            llusc, ulusc = compute.boot_ci(contrast_boot, ci=self.inputs.ci)
+            distrib, u_sum, u_square = self.bootstrap(X, Y, self.rs)
+            bsrs, uboot_se = compute.boot_rel(res.u @ res.s, u_sum, u_square,
+                                              self.inputs.n_boot)
+            llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
             # update results.boot_result dictionary
-            res.bootres.update(dict(bootstrapratios=bootstrapratios,
+            res.bootres.update(dict(bootstrapratios=bsrs,
                                     uboot_se=uboot_se,
                                     bootsamples=self.bootsamp,
                                     contrast=contrast,
-                                    contrast_boot=contrast_boot,
-                                    contrast_lolim=llusc,
-                                    contrast_uplim=ulusc))
+                                    contrast_boot=distrib,
+                                    contrast_lolim=llcorr,
+                                    contrast_uplim=ulcorr))
 
         # get rid of the stupid diagonal matrix
         res.s = np.diag(res.s)
