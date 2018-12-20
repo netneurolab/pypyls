@@ -260,18 +260,20 @@ class BasePLS():
         # coerce groups to integers
         groups = [int(g) for g in groups]
 
-        # check that X / groups + n_cond inputs jibe
+        # check that data matrices and groups + n_cond inputs jibe
         n_samples = sum([g * n_cond for g in groups])
         if len(X) != n_samples:
             raise ValueError('Number of samples specified by `groups` and '
-                             '`n_cond` does not match expected number of '
-                             'samples in input array(s).\n'
+                             '`n_cond` does not match number of samples in '
+                             'input array(s).\n'
                              '    EXPECTED: {}\n'
                              '    ACTUAL:   {} (groups: {} * n_cond: {})'
                              .format(len(X), n_samples, groups, n_cond))
 
         self.inputs = structures.PLSInputs(X=X, groups=groups, n_cond=n_cond,
                                            **kwargs)
+        # store dummy-coded array of groups / conditions (save on computation)
+        self.dummy = utils.dummy_code(groups, n_cond)
         self.rs = check_random_state(self.inputs.get('seed'))
 
         # check for parallel processing desire
@@ -282,9 +284,6 @@ class BasePLS():
                           'Considering installing joblib and re-running this '
                           'if you would like parallelization. Resetting '
                           'n_proc to 1 for now.')
-
-        # store dummy-coded array of groups / conditions (save on computation)
-        self.dummy = utils.dummy_code(groups, n_cond)
 
     def gen_covcorr(self, X, Y, groups=None):
         """
@@ -447,6 +446,7 @@ class BasePLS():
         iters = 8 if self.inputs.n_proc is None else self.inputs.n_proc
         with utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
                           desc='Running bootstraps') as gen:
+            # to store bootstrapped singular vectors
             self.u_sum = np.zeros_like(self.res.u)
             self.u_square = np.zeros_like(self.res.u)
             distrib = []
@@ -467,9 +467,7 @@ class BasePLS():
                 # sum bootstrapped singular vectors and store
                 self.u_sum += np.sum(usu, axis=0)
                 self.u_square += np.sum(usq, axis=0)
-                # keep generated `distrib`
                 distrib.extend(d)
-                # update
                 gen.update(top - boots)
                 boots = top
 
@@ -672,7 +670,7 @@ class BasePLS():
 
         # make dummy-coded grouping array if not provided
         if groups is None:
-            groups = utils.dummy_code(self.inputs.n_group, self.inputs.n_cond)
+            groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
 
         # generate original singular vectors if not provided
         if ud is None or vd is None:

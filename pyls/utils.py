@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from contextlib import contextmanager
 import numpy as np
 import tqdm
 from sklearn.utils import Bunch
@@ -141,8 +140,25 @@ def trange(n_iter, verbose=True, **kwargs):
     progbar : :obj:`tqdm.tqdm`
     """
 
+    class cmrange():
+        def __init__(self, n_iter):
+            self.n_iter = n_iter
+
+        def __enter__(self, *args, **kwargs):
+            return self
+
+        def __exit__(self, *args, **kwargs):
+            return
+
+        def __iter__(self):
+            for i in range(self.n_iter):
+                yield i
+
+        def update(self, *args, **kwargs):
+            return
+
     if not verbose:
-        return range(n_iter)
+        return cmrange(n_iter)
 
     form = ('{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
             ' | {elapsed}<{remaining}')
@@ -236,6 +252,9 @@ class _unravel():
     -------
     y : list
     """
+    def __init__(self, *args, **kwargs):
+        pass
+
     def __call__(self, x):
         return [f for f in x]
 

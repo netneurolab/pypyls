@@ -48,6 +48,8 @@ def test_BasePLS():
 
     with pytest.raises(NotImplementedError):
         basepls.gen_covcorr(X, Y, groups)
+    with pytest.raises(NotImplementedError):
+        basepls.gen_distrib(X, Y, groups)
     with pytest.raises(ValueError):
         opts['groups'] = [100, 100]
         basepls = pyls.base.BasePLS(**opts)

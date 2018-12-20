@@ -109,7 +109,7 @@ class BehavioralPLS(BasePLS):
 
         return self.gen_covcorr(tusc, Y, groups=groups)
 
-    def crossval(self, X, Y, seed=None):
+    def crossval(self, X, Y, groups=None, seed=None):
         """
         Performs cross-validation of SVD of `X` and `Y`
 
@@ -130,13 +130,15 @@ class BehavioralPLS(BasePLS):
             R^2 (coefficient of determination) scores across train-test splits
         """
 
+        if groups is None:
+            groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+
         # use gen_splits to handle grouping/condition vars in train/test split
         splits = gen_splits(self.inputs.groups,
                             self.inputs.n_cond,
                             self.inputs.test_split,
                             seed=seed,
                             test_size=self.inputs.test_size)
-        groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
 
         parallel, func = utils.get_par_func(self.inputs.n_proc,
                                             self.__class__._single_crossval)
@@ -158,6 +160,14 @@ class BehavioralPLS(BasePLS):
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        inds : (S,) array_like
+            Train-test split, where train = True and test = False
+        groups : (S, J) array_like, optional
+            Dummy coded input array, where `S` is observations and `J`
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition. If not specified will be generated on-the-fly. Default:
+            None
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
             Seed for random number generation. Default: None
         """
@@ -234,7 +244,7 @@ class BehavioralPLS(BasePLS):
 
         # compute cross-validated prediction-based metrics
         if self.inputs.test_split is not None and self.inputs.test_size > 0:
-            r, r2 = self.crossval(X, Y, seed=self.rs)
+            r, r2 = self.crossval(X, Y, groups=self.dummy, seed=self.rs)
             res.cvres.update(dict(pearson_r=r, r_squared=r2))
 
         # get rid of the stupid diagonal matrix
