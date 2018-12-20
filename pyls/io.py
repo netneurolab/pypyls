@@ -98,7 +98,7 @@ def load_results(fname):
         results = dict()
         for key, item in h5file[group].items():
             if isinstance(item, h5py.Dataset):
-                results[key] = item.value
+                results[key] = item[()]
             elif isinstance(item, h5py.Group):
                 results[key] = _recursive_load(h5file, group=group + '/' + key)
         for key, value in h5file[group].attrs.items():
