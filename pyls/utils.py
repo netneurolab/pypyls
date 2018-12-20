@@ -266,7 +266,7 @@ def get_par_func(n_proc, func, **kwargs):
     """
 
     if joblib_avail:
-        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r',
+        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r+',
                             **kwargs)
         func = delayed(func)
     else:

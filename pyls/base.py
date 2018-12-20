@@ -286,7 +286,7 @@ class BasePLS():
         # store dummy-coded array of groups / conditions (save on computation)
         self.dummy = utils.dummy_code(groups, n_cond)
 
-    def gen_covcorr(self, X, Y, groups):
+    def gen_covcorr(self, X, Y, groups=None):
         """
         Should generate cross-covariance array to be used in `self._svd()`
 
@@ -309,7 +309,7 @@ class BasePLS():
 
         raise NotImplementedError
 
-    def gen_distrib(self, X, Y, groups, original):
+    def gen_distrib(self, X, Y, groups, original=None):
         """
         """
 
@@ -366,7 +366,7 @@ class BasePLS():
 
         return res
 
-    def svd(self, X, Y, dummy=None, seed=None):
+    def svd(self, X, Y, groups=None, seed=None):
         """
         Runs SVD on cross-covariance matrix computed from `X` and `Y`
 
@@ -389,11 +389,15 @@ class BasePLS():
             Right singular vectors
         """
 
-        if dummy is None:
-            dummy = self.dummy
+        # make dummy-coded grouping array if not provided
+        if groups is None:
+            groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
 
-        crosscov = self.gen_covcorr(X, Y, groups=dummy)
+        # generate cross-covariance matrix and determine # of components
+        crosscov = self.gen_covcorr(X, Y, groups=groups)
         n_comp = min(crosscov.shape)
+
+        # run most computationally efficient SVD
         if crosscov.shape[0] <= crosscov.shape[1]:
             U, d, V = randomized_svd(crosscov.T,
                                      n_components=n_comp,
@@ -443,33 +447,35 @@ class BasePLS():
         iters = 8 if self.inputs.n_proc is None else self.inputs.n_proc
         with utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
                           desc='Running bootstraps') as gen:
-            with parallel as par:
-                self.u_sum = np.zeros_like(self.res.u)
-                self.u_square = np.zeros_like(self.res.u)
-                distrib = []
-                boots = 0
-                while boots < self.inputs.n_boot:
-                    top = boots + iters
-                    if top >= self.inputs.n_boot:
-                        top = self.inputs.n_boot
-                    d, usu, usq = zip(*par(func(self, X=X[self.bootsamp[:, i]],
-                                                Y=Y[self.bootsamp[:, i]],
-                                                groups=self.dummy,
-                                                original=self.res.u, seed=i)
-                                      for i in range(boots, top)))
-                    self.u_sum += usu
-                    self.u_square += usq
-                    distrib.append(d)
-                    boots += self.inputs.n_proc
-                    gen.write(top - boots)
-                    gen.update(top - boots)
-        # out = parallel(func(self, X=X[self.bootsamp[:, i]],
-        #                     Y=Y[self.bootsamp[:, i]], groups=self.dummy,
-        #                     original=self.res.u, seed=i) for i in gen)
+            self.u_sum = np.zeros_like(self.res.u)
+            self.u_square = np.zeros_like(self.res.u)
+            distrib = []
+            boots = 0
+            while boots < self.inputs.n_boot:
+                # attempt to garbage collect so we're not using too much memory
+                usu = usq = d = None
+                # determine number of iterations this round
+                top = boots + iters
+                if top >= self.inputs.n_boot:
+                    top = self.inputs.n_boot
+                # run the bootstraps
+                d, usu, usq = zip(*parallel(func(self, X=X, Y=Y,
+                                                 inds=self.bootsamp[:, i],
+                                                 groups=self.dummy,
+                                                 original=self.res.u, seed=i)
+                                            for i in range(boots, top)))
+                # sum bootstrapped singular vectors and store
+                self.u_sum += np.sum(usu, axis=0)
+                self.u_square += np.sum(usq, axis=0)
+                # keep generated `distrib`
+                distrib.extend(d)
+                # update
+                gen.update(top - boots)
+                boots = top
 
         return np.stack(distrib, axis=-1), self.u_sum, self.u_square
 
-    def _single_boot(self, X, Y, groups, original, seed=None):
+    def _single_boot(self, X, Y, inds, groups=None, original=None, seed=None):
         """
         Bootstraps `X` and `Y` (w/replacement) and recomputes SVD
 
@@ -495,18 +501,19 @@ class BasePLS():
 
         """
 
-        # perform SVD of bootstrapped arrays and rotate singular vector
-        U, d = self.svd(X, Y, seed=seed)[:-1]
-        U_boot = compute.procrustes(original, U, d)[0]
+        # make sure we have original (non-bootstrapped) singular vectors
+        # required for procrustes rotation
+        if original is None:
+            original = self.svd(X, Y, groups=groups, seed=seed)[0]
 
-        # store rotate singular vectors for bootstrap ratio estimation
-        # self.u_sum += U_boot
-        # self.u_square += U_boot ** 2
+        # perform SVD of bootstrapped arrays and rotate singular vector
+        U, d = self.svd(X[inds], Y[inds], groups=groups, seed=seed)[:-1]
+        U_boot = compute.procrustes(original, U, d)
 
         # get contrast / behavcorrs
-        distrib = self.gen_distrib(X, Y, original, groups)
+        distrib = self.gen_distrib(X[inds], Y[inds], original, groups)
 
-        return distrib, U_boot, U_boot ** 2
+        return distrib, U_boot, U_boot**2
 
     def make_permutation(self, X, Y, perminds):
         """
@@ -572,12 +579,13 @@ class BasePLS():
         gen = utils.trange(self.inputs.n_perm, verbose=self.inputs.verbose,
                            desc='Running permutations')
         out = parallel(func(self, X=X, Y=Y, inds=self.permsamp[:, i],
-                            original=self.res.v, seed=i) for i in gen)
+                            groups=self.dummy, original=self.res.v, seed=i)
+                       for i in gen)
         d_perm, ucorrs, vcorrs = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return d_perm, ucorrs, vcorrs
 
-    def _single_perm(self, X, Y, inds, original, seed=None):
+    def _single_perm(self, X, Y, inds, groups=None, original=None, seed=None):
         """
         Permutes `X` (w/o replacement) and recomputes SVD
 
@@ -609,11 +617,14 @@ class BasePLS():
             `self.inputs.n_split != 0`
         """
 
-        X, Y = self.make_permutation(X, Y, inds)
-        U, d, V = self.svd(X, Y, seed=seed)
+        # calculate SVD of permuted matrices
+        Xp, Yp = self.make_permutation(X, Y, inds)
+        U, d, V = self.svd(Xp, Yp, groups=groups, seed=seed)
 
         # optionally get rotated/rescaled singular values
         if self.inputs.rotate:
+            if original is None:
+                original = self.svd(X, Y, groups=groups, seed=seed)[-1]
             ssd = np.sqrt(np.sum(compute.procrustes(original, V, d)**2,
                                  axis=0))
         else:
@@ -622,13 +633,14 @@ class BasePLS():
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
             di = np.linalg.inv(d)
-            ucorr, vcorr = self.split_half(X, Y, U @ di, V @ di, seed=seed)
+            ucorr, vcorr = self.split_half(Xp, Yp, U @ di, V @ di,
+                                           groups=groups, seed=seed)
         else:
             ucorr, vcorr = None, None
 
         return ssd, ucorr, vcorr
 
-    def split_half(self, X, Y, ud, vd, seed=None):
+    def split_half(self, X, Y, ud=None, vd=None, groups=None, seed=None):
         """
         Parameters
         ----------
@@ -658,6 +670,16 @@ class BasePLS():
                                seed=seed,
                                test_size=0.5).astype(bool)
 
+        # make dummy-coded grouping array if not provided
+        if groups is None:
+            groups = utils.dummy_code(self.inputs.n_group, self.inputs.n_cond)
+
+        # generate original singular vectors if not provided
+        if ud is None or vd is None:
+            U, d, V = self.svd(X, Y, groups=groups, seed=seed)
+            di = np.linalg.inv(d)
+            ud, vd = U @ di, V @ di
+
         # empty arrays to hold split-half correlations
         ucorr = np.zeros(shape=(ud.shape[-1], self.inputs.n_split))
         vcorr = np.zeros(shape=(vd.shape[-1], self.inputs.n_split))
@@ -665,8 +687,8 @@ class BasePLS():
         for i in range(self.inputs.n_split):
             # calculate cross-covariance matrix for both splits
             spl = splitsamp[:, i]
-            D1 = self.gen_covcorr(X[spl], Y[spl], groups=self.dummy[spl])
-            D2 = self.gen_covcorr(X[~spl], Y[~spl], groups=self.dummy[~spl])
+            D1 = self.gen_covcorr(X[spl], Y[spl], groups=groups[spl])
+            D2 = self.gen_covcorr(X[~spl], Y[~spl], groups=groups[~spl])
 
             # project cross-covariance matrices onto original SVD to obtain
             # left & right singular vector and correlate between split halves

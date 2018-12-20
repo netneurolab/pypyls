@@ -130,7 +130,10 @@ class MeanCenteredPLS(BasePLS):
         res.brainscores_dm = brainscores_dm
 
         if self.inputs.n_boot > 0:
+            # compute bootstraps
             distrib, u_sum, u_square = self.bootstrap(X, Y, self.rs)
+
+            # calculate bootstrap ratios and confidence intervals
             bsrs, uboot_se = compute.boot_rel(res.u @ res.s, u_sum, u_square,
                                               self.inputs.n_boot)
             llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
@@ -161,7 +164,7 @@ def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
     return pls.results
 
 
-meancentered_pls.__doc__ = r"""\
+meancentered_pls.__doc__ = r"""
 Performs mean-centered PLS on `X`, sorted into `groups` and `conditions`.
 
 Mean-centered PLS is a multivariate statistical approach that attempts to
