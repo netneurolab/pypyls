@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from contextlib import contextmanager
 import numpy as np
 import tqdm
 from sklearn.utils import Bunch
@@ -223,7 +224,7 @@ def permute_cols(x, seed=None):
     return x[ix_i, ix_j]
 
 
-def _unravel(x):
+class _unravel():
     """
     Small utility to unravel generator object into a list
 
@@ -235,8 +236,14 @@ def _unravel(x):
     -------
     y : list
     """
+    def __call__(self, x):
+        return [f for f in x]
 
-    return [f for f in x]
+    def __enter__(self, *args, **kwargs):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
 
 
 def get_par_func(n_proc, func, **kwargs):
@@ -263,6 +270,6 @@ def get_par_func(n_proc, func, **kwargs):
                             **kwargs)
         func = delayed(func)
     else:
-        parallel = _unravel
+        parallel = _unravel()
 
     return parallel, func

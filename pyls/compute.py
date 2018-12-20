@@ -260,16 +260,13 @@ def procrustes(original, permuted, singular):
     -------
     resamp : `numpy.ndarray`
         Singular values of rotated `permuted` matrix
-    rotate : `numpy.ndarray`
-        Matrix for rotating `permuted` to `original`
     """
 
     temp = original.T @ permuted
     N, _, P = randomized_svd(temp, n_components=min(temp.shape))
-    rotate = P.T @ N.T
-    resamp = permuted @ singular @ rotate
+    resamp = permuted @ singular @ (P.T @ N.T)
 
-    return resamp, rotate
+    return resamp
 
 
 def get_group_mean(X, Y, n_cond=1, mean_centering=0):
