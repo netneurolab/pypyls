@@ -145,7 +145,7 @@ def test_get_par_func():
 
     if not utils.joblib_avail:
         par, func = utils.get_par_func(1000, fcn)
-        assert par == utils._unravel
+        assert isinstance(par, utils._unravel)
         assert fcn == func
     else:
         import joblib
