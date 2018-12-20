@@ -245,6 +245,10 @@ def assert_matlab_equivalence(fname, method=None, corr=0.975, alpha=0.05,
     # use seed for reproducibility of re-analysis
     matlab.inputs.seed = 1234
     matlab.inputs.verbose = False
+    # don't update n_split if it was previously set to None
+    if matlab.inputs.n_split is None:
+        if 'n_split' in kwargs:
+            kwargs.pop('n_split')
     matlab.inputs.update(kwargs)
 
     # run PLS
