@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import gc
 import warnings
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
@@ -331,17 +332,19 @@ class BasePLS():
         # initate results structure
         self.res = res = structures.PLSResults(inputs=self.inputs)
 
-        # get original singular vectors / values and variance explained
+        # get original singular vectors / values
         res.u, res.s, res.v = self.svd(X, Y, seed=self.rs)
         res.brainscores = X @ res.u
 
         if self.inputs.n_perm > 0:
-            # compute permutations and get LV significance; store permsamp
+            # compute permutations and get statistical significance of LVs
             d_perm, ucorrs, vcorrs = self.permutation(X, Y, seed=self.rs)
             res.permres.pvals = compute.perm_sig(res.s, d_perm)
             res.permres.permsamples = self.permsamp
 
             if self.inputs.n_split is not None:
+                # get ucorr / vcorr (via split half resampling) for original,
+                # unpermuted `X` and `Y` arrays
                 di = np.linalg.inv(res.s)
                 orig_ucorr, orig_vcorr = self.split_half(X, Y,
                                                          res.u @ di,
@@ -350,9 +353,11 @@ class BasePLS():
                 # get p-values for ucorr/vcorr
                 ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
                 vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)
+
                 # get confidence intervals for ucorr/vcorr
                 ucorr_ll, ucorr_ul = compute.boot_ci(ucorrs, ci=self.inputs.ci)
                 vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
+
                 # update results object with split-half resampling results
                 res.splitres.update(dict(ucorr=orig_ucorr,
                                          vcorr=orig_vcorr,
@@ -425,10 +430,13 @@ class BasePLS():
 
         Returns
         -------
-        U_boot : (B, L, R) `numpy.ndarray`
-            Left singular vectors, where `R` is the number of bootstraps
-        V_boot : (J, L, R) `numpy.ndarray`
-            Right singular vectors, where `R` is the number of bootstraps
+        distrib : (T, L) numpy.ndarray
+            Either behavioral correlations or group/condition contrast,
+            depending on PLS type
+        u_sum : (B, L) numpy.ndarray
+            Sum of the left singular vectors across all bootstraps
+        u_square : (B, L) numpy.ndarray
+            Sum of the squared left singular vectors across all bootstraps
         """
 
         # generate bootstrap resampled indices (unless already provided)
@@ -440,38 +448,62 @@ class BasePLS():
                                          seed=seed,
                                          verbose=self.inputs.verbose)
 
-        # get bootstrapped values (parallelizing as requested)
         parallel, func = utils.get_par_func(self.inputs.n_proc,
                                             self.__class__._single_boot)
-        iters = 8 if self.inputs.n_proc is None else self.inputs.n_proc
+
+        # make empty arrays to store bootstrapped singular vectors
+        # these will be used to calculate the standard error later on for
+        # creation of bootstrap ratios
+        u_sum = np.zeros_like(self.res.u)
+        u_square = np.zeros_like(self.res.u)
+
+        # `distrib` corresponds either to the behavioral correlations (if
+        # running a behavioral PLS) or to the group/condition contrast (if
+        # running a mean-centered PLS); we'll just extend it and then stack
+        # all the individual matrices together later (they're quite small so we
+        # don't need to be too worried about memory usage, here)
+        distrib = []
+
+        # determine the number of bootstraps we'll run each iteration
+        boots = 0
+        iters = 1 if self.inputs.n_proc is None else self.inputs.n_proc
+
         with utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
                           desc='Running bootstraps') as gen:
-            # to store bootstrapped singular vectors
-            self.u_sum = np.zeros_like(self.res.u)
-            self.u_square = np.zeros_like(self.res.u)
-            distrib = []
-            boots = 0
             while boots < self.inputs.n_boot:
-                # attempt to garbage collect so we're not using too much memory
-                usu = usq = d = None
-                # determine number of iterations this round
+                # determine number of bootstraps to run this round
+                # we don't want to overshoot the requested number, so make
+                # sure to cut it off if that's what wold happen
                 top = boots + iters
                 if top >= self.inputs.n_boot:
                     top = self.inputs.n_boot
+
                 # run the bootstraps
-                d, usu, usq = zip(*parallel(func(self, X=X, Y=Y,
-                                                 inds=self.bootsamp[:, i],
-                                                 groups=self.dummy,
-                                                 original=self.res.u, seed=i)
-                                            for i in range(boots, top)))
+                d, usu = zip(*parallel(func(self, X=X, Y=Y,
+                                            inds=self.bootsamp[:, i],
+                                            groups=self.dummy,
+                                            original=self.res.u, seed=i)
+                                       for i in range(boots, top)))
+
                 # sum bootstrapped singular vectors and store
-                self.u_sum += np.sum(usu, axis=0)
-                self.u_square += np.sum(usq, axis=0)
+                u_sum += np.sum(usu, axis=0)
+                u_square += np.sum(np.square(usu), axis=0)
                 distrib.extend(d)
+
+                # force garbage collection
+                # this is only really needed when parallelizing bootstraps
+                # the `usu` variable can get REALLY GIANT if either `X` or `Y`
+                # is large and `n_proc` is > 1, so we really don't want to keep
+                # it around for any longer than absolutely necessary
+                if self.inputs.n_proc is not None:
+                    del usu
+                    gc.collect()
+
+                # update progress bar and # of bootstraps already run
                 gen.update(top - boots)
                 boots = top
 
-        return np.stack(distrib, axis=-1), self.u_sum, self.u_square
+        return np.stack(distrib, axis=-1), u_sum, u_square
 
     def _single_boot(self, X, Y, inds, groups=None, original=None, seed=None):
         """
@@ -496,22 +528,30 @@ class BasePLS():
 
         Returns
         -------
-
+        distrib : np.ndarray
+            Either behavioral correlations or contrast, depending on PLS type;
+            generated with self.gen_distrib() which should be specified by the
+            PLS subclass
+        U_sum : (B, L) array_like
+            Left singular vectors from decomposition of bootstrap resampled `X`
+            and `Y`
         """
 
         # make sure we have original (non-bootstrapped) singular vectors
-        # required for procrustes rotation
+        # these are required for the procrustes rotation to ensure our
+        # singular vectors are all in the same orientation
         if original is None:
             original = self.svd(X, Y, groups=groups, seed=seed)[0]
 
-        # perform SVD of bootstrapped arrays and rotate singular vector
+        # perform SVD of bootstrapped arrays and rotate left singular vectors
         U, d = self.svd(X[inds], Y[inds], groups=groups, seed=seed)[:-1]
         U_boot = compute.procrustes(original, U, d)
 
-        # get contrast / behavcorrs
+        # get contrast / behavcorrs (this function should be specified by the
+        # subclass)
         distrib = self.gen_distrib(X[inds], Y[inds], original, groups)
 
-        return distrib, U_boot, U_boot**2
+        return distrib, U_boot
 
     def make_permutation(self, X, Y, perminds):
         """
