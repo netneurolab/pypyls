@@ -85,7 +85,7 @@ jobs:
             . venv/bin/activate
             for mat in /tmp/data/matlab/bpls*mat; do
               echo "${mat}"
-              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc='max', n_perm=2500, n_split=250);"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc='max', n_perm=2500, n_split=100);"
             done
 
   meancentered_pls:
@@ -110,7 +110,7 @@ jobs:
             . venv/bin/activate
             for mat in /tmp/data/matlab/mpls*mat; do
               echo "${mat}"
-              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc='max', n_perm=2500, n_split=100);"
+              python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc='max', n_perm=2500, n_split=250);"
             done
 
 workflows:

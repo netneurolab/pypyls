@@ -278,8 +278,8 @@ class BasePLS():
 
         # check for parallel processing desire
         n_proc = self.inputs.get('n_proc')
-        if n_proc is not None and n_proc > 1 and not utils.joblib_avail:
-            self.inputs.n_proc = 1
+        if n_proc is not None and n_proc != 1 and not utils.joblib_avail:
+            self.inputs.n_proc = None
             warnings.warn('Setting n_proc > 1 requires the joblib module. '
                           'Considering installing joblib and re-running this '
                           'if you would like parallelization. Resetting '
