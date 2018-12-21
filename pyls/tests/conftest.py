@@ -28,3 +28,13 @@ def bpls_results():
     rs = np.random.RandomState(1234)
     return pyls.behavioral_pls(rs.rand(subj, Xf), rs.rand(subj, Yf),
                                n_perm=10, n_boot=10, n_split=10)
+
+
+@pytest.fixture(scope='session')
+def pls_inputs():
+    return dict(X=np.random.rand(100, 1000), Y=np.random.rand(100, 100),
+                groups=[50, 50], n_cond=1, mean_centering=0,
+                n_perm=10, n_boot=10, n_split=5,
+                test_size=0.25, test_split=100, n_proc=2,
+                rotate=True, ci=95, seed=1234, verbose=True,
+                permsamples=10, bootsamples=10)

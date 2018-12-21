@@ -309,8 +309,26 @@ class BasePLS():
 
         raise NotImplementedError
 
-    def gen_distrib(self, X, Y, groups, original=None):
+    def gen_distrib(self, X, Y, groups=None, original=None):
         """
+        Should generate behavioral correlations or contrast for bootstrap
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        groups : (S, J) array_like
+            Dummy coded array, where `S` is observations and `J` corresponds to
+            the number of different groups x conditions represented in `X` and
+            `Y`. A value of 1 indicates that an observation belongs to a
+            specific group or condition
+
+        Returns
+        -------
+        distrib : (T, L)
+            Behavioral correlations or contrast for single bootstrap resample
         """
 
         raise NotImplementedError
@@ -325,8 +343,11 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
-        groups : (G,) array_like
-            Array with number of subjects in each of `G` groups
+
+        Returns
+        -------
+        results : :obj:`pyls.PLSResults`
+            Results of PLS (not including PLS type-specific outputs)
         """
 
         # initate results structure
@@ -380,17 +401,22 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        groups : (S, J) array_like
+            Dummy coded array, where `S` is observations and `J` corresponds to
+            the number of different groups x conditions represented in `X` and
+            `Y`. A value of 1 indicates that an observation belongs to a
+            specific group or condition
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
             Seed for random number generation. Default: None
 
         Returns
         -------
         U : (B, L) `numpy.ndarray`
-            Left singular vectors
+            Left singular vectors from singular value decomposition
         d : (L, L) `numpy.ndarray`
-            Diagonal array of singular values
+            Diagonal array of singular values from singular value decomposition
         V : (J, L) `numpy.ndarray`
-            Right singular vectors
+            Right singular vectors from singular value decomposition
         """
 
         # make dummy-coded grouping array if not provided
@@ -431,8 +457,8 @@ class BasePLS():
         Returns
         -------
         distrib : (T, L) numpy.ndarray
-            Either behavioral correlations or group/condition contrast,
-            depending on PLS type
+            Either behavioral correlations or group x condition contrast;
+            depends on PLS type
         u_sum : (B, L) numpy.ndarray
             Sum of the left singular vectors across all bootstraps
         u_square : (B, L) numpy.ndarray
@@ -465,11 +491,11 @@ class BasePLS():
         distrib = []
 
         # determine the number of bootstraps we'll run each iteration
-        boots = 0
         iters = 1 if self.inputs.n_proc is None else self.inputs.n_proc
 
         with utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
                           desc='Running bootstraps') as gen:
+            boots = 0
             while boots < self.inputs.n_boot:
                 # determine number of bootstraps to run this round
                 # we don't want to overshoot the requested number, so make

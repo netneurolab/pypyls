@@ -143,13 +143,14 @@ def test_get_par_func():
     assert fcn(10) == 10
     assert fcn([10, 10]) == [10, 10]
 
-    if not utils.joblib_avail:
-        par, func = utils.get_par_func(1000, fcn)
-        assert isinstance(par, utils._unravel)
-        assert fcn == func
-    else:
+    if utils.joblib_avail:
         import joblib
         par, func = utils.get_par_func(1000, fcn)
         assert isinstance(par, joblib.Parallel)
         assert par.n_jobs == 1000
         assert not fcn == func
+
+        utils.joblib_avail = False
+        par, func = utils.get_par_func(1000, fcn)
+        assert isinstance(par, utils._unravel)
+        assert fcn == func
