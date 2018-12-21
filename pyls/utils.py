@@ -140,8 +140,25 @@ def trange(n_iter, verbose=True, **kwargs):
     progbar : :obj:`tqdm.tqdm`
     """
 
+    class cmrange():
+        def __init__(self, n_iter):
+            self.n_iter = n_iter
+
+        def __enter__(self, *args, **kwargs):
+            return self
+
+        def __exit__(self, *args, **kwargs):
+            return
+
+        def __iter__(self):
+            for i in range(self.n_iter):
+                yield i
+
+        def update(self, *args, **kwargs):
+            return
+
     if not verbose:
-        return range(n_iter)
+        return cmrange(n_iter)
 
     form = ('{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
             ' | {elapsed}<{remaining}')
@@ -223,7 +240,7 @@ def permute_cols(x, seed=None):
     return x[ix_i, ix_j]
 
 
-def _unravel(x):
+class _unravel():
     """
     Small utility to unravel generator object into a list
 
@@ -235,11 +252,20 @@ def _unravel(x):
     -------
     y : list
     """
+    def __init__(self, *args, **kwargs):
+        pass
 
-    return [f for f in x]
+    def __call__(self, x):
+        return [f for f in x]
+
+    def __enter__(self, *args, **kwargs):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
 
 
-def get_par_func(n_proc, func):
+def get_par_func(n_proc, func, **kwargs):
     """
     Creates joblib-style parallelization function if joblib is available
 
@@ -259,9 +285,10 @@ def get_par_func(n_proc, func):
     """
 
     if joblib_avail:
-        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r')
+        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r+',
+                            **kwargs)
         func = delayed(func)
     else:
-        parallel = _unravel
+        parallel = _unravel()
 
     return parallel, func

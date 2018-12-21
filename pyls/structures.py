@@ -139,8 +139,12 @@ class PLSInputs(ResDict):
         if self.get('test_split') == 0:
             self['test_split'] = None
 
-        if self.get('n_proc') == 'max':
-            self['n_proc'] = cpu_count()
+        if self.get('n_proc') is not None:
+            n_proc = self.get('n_proc')
+            if n_proc == 'max' or n_proc == -1:
+                self['n_proc'] = cpu_count()
+            elif n_proc < 0:
+                self['n_proc'] = cpu_count() + 1 + n_proc
 
         ts = self.get('test_size')
         if ts is not None and (ts < 0 or ts >= 1):

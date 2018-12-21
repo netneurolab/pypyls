@@ -86,7 +86,7 @@ def test_ResDict():
 def test_trange():
     # test that verbose=False generates a range object
     out = utils.trange(1000, verbose=False, desc='Test tqdm')
-    assert out == range(1000)
+    assert [f for f in out] == list(range(1000))
     # test that function will accept arbitrary kwargs and overwrite defaults
     out = utils.trange(1000, desc='Test tqdm', mininterval=0.5, ascii=False)
     assert isinstance(out, tqdm.tqdm)
@@ -128,22 +128,29 @@ def test_permute_cols():
 
 def test_unravel():
     expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    assert utils._unravel(range(10)) == expected
+    assert utils._unravel()(range(10)) == expected
     expected = [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
-    assert utils._unravel(x ** 2 for x in range(10)) == expected
+    assert utils._unravel()(x ** 2 for x in range(10)) == expected
+
+    # test context manager status and arbitrary argument acceptance
+    with utils._unravel(10, test=20) as cm:
+        assert cm(x**2 for x in range(10)) == expected
 
 
 def test_get_par_func():
     def fcn(x):
         return x
+    assert fcn(10) == 10
+    assert fcn([10, 10]) == [10, 10]
 
-    if not utils.joblib_avail:
-        par, func = utils.get_par_func(1000, fcn)
-        assert par == utils._unravel
-        assert fcn == func
-    else:
+    if utils.joblib_avail:
         import joblib
         par, func = utils.get_par_func(1000, fcn)
         assert isinstance(par, joblib.Parallel)
         assert par.n_jobs == 1000
         assert not fcn == func
+
+        utils.joblib_avail = False
+        par, func = utils.get_par_func(1000, fcn)
+        assert isinstance(par, utils._unravel)
+        assert fcn == func

@@ -81,43 +81,7 @@ class BehavioralPLS(BasePLS):
 
         return X, Y[perminds]
 
-    def boot_distrib(self, X, Y, U_boot, groups, verbose=True):
-        """
-        Generates bootstrapped distribution for behavioral correlations
-
-        Parameters
-        ----------
-        X : (S, B) array_like
-            Input data matrix, where `S` is observations and `B` is features
-        Y : (S, T) array_like
-            Input data matrix, where `S` is observations and `T` is features
-        U_boot : (K, L, B) array_like
-            Bootstrapped values of the left singular vectors, where `L` is the
-            number of latent variables and `B` is the number of bootstraps
-        groups : (S, J) array_like
-            Dummy coded input array, where `S` is observations and `J`
-            corresponds to the number of different groups x conditions. A value
-            of 1 indicates that an observation belongs to a specific group or
-            condition.
-        verbose : bool, optional
-            Whether to print status updates as CI is calculated. Default: True
-
-        Returns
-        -------
-        distrib : (G, L, B) np.ndarray
-        """
-
-        parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_distrib)
-        generator = utils.trange(self.inputs.n_boot, verbose=verbose,
-                                 desc='Calculating CI')
-        out = parallel(func(self, X=X, Y=Y, groups=groups,
-                            inds=self.bootsamp[:, i],
-                            original=U_boot[..., i]) for i in generator)
-
-        return np.stack(out, axis=-1)
-
-    def _single_distrib(self, X, Y, groups, inds, original):
+    def gen_distrib(self, X, Y, original, groups, *args, **kwargs):
         """
         Finds behavioral correlations for single bootstrap resample
 
@@ -127,15 +91,13 @@ class BehavioralPLS(BasePLS):
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        original : (B, L) array_like
+            Left singular vectors from bootstrap
         groups : (S, J) array_like
             Dummy coded input array, where `S` is observations and `J`
             corresponds to the number of different groups x conditions. A value
             of 1 indicates that an observation belongs to a specific group or
             condition.
-        inds : (S,) array_like
-            Bootstrap resampling array
-        boot : (B, L) array_like
-            Left singular vectors from bootstrap
 
         Returns
         -------
@@ -143,11 +105,11 @@ class BehavioralPLS(BasePLS):
             Behavioral correlations for single bootstrap resample
         """
 
-        tusc = X[inds] @ compute.normalize(original)
+        tusc = X @ compute.normalize(original)
 
-        return self.gen_covcorr(tusc, Y[inds], groups)
+        return self.gen_covcorr(tusc, Y, groups=groups)
 
-    def crossval(self, X, Y, seed=None, verbose=True):
+    def crossval(self, X, Y, groups=None, seed=None):
         """
         Performs cross-validation of SVD of `X` and `Y`
 
@@ -159,8 +121,6 @@ class BehavioralPLS(BasePLS):
             Input data matrix, where `S` is observations and `T` is features
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
             Seed for random number generation. Default: None
-        verbose : bool, optional
-            Whether to print status updates as CV is calculated. Default: True
 
         Returns
         -------
@@ -170,25 +130,27 @@ class BehavioralPLS(BasePLS):
             R^2 (coefficient of determination) scores across train-test splits
         """
 
+        if groups is None:
+            groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+
         # use gen_splits to handle grouping/condition vars in train/test split
         splits = gen_splits(self.inputs.groups,
                             self.inputs.n_cond,
                             self.inputs.test_split,
                             seed=seed,
                             test_size=self.inputs.test_size)
-        dummy = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
 
         parallel, func = utils.get_par_func(self.inputs.n_proc,
                                             self.__class__._single_crossval)
-        generator = utils.trange(self.inputs.test_split, verbose=verbose,
-                                 desc='Running cross-validation')
-        out = parallel(func(self, X=X, Y=Y, dummy=dummy,
-                            inds=splits[:, i], seed=i) for i in generator)
+        gen = utils.trange(self.inputs.test_split, verbose=self.inputs.verbose,
+                           desc='Running cross-validation')
+        out = parallel(func(self, X=X, Y=Y, inds=splits[:, i],
+                            groups=groups, seed=i) for i in gen)
         r_scores, r2_scores = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return r_scores, r2_scores
 
-    def _single_crossval(self, X, Y, dummy, inds, seed=None):
+    def _single_crossval(self, X, Y, inds, groups=None, seed=None):
         """
         Generates single cross-validated r and r^2 score
 
@@ -198,18 +160,29 @@ class BehavioralPLS(BasePLS):
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
+        inds : (S,) array_like
+            Train-test split, where train = True and test = False
+        groups : (S, J) array_like, optional
+            Dummy coded input array, where `S` is observations and `J`
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition. If not specified will be generated on-the-fly. Default:
+            None
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
             Seed for random number generation. Default: None
         """
 
-        X_train, Y_train, dummy_train = X[inds], Y[inds], dummy[inds]
-        X_test, Y_test, dummy_test = X[~inds], Y[~inds], dummy[~inds]
+        if groups is None:
+            groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
+
+        X_train, Y_train, dummy_train = X[inds], Y[inds], groups[inds]
+        X_test, Y_test, dummy_test = X[~inds], Y[~inds], groups[~inds]
         # perform initial decomposition on train set
-        U, d, V = self.svd(X_train, Y_train, dummy=dummy_train, seed=seed)
+        U, d, V = self.svd(X_train, Y_train, groups=dummy_train, seed=seed)
 
         # rescale the test set based on the training set
         Y_pred = []
-        for n, V_spl in enumerate(np.split(V, dummy.shape[-1])):
+        for n, V_spl in enumerate(np.split(V, groups.shape[-1])):
             tr_grp = dummy_train[:, n].astype(bool)
             te_grp = dummy_test[:, n].astype(bool)
             rescaled = compute.rescale_test(X_train[tr_grp], X_test[te_grp],
@@ -236,7 +209,7 @@ class BehavioralPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.brainscores = X @ res.u
+
         # mechanism for splitting outputs along group / condition indices
         grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
         res.behavscores = np.vstack([y @ v for (y, v) in
@@ -247,19 +220,22 @@ class BehavioralPLS(BasePLS):
         groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
         res.behavcorr = self.gen_covcorr(res.brainscores, Y, groups)
 
-        # compute bootstraps and BSRs
         if self.inputs.n_boot > 0:
-            U_boot, V_boot = self.bootstrap(X, Y, seed=self.rs)
-            compare_u, u_se = compute.boot_rel(res.u @ res.s, U_boot)
+            # compute bootstraps
+            distrib, u_sum, u_square = self.bootstrap(X, Y, self.rs)
 
-            # generate distribution / confidence intervals for lvcorrs
-            distrib = self.boot_distrib(X, Y, U_boot, groups,
-                                        verbose=self.inputs.verbose)
+            # add original scaled singular vectors back in
+            bs = res.u @ res.s
+            u_sum, u_square = u_sum + bs, u_square + (bs ** 2)
+
+            # calculate bootstrap ratios and confidence intervals
+            bsrs, uboot_se = compute.boot_rel(bs, u_sum, u_square,
+                                              self.inputs.n_boot + 1)
             llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
 
             # update results.boot_result dictionary
-            res.bootres.update(dict(bootstrapratios=compare_u,
-                                    uboot_se=u_se,
+            res.bootres.update(dict(bootstrapratios=bsrs,
+                                    uboot_se=uboot_se,
                                     bootsamples=self.bootsamp,
                                     behavcorr=res.behavcorr,
                                     behavcorr_boot=distrib,
@@ -268,8 +244,7 @@ class BehavioralPLS(BasePLS):
 
         # compute cross-validated prediction-based metrics
         if self.inputs.test_split is not None and self.inputs.test_size > 0:
-            r, r2 = self.crossval(X, Y, seed=self.rs,
-                                  verbose=self.inputs.verbose)
+            r, r2 = self.crossval(X, Y, groups=self.dummy, seed=self.rs)
             res.cvres.update(dict(pearson_r=r, r_squared=r2))
 
         # get rid of the stupid diagonal matrix
@@ -291,7 +266,7 @@ def behavioral_pls(X, Y, *, groups=None, n_cond=1, n_perm=5000, n_boot=5000,
     return pls.results
 
 
-behavioral_pls.__doc__ = r"""\
+behavioral_pls.__doc__ = r"""
 Performs behavioral PLS on `X` and `Y`.
 
 Behavioral PLS is a multivariate statistical approach that relates two sets
