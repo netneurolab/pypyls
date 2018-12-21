@@ -254,7 +254,7 @@ class BasePLS():
     def __init__(self, X, groups=None, n_cond=1, **kwargs):
         # if groups aren't provided or are provided wrong, fix them
         if groups is None:
-            groups = [len(X)]
+            groups = [len(X) // n_cond]
         elif not isinstance(groups, (list, np.ndarray)):
             groups = [groups]
 

@@ -18,6 +18,7 @@ def test_PLSInputs(pls_inputs):
     assert structures.PLSInputs(test_split=0).test_split is None
 
     # confirm n_proc inputs are handled appropriately
+    assert structures.PLSInputs(n_proc=1).n_proc == 1
     for n_proc in ['max', -1]:
         assert structures.PLSInputs(n_proc=n_proc).n_proc == mp.cpu_count()
     assert structures.PLSInputs(n_proc=-2).n_proc == mp.cpu_count() - 1
