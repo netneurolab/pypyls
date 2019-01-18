@@ -1,4 +1,16 @@
 {
+    "linnerud": {
+        "description": "These data come from a toy example demonstrating the relationship between exercise ability and physiological fitness.",
+        "reference": "Tenenhaus, M. (1998). La regression PLS: theorie et pratique. Editions Technip.",
+        "urls": [
+            "https://raw.githubusercontent.com/rmarkello/pyls/3f5e79227d2f9f80887e80bea107a9c7e6b0e0c2/data/linnerud_exercise.csv",
+            "https://raw.githubusercontent.com/rmarkello/pyls/3f5e79227d2f9f80887e80bea107a9c7e6b0e0c2/data/linnerud_physio.csv"
+        ],
+        "X": "linnerud_exercise.csv",
+        "Y": "linnerud_physio.csv",
+        "n_perm": 1000,
+        "n_boot": 1000
+    },
     "mirchi_2018": {
         "description": "Study examining the relationship between changes in functional brain connectivity derived from resting-state functional magnetic resonance imaging (rsfMRI) and behavioral mood scores using the MyConnectome database.",
         "reference": "Mirchi, N., Betzel, R. F., Bernhardt, B. C., Dagher, A., & Mišić, B. (2018). Tracking mood fluctuations with functional network patterns. Social Cognitive and Affective Neuroscience.",
@@ -14,6 +26,21 @@
         "test_size": 0.25,
         "test_split": 100,
         "parcellation": "parcel_data.txt"
+    },
+    "wine": {
+        "description": "These data are the results of a chemical analysis of wines grown in the same region in Italy but derived from three different cultivars. The analysis determined the quantities of 13 constituents found in each of the three types of wines.",
+        "reference": "Lichman, M. (2013). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science.",
+        "urls": [
+            "https://raw.githubusercontent.com/rmarkello/pyls/3f5e79227d2f9f80887e80bea107a9c7e6b0e0c2/data/wine.csv"
+        ],
+        "X": "wine.csv",
+        "n_perm": 1000,
+        "n_boot": 1000,
+        "groups": [
+            59,
+            71,
+            48
+        ]
     },
     "whitaker_vertes_2016": {
         "description": "Study examining the relationship between developmental brain changes derived from structural magnetic resonance imaging (sMRI) and genetic expression in the brain using the NeuroScience in Psychiatry Network (NSPN) dataset",
