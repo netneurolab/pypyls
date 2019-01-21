@@ -2,10 +2,10 @@
 
 import os
 import pytest
-import pyls
+import pyls.examples
 
 DATASETS = [
-    'mirchi_2018', 'whitaker_vertes_2016'
+    'mirchi_2018', 'whitaker_vertes_2016', 'wine', 'linnerud'
 ]
 
 
@@ -29,9 +29,15 @@ def test_available_datasets():
 
 
 @pytest.mark.parametrize(('dataset', 'keys'), [
+    ('linnerud', [
+        'description', 'reference', 'urls', 'X', 'Y', 'n_perm', 'n_boot'
+    ])
     ('mirchi_2018', [
         'description', 'reference', 'urls', 'X', 'Y',
         'n_perm', 'n_boot', 'test_size', 'test_split', 'parcellation'
+    ]),
+    ('wine', [
+        'description', 'reference', 'urls', 'X', 'n_perm', 'n_boot', 'groups'
     ]),
     ('whitaker_vertes_2016', [
         'description', 'reference', 'urls', 'X', 'Y', 'n_perm'
@@ -68,7 +74,9 @@ def test_get_data_dir(tmpdir):
 
 
 @pytest.mark.parametrize(('dataset', 'keys'), [
+    ('linnerud', ['X', 'Y', 'n_perm', 'n_boot']),
     ('mirchi_2018', ['X', 'Y', 'n_perm', 'n_boot', 'test_size', 'test_split']),
+    ('wine', ['X', 'groups', 'n_perm', 'n_boot']),
     ('whitaker_vertes_2016', ['X', 'Y', 'n_perm'])
 ])
 def test_load_dataset(tmpdir, dataset, keys):

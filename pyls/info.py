@@ -24,7 +24,7 @@ REQUIRES = [
 ]
 
 TESTS_REQUIRE = [
-    'pytest',
+    'pytest>=3.6',
     'pytest-cov'
 ]
 
