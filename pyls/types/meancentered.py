@@ -114,7 +114,7 @@ class MeanCenteredPLS(BasePLS):
 
         Returns
         -------
-        res : :obj:`pyls.PLSResults`
+        res : :obj:`pyls.structures.PLSResults`
             PLS results object
         """
 

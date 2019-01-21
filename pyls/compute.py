@@ -2,7 +2,7 @@
 
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
-from sklearn.utils.validation import check_array
+from sklearn.utils.validation import check_array, check_X_y
 from pyls import utils
 
 
@@ -29,12 +29,7 @@ def xcorr(X, Y, norm=True, covariance=False):
         Cross-covariance of `X` and `Y`
     """
 
-    if X.ndim != Y.ndim:
-        raise ValueError('Number of dims of `X` and `Y` must match.')
-    if X.ndim != 2:
-        raise ValueError('`X` and `Y` must each have 2 dims.')
-    if len(X) != len(Y):
-        raise ValueError('The first dim of `X` and `Y` must match.')
+    X, Y = check_X_y(X, Y, multi_output=True)
 
     if not covariance:
         Xn, Yn = zscore(X), zscore(Y)

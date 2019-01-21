@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Functions for saving and loading PLS results objects
-
-Most functions adapted from https://codereview.stackexchange.com/a/121308
+Functions for saving and loading PLS data objects
 """
 
 import h5py
@@ -21,7 +19,7 @@ def save_results(fname, results):
     ----------
     fname : str
         Filepath to where hdf5 file should be created and `results` stored
-    results : :obj:`pyls.PLSResults`
+    results : :obj:`pyls.structures.PLSResults`
         PLSResults object to be saved
 
     Returns
@@ -75,7 +73,7 @@ def load_results(fname):
 
     Returns
     -------
-    results : :obj:`pyls.PLSResults`
+    results : :obj:`pyls.structures.PLSResults`
         Loaded PLS results
     """
 

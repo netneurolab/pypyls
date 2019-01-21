@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+Data structures to hold PLS inputs and results objects
+"""
 
 from multiprocessing import cpu_count
 from textwrap import dedent
@@ -100,7 +103,7 @@ _pls_input_docs = dict(
         all available processors. Default: None\
     """),
     pls_results=dedent("""\
-    results : :obj:`pyls.PLSResults`
+    results : :obj:`pyls.structures.PLSResults`
         Dictionary-like object containing results from the PLS analysis\
     """),
     references=dedent("""\

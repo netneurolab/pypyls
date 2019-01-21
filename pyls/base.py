@@ -243,7 +243,8 @@ class BasePLS():
     {groups}
     {conditions}
     **kwargs : optional
-        Additional key-value pairs; see :obj:`pyls.PLSInputs` for more info
+        Additional key-value pairs; see :obj:`pyls.structures.PLSInputs` for
+        more info
 
     References
     ----------
@@ -346,7 +347,7 @@ class BasePLS():
 
         Returns
         -------
-        results : :obj:`pyls.PLSResults`
+        results : :obj:`pyls.structures.PLSResults`
             Results of PLS (not including PLS type-specific outputs)
         """
 
