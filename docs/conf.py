@@ -43,6 +43,7 @@ extensions = [
 
 # Generate the API documentation when building
 autosummary_generate = True
+autodoc_default_flags = ['members', 'inherited-members']
 numpydoc_show_class_members = False
 autoclass_content = "class"
 
@@ -83,6 +84,12 @@ html_show_sourcelink = False
 # documentation.
 #
 # html_theme_options = {}
+
+html_context = {
+    'css_files': [
+        '_static/theme_overrides.css'
+    ]
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

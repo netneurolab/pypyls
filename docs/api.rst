@@ -1,29 +1,83 @@
 .. _api:
 
+Reference API
+=============
+
+This is the primary reference of ``pyls``. Please refer to the :ref:`user guide
+<usage>` for more information on how to best implement these functions in your
+own workflows.
+
+.. _decomp_ref:
+
+:mod:`pyls` - PLS Decompositions
+--------------------------------------
+
+.. automodule:: pyls.types
+   :no-members:
+   :no-inherited-members:
+
 .. currentmodule:: pyls
 
-API
-===
+.. autosummary::
+   :template: function.rst
+   :toctree:  _generated/
 
-PLS decompositions
-------------------
-.. autofunction:: pyls.behavioral_pls
-.. autofunction:: pyls.meancentered_pls
+    behavioral_pls
+    meancentered_pls
 
-PLS results objects
--------------------
-.. autoclass:: pyls.structures.PLSResults
-.. autoclass:: pyls.structures.PLSPermResults
-.. autoclass:: pyls.structures.PLSBootResults
-.. autoclass:: pyls.structures.PLSSplitHalfResults
-.. autoclass:: pyls.structures.PLSCrossValidationResults
-.. autoclass:: pyls.structures.PLSInputs
+.. _results_ref:
 
-Results I/O
------------
-.. autofunction:: pyls.save_results
-.. autofunction:: pyls.load_results
+:mod:`pyls.structures` - PLS Results Objects
+--------------------------------------------
 
-Matlab compatibility
---------------------
-.. autofunction:: pyls.import_matlab_result
+.. automodule:: pyls.structures
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: pyls.structures
+
+.. autosummary::
+   :template: class.rst
+   :toctree: _generated/
+
+   PLSResults
+   PLSPermResults
+   PLSBootResults
+   PLSSplitHalfResults
+   PLSCrossValidationResults
+   PLSInputs
+
+.. _io_ref:
+
+:mod:`pyls.io` - Data I/O
+-------------------------
+
+.. automodule:: pyls.io
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: pyls.io
+
+.. autosummary::
+   :template: function.rst
+   :toctree: _generated/
+
+   save_results
+   load_results
+
+.. _matlab_ref:
+
+:mod:`pyls.matlab` - Matlab Compatibility
+-----------------------------------------
+
+.. automodule:: pyls.matlab
+   :no-members:
+   :no-inherited-members:
+
+.. currentmodule:: pyls.matlab
+
+.. autosummary::
+   :template: function.rst
+   :toctree: _generated/
+
+   import_matlab_result
