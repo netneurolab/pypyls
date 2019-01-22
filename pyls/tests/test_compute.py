@@ -31,7 +31,7 @@ def test_xcorr():
 
     xcorr = pyls.compute.xcorr(X, Y)
     assert xcorr.shape == (25, 200)
-    xcorr = pyls.compute.xcorr(X, Y, norm=False)
+    xcorr = pyls.compute.xcorr(X, Y, norm=True)
     assert xcorr.shape == (25, 200)
 
     with pytest.raises(ValueError):

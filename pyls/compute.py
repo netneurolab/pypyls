@@ -6,7 +6,7 @@ from sklearn.utils.validation import check_array, check_X_y
 from pyls import utils
 
 
-def xcorr(X, Y, norm=True, covariance=False):
+def xcorr(X, Y, norm=False, covariance=False):
     """
     Calculates the cross-covariance matrix of `X` and `Y`
 
@@ -18,7 +18,7 @@ def xcorr(X, Y, norm=True, covariance=False):
         Input matrix, where `S` is samples and `T` is features.
     norm : bool, optional
         Whether to normalize `X` and `Y` (i.e., sum of squares = 1). Default:
-        True
+        False
     covariance : bool, optional
         Whether to calculate the cross-covariance matrix instead of the cross-
         correlation matrix. Default: False

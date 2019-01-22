@@ -53,7 +53,6 @@ class BehavioralPLS(BasePLS):
         crosscov = []
         for grp in groups.T.astype(bool):
             crosscov.append(compute.xcorr(X[grp], Y[grp],
-                                          norm=False,
                                           covariance=self.inputs.covariance))
 
         return np.row_stack(crosscov)
