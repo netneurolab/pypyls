@@ -31,7 +31,7 @@ def test_available_datasets():
 @pytest.mark.parametrize(('dataset', 'keys'), [
     ('linnerud', [
         'description', 'reference', 'urls', 'X', 'Y', 'n_perm', 'n_boot'
-    ])
+    ]),
     ('mirchi_2018', [
         'description', 'reference', 'urls', 'X', 'Y',
         'n_perm', 'n_boot', 'test_size', 'test_split', 'parcellation'
