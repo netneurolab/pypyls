@@ -254,7 +254,7 @@ class BehavioralPLS(BasePLS):
 
 # let's make it a function
 def behavioral_pls(X, Y, *, groups=None, n_cond=1, n_perm=5000, n_boot=5000,
-                   n_split=100, test_size=0.25, test_split=100,
+                   n_split=0, test_size=0.25, test_split=100,
                    covariance=False, rotate=True, ci=95, seed=None,
                    verbose=True, n_proc=None, **kwargs):
     pls = BehavioralPLS(X=X, Y=Y, groups=groups, n_cond=n_cond,

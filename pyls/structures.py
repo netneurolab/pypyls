@@ -58,8 +58,7 @@ _pls_input_docs = dict(
         Default: 5000
     n_split : int, optional
         Number of split-half resamples to assess during permutation testing.
-        This also controls the number of train/test splits examined during
-        cross-validation if :attr:`test_size` is not zero. Default: 100\
+        Default: 0\
     """),
     cross_val=dedent("""\
     test_split : int, optional
