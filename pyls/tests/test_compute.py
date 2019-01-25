@@ -7,15 +7,6 @@ import pyls
 rs = np.random.RandomState(1234)
 
 
-def test_zscore():
-    out = pyls.compute.zscore([[1]] * 10)
-    assert np.allclose(out, 0)
-
-    out = pyls.compute.zscore(rs.rand(10, 10))
-    assert out.shape == (10, 10)
-    assert not np.allclose(out, 0)
-
-
 def test_normalize():
     X = rs.rand(10, 10)
     out = pyls.compute.normalize(X, axis=0)
