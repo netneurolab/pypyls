@@ -1,4 +1,4 @@
-.. _api:
+.. _ref_api:
 
 Reference API
 =============
@@ -7,9 +7,12 @@ This is the primary reference of ``pyls``. Please refer to the :ref:`user guide
 <usage>` for more information on how to best implement these functions in your
 own workflows.
 
-.. _decomp_ref:
+.. contents:: **List of modules**
+   :local:
 
-:mod:`pyls` - PLS Decompositions
+.. _ref_decomp:
+
+:mod:`pyls` - PLS decompositions
 --------------------------------------
 
 .. automodule:: pyls.types
@@ -25,9 +28,9 @@ own workflows.
     behavioral_pls
     meancentered_pls
 
-.. _results_ref:
+.. _ref_results:
 
-:mod:`pyls.structures` - PLS Results Objects
+:mod:`pyls.structures` - PLS data structures
 --------------------------------------------
 
 .. automodule:: pyls.structures
@@ -47,10 +50,10 @@ own workflows.
    PLSCrossValidationResults
    PLSInputs
 
-.. _io_ref:
+.. _ref_io:
 
-:mod:`pyls.io` - Data I/O
--------------------------
+:mod:`pyls.io` - Data I/O functionality
+---------------------------------------
 
 .. automodule:: pyls.io
    :no-members:
@@ -65,9 +68,9 @@ own workflows.
    save_results
    load_results
 
-.. _matlab_ref:
+.. _ref_matlab:
 
-:mod:`pyls.matlab` - Matlab Compatibility
+:mod:`pyls.matlab` - Matlab compatibility
 -----------------------------------------
 
 .. automodule:: pyls.matlab

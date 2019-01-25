@@ -11,11 +11,10 @@ resource.
 
 This user guide will go through the basic statistical concepts of and detail
 the two types of PLS implemented in the current package
-(:ref:`usage_behavioral` and :ref:`usage_meancentered`), demonstrate how to
-interpret and use the results of a PLS analysis (:ref:`usage_results`), and
-provide some information on the compatibility of this toolbox with the
-`Matlab PLS toolbox <https://www.rotman-baycrest.on.ca/index.php?section=84>`_
-(:ref:`usage_matlab`).
+(:ref:`usage_behavioral` and :ref:`usage_meancentered`) and demonstrate how to
+interpret and use the results of a PLS analysis (:ref:`usage_results`). If you
+still have questions after going through that you can refer to the
+:ref:`ref_api`.
 
 .. toctree::
    :caption: Table of Contents
@@ -24,7 +23,3 @@ provide some information on the compatibility of this toolbox with the
    user_guide/behavioral.rst
    user_guide/meancentered.rst
    user_guide/results.rst
-   user_guide/matlab.rst
-
-Note that you can always refer to the :ref:`api` if you have questions about a
-specific function!
