@@ -31,6 +31,7 @@ def svd(crosscov, n_components=None, seed=None):
     """
 
     seed = check_random_state(seed)
+    crosscov = np.asanyarray(crosscov)
 
     if n_components is None:
         n_components = min(crosscov.shape)
@@ -74,10 +75,14 @@ def xcorr(X, Y, norm=False, covariance=False):
         Cross-covariance of `X` and `Y`
     """
 
-    X, Y = check_X_y(X, Y, multi_output=True)
+    check_X_y(X, Y, multi_output=True)
 
+    # we could just use scipy.stats zscore but if we do this we retain the
+    # original data structure; if pandas dataframes were given, a dataframe
+    # will be returned
     if not covariance:
-        Xn, Yn = zscore(X, ddof=1), zscore(Y, ddof=1)
+        Xn = (X - X.mean(axis=0)) / X.std(axis=0, ddof=1)
+        Yn = (Y - Y.mean(axis=0)) / Y.std(axis=0, ddof=1)
     else:
         Xn, Yn = X - X.mean(0, keepdims=True), Y - Y.mean(0, keepdims=True)
 
@@ -381,8 +386,7 @@ def efficient_corr(x, y):
     corr = np.sum(zscore(x, ddof=1) * zscore(y, ddof=1), axis=0) / (len(x) - 1)
 
     # fix rounding errors
-    corr[corr > 1] = 1
-    corr[corr < -1] = -1
+    corr = np.clip(corr, -1, 1)
 
     return corr
 
