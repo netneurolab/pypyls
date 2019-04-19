@@ -9,26 +9,30 @@ Behavioral PLS
 ==============
 
 What we call behavioral PLS in the ``pyls`` package is actually the more
-traditional form of PLS (and is generally not prefixed with "behavioral" ---
-more on that later). This form of PLS, at its core, attempts to find shared
-information between two sets of features from a common set of samples. However,
-as with all things, there are a number of ever-so-slightly different kinds of
-PLS that exist in the wild, so to be thorough we're going to briefly explain
-the exact flavor implemented here before diving into a more illustrative
-example.
+traditional form of PLS (and is generally not prefixed with "behavioral"). This
+form of PLS, at its core, attempts to find shared information between two sets
+of features derived from a common set of samples. However, as with all things,
+there are a number of ever-so-slightly different kinds of PLS that exist in the
+wild, so to be thorough we're going to briefly explain the exact flavor
+implemented here before diving into a more illustrative example.
 
-What *exactly* is behavioral PLS?
----------------------------------
+What *exactly* is "behavioral PLS"?
+-----------------------------------
 
-:py:func:`pyls.behavioral_pls` employs a symmetrical, singular value
-decomposition (SVD) based form of PLS, and is sometimes referred to as
-PLS-correlation (PLS-C) or PLS-SVD. Notably, it is **not** the same as PLS
-regression (PLS-R). Indeed, you can think of the differences between PLS-C and
-PLS-R similar to how you might consider the differences between a Pearson
-correlation and a simple linear regression. Though this analogy is a bit of a
-simplification, the primary difference to take away is that behavioral PLS
-(PLS-C) does *not assess directional relationships between sets of data* (e.g.,
-X → Y), but rather how the two sets generally covary (e.g., X ↔ Y).
+**Technical answer**: :py:func:`pyls.behavioral_pls` employs a symmetrical,
+singular value decomposition (SVD) based form of PLS, and is sometimes referred
+to as PLS-correlation (PLS-C), PLS-SVD, or, infrequently, EZ-PLS. Notably, it
+is **not** the same as PLS regression (PLS-R).
+
+**Less technical answer**: :py:func:`pyls.behavioral_pls` is like performing a
+correlation when you have two datasets each with multiple features.
+
+You can think of the differences between PLS-C and PLS-R similar to how you
+might consider the differences between a Pearson correlation and a simple
+linear regression. Though this analogy is a bit of a simplification, the
+primary difference to take away is that behavioral PLS (PLS-C) does *not*
+*assess directional relationships between sets of data* (e.g., X → Y), but
+rather looks at how the two sets generally covary (e.g., X ↔ Y).
 
 To understand this a bit more we can walk through a detailed example.
 
@@ -37,11 +41,12 @@ An exercise in calisthenics
 
 .. note::
     Descriptions of PLS are almost always accompanied by a litany of equations,
-    and for good reason: understanding PLS requires understanding the math
-    behind it. As such, this example is going to rely on these equations, but
-    will always do so in the context of real data. The hope is that this
-    approach will help make the more abstract mathematical concepts a bit more
-    concrete (and easier to apply to new data sets!).
+    and for good reason: understanding how to interpret the results of a PLS
+    requires at least a cursory understanding of the math behind it. As such,
+    this example is going to rely on these equations, but will always do so in
+    the context of real data. The hope is that this approach will help make the
+    more abstract mathematical concepts a bit more concrete (and easier to
+    apply to new data sets!).
 
 We'll start by loading the example dataset [1]_:
 
@@ -93,7 +98,7 @@ The rows of our :math:`\textbf{Y}_{n \times q}` matrix *also* represent *n*
 subjects (critically, the same subjects as in :math:`\textbf{X}`), and the
 columns indicate *q* physiological measurements taken for each subject. That
 same subject referenced above thus has a weight of 191 pounds, a 36 inch waist,
-and a resting pulse of 50 beats per minute.
+and a pulse of 50 beats per minute.
 
 Behavioral PLS will attempt to establish whether a relationship exists between
 the exercises performed and these physiological variables. If we wanted to run
@@ -127,14 +132,15 @@ In our example, :math:`\textbf{R}` ends up being a 3 x 3 matrix:
     >>> from pyls.compute import xcorr
     >>> R = xcorr(data.X, data.Y)
     >>> R
-    array([[-0.38969365, -0.49308365, -0.22629556],
-           [-0.55223213, -0.64559803, -0.19149937],
-           [ 0.15064802,  0.22503808,  0.03493306]])
+               Chins    Situps     Jumps
+    Weight -0.389694 -0.493084 -0.226296
+    Waist  -0.552232 -0.645598 -0.191499
+    Pulse   0.150648  0.225038  0.034933
 
 The :math:`q` rows of this matrix correspond to the physiological measurements
 and the :math:`p` columns to the exercises. Examining the first row, we can see
-that ``-0.38969365`` is the correlation between ``Weight`` and ``Chins`` across
-all the subjects, ``-0.49308365`` the correlation between ``Weight`` and
+that ``-0.389694`` is the correlation between ``Weight`` and ``Chins`` across
+all the subjects, ``-0.493084`` the correlation between ``Weight`` and
 ``Situps``, and so on.
 
 Singular value decomposition
@@ -158,6 +164,8 @@ rows of :math:`\textbf{U}` correspond to the exercises from our input matrix
 physiological measurements from our input matrix :math:`\textbf{Y}`. The
 columns of :math:`\textbf{U}` and :math:`\textbf{V}`, on the other hand,
 represent new dimensions or components that have been "discovered" in the data.
+
+<INSERT BETTER DESCRIPTION HERE>
 
 The :math:`i^{th}` columns of :math:`\textbf{U}` and :math:`\textbf{V}` weigh
 the contributions of these exercises and physiological measurements,
@@ -223,19 +231,27 @@ data matrices by the relevant singular vectors and then correlate the results:
     >>> pearsonr(XU[:, 0], YV[:, 0])
     (0.48997247845503833, 0.028304653097330421)
 
-The correlation value of this latent variable (~ ``0.49`` ) suggests that our
-interpretation of the singular vectors weights, above, is moderately true.
+The correlation value of this latent variable (~``0.49``) suggests that our
+interpretation of the singular vectors weights, above, is only *somewhat*
+accurate. We can think of this correlation (ranging from -1 to 1) as a proxy
+for the question: "how often is this interpretation of the singular vectors
+true?" Correlations closer to -1 indicate that the interpretation is largely
+inaccurate across subjects, whereas correlations closer to 1 indicate the
+interpretation is largely accurate across subjects.
 
 Latent variable significance testing
 ------------------------------------
 
-How can we check that these latent variables are significant? That is, that
-the likelihood of them explaining *this much* variance is greater than chance
-(to some prespecified alpha)?
+How can we check that these latent variables are significant? That is, how can
+we check that the likelihood of each latent variable explaining as much
+variance as it does is greater than we would expect at random?
+
+COMING SOON
 
 Reliability of the singular vectors
 -----------------------------------
 
+COMING SOON
 
 .. [1] Tenenhaus, M. (1998). La régression PLS: théorie et pratique. Editions
    technip.
