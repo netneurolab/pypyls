@@ -1,7 +1,8 @@
 .. _usage:
 
+----------
 User guide
-==========
+----------
 
 Partial least squares (PLS) is a multivariate statistical technique that aims
 to find shared information between two sets of variables. If you're unfamiliar
@@ -19,6 +20,7 @@ still have questions after going through that you can refer to the
 .. toctree::
    :caption: Table of Contents
    :numbered:
+   :maxdepth: 2
 
    user_guide/behavioral.rst
    user_guide/meancentered.rst

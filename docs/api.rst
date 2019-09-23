@@ -1,7 +1,10 @@
 .. _ref_api:
 
+.. currentmodule:: pyls
+
+-------------
 Reference API
-=============
+-------------
 
 This is the primary reference of ``pyls``. Please refer to the :ref:`user guide
 <usage>` for more information on how to best implement these functions in your
@@ -23,10 +26,10 @@ own workflows.
 
 .. autosummary::
    :template: function.rst
-   :toctree:  _generated/
+   :toctree: generated/
 
-    behavioral_pls
-    meancentered_pls
+   pyls.behavioral_pls
+   pyls.meancentered_pls
 
 .. _ref_results:
 
@@ -41,14 +44,14 @@ own workflows.
 
 .. autosummary::
    :template: class.rst
-   :toctree: _generated/
+   :toctree: generated/
 
-   PLSResults
-   PLSPermResults
-   PLSBootResults
-   PLSSplitHalfResults
-   PLSCrossValidationResults
-   PLSInputs
+   pyls.structures.PLSResults
+   pyls.structures.PLSPermResults
+   pyls.structures.PLSBootResults
+   pyls.structures.PLSSplitHalfResults
+   pyls.structures.PLSCrossValidationResults
+   pyls.structures.PLSInputs
 
 .. _ref_io:
 
@@ -59,14 +62,14 @@ own workflows.
    :no-members:
    :no-inherited-members:
 
-.. currentmodule:: pyls.io
+.. currentmodule:: pyls
 
 .. autosummary::
    :template: function.rst
-   :toctree: _generated/
+   :toctree: generated/
 
-   save_results
-   load_results
+   pyls.save_results
+   pyls.load_results
 
 .. _ref_matlab:
 
@@ -77,10 +80,10 @@ own workflows.
    :no-members:
    :no-inherited-members:
 
-.. currentmodule:: pyls.matlab
+.. currentmodule:: pyls
 
 .. autosummary::
    :template: function.rst
-   :toctree: _generated/
+   :toctree: generated/
 
-   import_matlab_result
+   pyls.import_matlab_result
