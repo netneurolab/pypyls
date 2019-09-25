@@ -49,6 +49,8 @@ class ResDict(Bunch):
         # potentially recursive checks if sub-items are dictionaries
         for k, v in self.items():
             v2 = value.get(k, None)
+            if v is None and v2 is None:
+                continue
             # recursive dictionary comparison
             if isinstance(v, dict) and isinstance(v2, dict):
                 if v != v2:
