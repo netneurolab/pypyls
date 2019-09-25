@@ -182,24 +182,31 @@ class PLSRegression(BasePLS):
         return X, Y[perminds]
 
     def _single_boot(self, X, Y, inds, groups=None, original=None, seed=None):
+        # should we be aligning these to the `original` somehow?
         res = simpls(X[inds], Y[inds], self.n_components, seed=seed)
         return None, res['x_weights']
 
     def _single_perm(self, X, Y, inds, groups=None, original=None, seed=None):
+        # should we be aligning these to the `original` somehow?
         Xp, Yp = self.make_permutation(X, Y, inds)
         res = simpls(Xp, Yp, self.n_components, seed=seed)['pctvar'][1]
         return res, None, None
 
     def svd(self, X, Y, groups=None, seed=None):
         res = simpls(X, Y, self.n_components, seed=seed)
-        return res['x_weights'], res['pctvar'], None
+        return res['x_weights'], np.diag(res['pctvar'][1]), None
 
     def run_pls(self, X, Y, n_components=None):
         res = super().run_pls(X, Y)
 
+        # don't keep this as a diagonal matrix
+        res.s = np.diag(res.s)
+
         if self.inputs.n_boot > 0:
             u_sum, u_square = self.bootstrap(X, Y, self.rs)[1:]
+            # add original weights back in so we account for those
             u_sum, u_square = u_sum + res.u, u_square + (res.u ** 2)
+            # calculate normalized ratios + bootstrap errors
             bsrs, uboot_se = compute.boot_rel(res.u, u_sum, u_square,
                                               self.inputs.n_boot + 1)
             res.bootres.update(dict(bootstrapratios=bsrs,
@@ -232,6 +239,9 @@ Parameters
 {input_matrix}
 Y : (S, T) array_like
     Input data matrix, where `S` is samples and `T` is features
+n_components : int, optional
+    Number of components to estimate. If not specified this will be set to
+    min(`S-1`, `B`). Default: None
 {stat_test}
 {proc_options}
 
