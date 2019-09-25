@@ -13,10 +13,8 @@ rs = np.random.RandomState(1234)
 class PLSBaseTest():
     defaults = pyls.structures.PLSInputs(X=rs.rand(subj, Xf),
                                          Y=rs.rand(subj, Yf),
-                                         groups=None,
-                                         n_cond=1,
-                                         mean_centering=0,
-                                         rotate=True,
+                                         groups=None, n_cond=1,
+                                         mean_centering=0, rotate=True,
                                          n_perm=20, n_boot=10, n_split=None,
                                          ci=95, seed=rs, verbose=False)
     funcs = dict(meancentered=pyls.meancentered_pls,
@@ -49,12 +47,11 @@ class PLSBaseTest():
             behavior = num_lv = dummy
 
         attrs = [
-            ('u', (Xf, num_lv)),
-            ('s', (num_lv,)),
-            ('v', (behavior, num_lv)),
-            ('brainscores', (subj, num_lv)),
-            ('behavscores' if self.type == 'behavioral' else 'designscores',
-             (subj, num_lv))
+            ('x_weights', (Xf, num_lv)),
+            ('singvals', (num_lv,)),
+            ('y_weights', (behavior, num_lv)),
+            ('x_scores', (subj, num_lv)),
+            ('y_scores', (subj, num_lv))
         ]
 
         return attrs

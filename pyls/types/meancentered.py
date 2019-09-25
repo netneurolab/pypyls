@@ -9,7 +9,8 @@ from .. import compute, utils
 
 class MeanCenteredPLS(BasePLS):
     def __init__(self, X, groups=None, n_cond=1, mean_centering=0, n_perm=5000,
-                 n_boot=5000, n_split=100, rotate=True, ci=95, seed=None,
+                 n_boot=5000, n_split=100, rotate=True, ci=95,
+                 permsamples=None, bootsamples=None, seed=None,
                  verbose=True, n_proc=None, **kwargs):
 
         # check that groups and conditions are set appropriately
@@ -40,6 +41,7 @@ class MeanCenteredPLS(BasePLS):
         super().__init__(X=np.asarray(X), groups=groups, n_cond=n_cond,
                          mean_centering=mean_centering, n_perm=n_perm,
                          n_boot=n_boot, n_split=n_split, rotate=rotate, ci=ci,
+                         permsamples=permsamples, bootsamples=bootsamples,
                          seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
         self.inputs.Y = utils.dummy_code(self.inputs.groups,
                                          self.inputs.n_cond)
@@ -93,10 +95,34 @@ class MeanCenteredPLS(BasePLS):
         """
 
         usc = compute.get_mean_center(X, Y, self.inputs.n_cond,
-                                      self.inputs.mean_centering, means=False)
+                                      self.inputs.mean_centering,
+                                      means=False)
         usc = usc @ compute.normalize(original)
 
         return np.row_stack([usc[g].mean(axis=0) for g in Y.T.astype(bool)])
+
+    def make_permutation(self, X, Y, perminds):
+        """
+        Permutes `X` according to `perminds`, leaving `Y` un-permuted
+
+        Parameters
+        ----------
+        X : (S, B) array_like
+            Input data matrix, where `S` is observations and `B` is features
+        Y : (S, T) array_like
+            Input data matrix, where `S` is observations and `T` is features
+        perminds : (S,) array_like
+            Array by which to permute `X`
+
+        Returns
+        -------
+        Xp : (S, B) array_like
+            `X`, permuted according to `perminds`
+        Yp : (S, T) array_like
+            Identical to `Y`
+        """
+
+        return X[perminds], Y
 
     def run_pls(self, X, Y):
         """
@@ -119,47 +145,49 @@ class MeanCenteredPLS(BasePLS):
         """
 
         res = super().run_pls(X, Y)
-        res.designscores = Y @ res.v
+        res['y_scores'] = Y @ res['y_weights']
 
         # get normalized brain scores and contrast
         brainscores_dm = compute.get_mean_center(X, Y, self.inputs.n_cond,
                                                  self.inputs.mean_centering,
-                                                 means=False) @ res.u
+                                                 False) @ res['x_weights']
         contrast = np.row_stack([brainscores_dm[grp].mean(axis=0) for grp
                                  in Y.T.astype(bool)])
-        res.brainscores_dm = brainscores_dm
 
         if self.inputs.n_boot > 0:
             # compute bootstraps
             distrib, u_sum, u_square = self.bootstrap(X, Y, self.rs)
 
             # calculate bootstrap ratios and confidence intervals
-            bsrs, uboot_se = compute.boot_rel(res.u @ res.s, u_sum, u_square,
+            bs = res['x_weights'] @ res['singvals']
+            bsrs, uboot_se = compute.boot_rel(bs, u_sum, u_square,
                                               self.inputs.n_boot)
-            llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
+            corrci = np.stack(compute.boot_ci(distrib, ci=self.inputs.ci), -1)
 
             # update results.boot_result dictionary
-            res.bootres.update(dict(bootstrapratios=bsrs,
-                                    uboot_se=uboot_se,
-                                    bootsamples=self.bootsamp,
-                                    contrast=contrast,
-                                    contrast_boot=distrib,
-                                    contrast_lolim=llcorr,
-                                    contrast_uplim=ulcorr))
+            res['bootres'].update(dict(x_weights_normed=bsrs,
+                                       x_weights_stderr=uboot_se,
+                                       bootsamples=self.bootsamp,
+                                       contrast=contrast,
+                                       contrast_boot=distrib,
+                                       contrast_ci=corrci))
 
         # get rid of the stupid diagonal matrix
-        res.s = np.diag(res.s)
+        res['varexp'] = np.diag(compute.varexp(res['singvals']))
+        res['singvals'] = np.diag(res['singvals'])
 
         return res
 
 
 def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
                      n_perm=5000, n_boot=5000, n_split=0, rotate=True, ci=95,
-                     seed=None, verbose=True, n_proc=None, **kwargs):
+                     permsamples=None, bootsamples=None, seed=None,
+                     verbose=True, n_proc=None, **kwargs):
     pls = MeanCenteredPLS(X=X, groups=groups, n_cond=n_cond,
                           mean_centering=mean_centering,
                           n_perm=n_perm, n_boot=n_boot, n_split=n_split,
-                          rotate=rotate, ci=ci, seed=seed, verbose=verbose,
+                          rotate=rotate, ci=ci, permsamples=permsamples,
+                          bootsamples=bootsamples, seed=seed, verbose=verbose,
                           n_proc=n_proc, **kwargs)
     return pls.results
 
@@ -186,8 +214,10 @@ Parameters
 {conditions}
 {mean_centering}
 {stat_test}
+{split_half}
 {rotate}
 {ci}
+{resamples}
 {proc_options}
 
 Returns

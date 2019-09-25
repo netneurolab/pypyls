@@ -12,7 +12,10 @@ EXAMPLES = ['mpls_multigroup_onecond_nosplit.mat',
             'bpls_onegroup_onecond_split.mat',
             'resultonly.mat']
 
-attrs = ['u', 's', 'v', 'brainscores', 'permres', 'bootres', 'inputs']
+attrs = [
+    'x_weights', 'singvals', 'y_weights', 'x_scores', 'permres', 'bootres',
+    'inputs'
+]
 
 
 @pytest.mark.parametrize('fname', EXAMPLES)
