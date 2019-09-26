@@ -35,24 +35,24 @@ def test_PLSInputs(pls_inputs):
 
 @pytest.mark.xfail
 def test_PLSResults():
-    pass
+    assert False
 
 
 @pytest.mark.xfail
 def test_PLSBootResults():
-    pass
+    assert False
 
 
 @pytest.mark.xfail
 def test_PLSPermResults():
-    pass
+    assert False
 
 
 @pytest.mark.xfail
 def test_PLSSplitHalfResults():
-    pass
+    assert False
 
 
 @pytest.mark.xfail
 def test_PLSCrossValidationResults():
-    pass
+    assert False
