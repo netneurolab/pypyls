@@ -16,7 +16,7 @@ python:
 env:
   matrix:
     - CHECK_TYPE=linting
-    - CHECK_TYPE=docdoctest
+    - CHECK_TYPE=docdoctest INSTALL_PANDAS=true
     - CHECK_TYPE=test
   global:
     - OPENBLAS_NUM_THREADS=1
