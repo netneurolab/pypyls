@@ -76,8 +76,8 @@ attributes, so we can take a quick look at our input matrices
 
 .. doctest::
 
-    >>> data.keys()
-    dict_keys(['X', 'Y', 'n_perm', 'n_boot'])
+    >>> sorted(data.keys())
+    ['X', 'Y', 'n_boot', 'n_perm']
     >>> data.X.shape
     (20, 3)
     >>> data.X.head()
@@ -202,7 +202,7 @@ for us:
 
     >>> from pyls.compute import varexp
     >>> varexp(S)[0, 0]
-    0.99471333682479335
+    0.9947133368247933
 
 Taking a look at the variance explained, we see that a whopping ~99.5% of the
 covariance between the exercises and physiological measurements in
@@ -215,7 +215,7 @@ Examining the weights from the singular vectors:
 .. doctest::
 
     >>> U[:, 0]
-    array([ 0.61330742,  0.7469717 ,  0.25668519])
+    array([0.61330742, 0.7469717 , 0.25668519])
     >>> V[:, 0]
     array([-0.58989118, -0.77134059,  0.23887675])
 
@@ -240,7 +240,7 @@ data matrices by the relevant singular vectors and then correlate the results:
     >>> XU = np.dot(data.X, U)
     >>> YV = np.dot(data.Y, V)
     >>> pearsonr(XU[:, 0], YV[:, 0])
-    (0.48997247845503833, 0.028304653097330421)
+    (0.4899724784550382, 0.028304653097330428)
 
 The correlation value of this latent variable (~ ``0.49``) suggests that our
 interpretation of the singular vectors weights, above, is only *somewhat*

@@ -26,8 +26,8 @@ attributes, so we can take a quick look at our input matrix:
 
 .. doctest::
 
-    >>> data.keys()
-    dict_keys(['X', 'n_perm', 'n_boot', 'groups'])
+    >>> sorted(data.keys())
+    ['X', 'groups', 'n_boot', 'n_perm']
     >>> data.X.shape
     (178, 13)
     >>> data.X.columns
