@@ -88,5 +88,5 @@ script:
 
 after_success:
   - if [ "${CHECK_TYPE}" == "test" ]; then
-      coveralls; codecov;
+      codecov;
     fi
