@@ -6,6 +6,7 @@ This package provides a Python interface for partial least squares (PLS) analysi
 [![CircleCI](https://circleci.com/gh/rmarkello/pyls.svg?style=shield)](https://circleci.com/gh/rmarkello/pyls)
 [![Codecov](https://codecov.io/gh/rmarkello/pyls/branch/master/graph/badge.svg)](https://codecov.io/gh/rmarkello/pyls)
 [![Documentation Status](https://readthedocs.org/projects/pyls/badge/?version=latest)](http://pyls.readthedocs.io/en/latest/?badge=latest)
+[![License](https://img.shields.io/badge/License-GPL%202.0-blue.svg)](https://opensource.org/licenses/GPL-2.0)
 
 ## Table of Contents
 

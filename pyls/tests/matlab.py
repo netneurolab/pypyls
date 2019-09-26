@@ -120,9 +120,9 @@ def compare_python_matlab(python, matlab, *, atol=1e-4, corr=0.975, alpha=0.05,
 
     Parameters
     ----------
-    python : :obj:`pyls.PLSResults`
+    python : :obj:`pyls.structures.PLSResults`
         PLSResults object generated from Python
-    matlab : :obj:`pyls.PLSResults`
+    matlab : :obj:`pyls.structures.PLSResults`
         PLSResults object generated from Matlab
     atol : float, optional
         Absolute tolerance permitted between `python` and `matlab` results

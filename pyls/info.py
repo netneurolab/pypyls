@@ -24,7 +24,7 @@ REQUIRES = [
 ]
 
 TESTS_REQUIRE = [
-    'pytest',
+    'pytest>=3.6',
     'pytest-cov'
 ]
 
@@ -46,7 +46,8 @@ EXTRAS_REQUIRE['all'] = list(
 
 PACKAGE_DATA = {
     'pyls': [
-        'tests/data/*'
+        'tests/data/*mat',
+        'examples/datasets.json'
     ]
 }
 

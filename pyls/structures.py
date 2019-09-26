@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+Data structures to hold PLS inputs and results objects
+"""
 
 from multiprocessing import cpu_count
 from textwrap import dedent
@@ -55,8 +58,7 @@ _pls_input_docs = dict(
         Default: 5000
     n_split : int, optional
         Number of split-half resamples to assess during permutation testing.
-        This also controls the number of train/test splits examined during
-        cross-validation if :attr:`test_size` is not zero. Default: 100\
+        Default: 0\
     """),
     cross_val=dedent("""\
     test_split : int, optional
@@ -100,7 +102,7 @@ _pls_input_docs = dict(
         all available processors. Default: None\
     """),
     pls_results=dedent("""\
-    results : :obj:`pyls.PLSResults`
+    results : :obj:`pyls.structures.PLSResults`
         Dictionary-like object containing results from the PLS analysis\
     """),
     references=dedent("""\

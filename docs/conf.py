@@ -15,8 +15,8 @@ import sys
 # -- Project information -----------------------------------------------------
 
 project = 'pyls'
-copyright = '2018, Ross Markello'
-author = 'Ross Markello'
+copyright = '2018, pyls developers'
+author = 'pyls developers'
 
 # Import project to get version info
 sys.path.insert(0, os.path.abspath(os.path.pardir))
@@ -25,7 +25,6 @@ import pyls  # noqa
 version = pyls.__version__
 # The full version, including alpha/beta/rc tags
 release = pyls.__version__
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -44,6 +43,7 @@ extensions = [
 
 # Generate the API documentation when building
 autosummary_generate = True
+autodoc_default_flags = ['members', 'inherited-members']
 numpydoc_show_class_members = False
 autoclass_content = "class"
 
@@ -70,7 +70,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
-
+highlight_language = 'python3'
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -86,17 +86,21 @@ html_show_sourcelink = False
 #
 # html_theme_options = {}
 
+html_context = {
+    'css_files': [
+        '_static/theme_overrides.css'
+    ]
+}
+
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'pylsdoc'
-
 
 # -- Extension configuration -------------------------------------------------
 intersphinx_mapping = {

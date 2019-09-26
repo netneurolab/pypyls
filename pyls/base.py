@@ -3,7 +3,6 @@
 import gc
 import warnings
 import numpy as np
-from sklearn.utils.extmath import randomized_svd
 from sklearn.utils.validation import check_random_state
 from . import compute, structures, utils
 
@@ -243,7 +242,8 @@ class BasePLS():
     {groups}
     {conditions}
     **kwargs : optional
-        Additional key-value pairs; see :obj:`pyls.PLSInputs` for more info
+        Additional key-value pairs; see :obj:`pyls.structures.PLSInputs` for
+        more info
 
     References
     ----------
@@ -346,7 +346,7 @@ class BasePLS():
 
         Returns
         -------
-        results : :obj:`pyls.PLSResults`
+        results : :obj:`pyls.structures.PLSResults`
             Results of PLS (not including PLS type-specific outputs)
         """
 
@@ -425,21 +425,9 @@ class BasePLS():
 
         # generate cross-covariance matrix and determine # of components
         crosscov = self.gen_covcorr(X, Y, groups=groups)
-        n_comp = min(crosscov.shape)
+        U, d, V = compute.svd(crosscov)
 
-        # run most computationally efficient SVD
-        if crosscov.shape[0] <= crosscov.shape[1]:
-            U, d, V = randomized_svd(crosscov.T,
-                                     n_components=n_comp,
-                                     random_state=check_random_state(seed))
-            V = V.T
-        else:
-            V, d, U = randomized_svd(crosscov,
-                                     n_components=n_comp,
-                                     random_state=check_random_state(seed))
-            U = U.T
-
-        return U, np.diag(d), V
+        return U, d, V
 
     def bootstrap(self, X, Y, seed=None):
         """

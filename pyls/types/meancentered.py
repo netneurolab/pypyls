@@ -114,7 +114,7 @@ class MeanCenteredPLS(BasePLS):
 
         Returns
         -------
-        res : :obj:`pyls.PLSResults`
+        res : :obj:`pyls.structures.PLSResults`
             PLS results object
         """
 
@@ -154,7 +154,7 @@ class MeanCenteredPLS(BasePLS):
 
 
 def meancentered_pls(X, *, groups=None, n_cond=1, mean_centering=0,
-                     n_perm=5000, n_boot=5000, n_split=100, rotate=True, ci=95,
+                     n_perm=5000, n_boot=5000, n_split=0, rotate=True, ci=95,
                      seed=None, verbose=True, n_proc=None, **kwargs):
     pls = MeanCenteredPLS(X=X, groups=groups, n_cond=n_cond,
                           mean_centering=mean_centering,

@@ -1,12 +1,58 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from scipy.stats import zscore, zmap
 from sklearn.utils.extmath import randomized_svd
-from sklearn.utils.validation import check_array
+from sklearn.utils.validation import check_X_y, check_random_state
 from pyls import utils
 
 
-def xcorr(X, Y, norm=True, covariance=False):
+def svd(crosscov, n_components=None, seed=None):
+    """
+    Calculates the SVD of `crosscov` and returns singular vectors/values
+
+    Parameters
+    ----------
+    crosscov : (B, T) array_like
+        Cross-covariance (or cross-correlation) matrix to be decomposed
+    n_components : int, optional
+        Number of components to retain from decomposition
+    seed : {int, :obj:`numpy.random.RandomState`, None}, optional
+        Seed for random number generation. Default: None
+
+    Returns
+    -------
+    U : (B, L) `numpy.ndarray`
+        Left singular vectors from singular value decomposition
+    d : (L, L) `numpy.ndarray`
+        Diagonal array of singular values from singular value decomposition
+    V : (J, L) `numpy.ndarray`
+        Right singular vectors from singular value decomposition
+    """
+
+    seed = check_random_state(seed)
+    crosscov = np.asanyarray(crosscov)
+
+    if n_components is None:
+        n_components = min(crosscov.shape)
+    elif not isinstance(n_components, int):
+        raise TypeError('Provided `n_components` {} must be of type int'
+                        .format(n_components))
+
+    # run most computationally efficient SVD
+    if crosscov.shape[0] <= crosscov.shape[1]:
+        U, d, V = randomized_svd(crosscov.T, n_components=n_components,
+                                 random_state=seed, transpose=False)
+        V = V.T
+    else:
+        V, d, U = randomized_svd(crosscov, n_components=n_components,
+                                 random_state=seed, transpose=False)
+        U = U.T
+
+    return U, np.diag(d), V
+
+
+def xcorr(X, Y, norm=False, covariance=False):
     """
     Calculates the cross-covariance matrix of `X` and `Y`
 
@@ -18,7 +64,7 @@ def xcorr(X, Y, norm=True, covariance=False):
         Input matrix, where `S` is samples and `T` is features.
     norm : bool, optional
         Whether to normalize `X` and `Y` (i.e., sum of squares = 1). Default:
-        True
+        False
     covariance : bool, optional
         Whether to calculate the cross-covariance matrix instead of the cross-
         correlation matrix. Default: False
@@ -29,74 +75,23 @@ def xcorr(X, Y, norm=True, covariance=False):
         Cross-covariance of `X` and `Y`
     """
 
-    if X.ndim != Y.ndim:
-        raise ValueError('Number of dims of `X` and `Y` must match.')
-    if X.ndim != 2:
-        raise ValueError('`X` and `Y` must each have 2 dims.')
-    if len(X) != len(Y):
-        raise ValueError('The first dim of `X` and `Y` must match.')
+    check_X_y(X, Y, multi_output=True)
 
+    # we could just use scipy.stats zscore but if we do this we retain the
+    # original data structure; if pandas dataframes were given, a dataframe
+    # will be returned
     if not covariance:
-        Xn, Yn = zscore(X), zscore(Y)
+        Xn = (X - X.mean(axis=0)) / X.std(axis=0, ddof=1)
+        Yn = (Y - Y.mean(axis=0)) / Y.std(axis=0, ddof=1)
     else:
         Xn, Yn = X - X.mean(0, keepdims=True), Y - Y.mean(0, keepdims=True)
 
     if norm:
         Xn, Yn = normalize(Xn), normalize(Yn)
+
     xprod = (Yn.T @ Xn) / (len(Xn) - 1)
 
     return xprod
-
-
-def zscore(data, axis=0, ddof=1, comp=None):
-    """
-    Z-scores `X` by subtracting mean and dividing by standard deviation
-
-    Effectively the same as `np.nan_to_num(scipy.stats.zscore(X))` but
-    handles DivideByZero without issuing annoying warnings.
-
-    Parameters
-    ----------
-    data : (N, ...) array_like
-        Data to be z-scored
-    axis : int, optional
-        Axis along which to z-score. Default: 0
-    ddof : int, optional
-        Delta degrees of freedom.  The divisor used in calculations is
-        `M - ddof`, where `M` is the number of elements along `axis` in
-        `comp`. Default: 1
-    comp : (M, ...) array_like
-        Distribution to z-score `data`. Should have same dimension as `data`
-        along every axis except `axis`. If not provided, `data` will be used.
-        Default: None
-
-    Returns
-    -------
-    zarr : (N, ...) `numpy.ndarray`
-        Z-scored version of `data`
-    """
-
-    data = check_array(data, ensure_2d=False, allow_nd=True)
-
-    # check if z-score against another distribution or self
-    if comp is not None:
-        comp = check_array(comp, ensure_2d=False, allow_nd=True)
-    else:
-        comp = data
-
-    avg = comp.mean(axis=axis, keepdims=True)
-    stdev = comp.std(axis=axis, ddof=ddof, keepdims=True)
-
-    # avoid DivideByZero errors
-    zeros = stdev == 0
-    if np.any(zeros):
-        avg[zeros] = 0
-        stdev[zeros] = 1
-
-    zarr = (data - avg) / stdev
-    zarr[np.repeat(zeros, zarr.shape[axis], axis=axis)] = 0
-
-    return zarr
 
 
 def normalize(X, axis=0):
@@ -150,7 +145,7 @@ def rescale_test(X_train, X_test, Y_train, U, V):
         Behavioral matrix, where `S2` is observations and `T` is features
     """
 
-    X_resc = zscore(X_test, comp=X_train, axis=0, ddof=1)
+    X_resc = zmap(X_test, compare=X_train, ddof=1)
     Y_pred = (X_resc @ U @ V.T) + Y_train.mean(axis=0, keepdims=True)
 
     return Y_pred
@@ -391,7 +386,29 @@ def efficient_corr(x, y):
     corr = np.sum(zscore(x, ddof=1) * zscore(y, ddof=1), axis=0) / (len(x) - 1)
 
     # fix rounding errors
-    corr[corr > 1] = 1
-    corr[corr < -1] = -1
+    corr = np.clip(corr, -1, 1)
 
     return corr
+
+
+def varexp(singular):
+    """
+    Calculates the variance explained by values in `singular`
+
+    Parameters
+    ----------
+    singular : (L, L) array_like
+        Singular values from singular value decomposition
+
+    Returns
+    -------
+    varexp : (L, L) `numpy.ndarray`
+        Variance explained
+    """
+
+    if singular.ndim != 2:
+        raise ValueError('Provided `singular` array must be a square diagonal '
+                         'matrix, not array of shape {}'
+                         .format(singular.shape))
+
+    return np.diag(np.diag(singular)**2 / np.sum(np.diag(singular)**2))
