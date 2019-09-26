@@ -10,20 +10,16 @@ from .. import compute, utils
 class BehavioralPLS(BasePLS):
     def __init__(self, X, Y, *, groups=None, n_cond=1, n_perm=5000,
                  n_boot=5000, n_split=100, test_size=0.25, test_split=100,
-                 covariance=False, rotate=True, ci=95, seed=None, verbose=True,
-                 n_proc=None, **kwargs):
-
-        # check that inputs are valid
-        if len(X) != len(Y):
-            raise ValueError('Provided `X` and `Y` matrices must have the '
-                             'same number of samples. Provided matrices '
-                             'differed: X: {}, Y: {}'.format(len(X), len(Y)))
+                 covariance=False, rotate=True, ci=95, permsamples=None,
+                 bootsamples=None, seed=None, verbose=True, n_proc=None,
+                 **kwargs):
 
         super().__init__(X=np.asarray(X), Y=np.asarray(Y), groups=groups,
                          n_cond=n_cond, n_perm=n_perm, n_boot=n_boot,
                          n_split=n_split, test_size=test_size,
                          test_split=test_split, covariance=covariance,
-                         rotate=rotate, ci=ci, seed=seed, verbose=verbose,
+                         rotate=rotate, ci=ci, permsamples=permsamples,
+                         bootsamples=bootsamples, seed=seed, verbose=verbose,
                          n_proc=n_proc, **kwargs)
 
         self.results = self.run_pls(self.inputs.X, self.inputs.Y)
@@ -50,35 +46,10 @@ class BehavioralPLS(BasePLS):
             Cross-covariance matrix
         """
 
-        crosscov = []
-        for grp in groups.T.astype(bool):
-            crosscov.append(compute.xcorr(X[grp], Y[grp],
-                                          covariance=self.inputs.covariance))
-
-        return np.row_stack(crosscov)
-
-    def make_permutation(self, X, Y, perminds):
-        """
-        Permutes `Y` according to `perminds`, leaving `X` un-permuted
-
-        Parameters
-        ----------
-        X : (S, B) array_like
-            Input data matrix, where `S` is observations and `B` is features
-        Y : (S, T) array_like
-            Input data matrix, where `S` is observations and `T` is features
-        perminds : (S,) array_like
-            Array by which to permute `Y`
-
-        Returns
-        -------
-        Xp : (S, B) array_like
-            Identical to `X`
-        Yp : (S, T) array_like
-            `Y`, permuted according to `perminds`
-        """
-
-        return X, Y[perminds]
+        return np.row_stack([
+            compute.xcorr(X[grp], Y[grp], covariance=self.inputs.covariance)
+            for grp in groups.T.astype(bool)
+        ])
 
     def gen_distrib(self, X, Y, original, groups, *args, **kwargs):
         """
@@ -210,44 +181,45 @@ class BehavioralPLS(BasePLS):
         res = super().run_pls(X, Y)
 
         # mechanism for splitting outputs along group / condition indices
-        grps = np.repeat(res.inputs.groups, res.inputs.n_cond)
-        res.behavscores = np.vstack([y @ v for (y, v) in
-                                     zip(np.split(Y, np.cumsum(grps)[:-1]),
-                                         np.split(res.v, len(grps)))])
+        grps = np.repeat(res['inputs']['groups'], res['inputs']['n_cond'])
+        res['y_scores'] = np.vstack([
+            y @ v for (y, v) in zip(np.split(Y, np.cumsum(grps)[:-1]),
+                                    np.split(res['y_weights'], len(grps)))
+        ])
 
         # get lvcorrs
         groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
-        res.behavcorr = self.gen_covcorr(res.brainscores, Y, groups)
+        res['y_loadings'] = self.gen_covcorr(res['x_scores'], Y, groups)
 
         if self.inputs.n_boot > 0:
             # compute bootstraps
             distrib, u_sum, u_square = self.bootstrap(X, Y, self.rs)
 
             # add original scaled singular vectors back in
-            bs = res.u @ res.s
+            bs = res['x_weights'] @ res['singvals']
             u_sum, u_square = u_sum + bs, u_square + (bs ** 2)
 
             # calculate bootstrap ratios and confidence intervals
             bsrs, uboot_se = compute.boot_rel(bs, u_sum, u_square,
                                               self.inputs.n_boot + 1)
-            llcorr, ulcorr = compute.boot_ci(distrib, ci=self.inputs.ci)
+            corrci = np.stack(compute.boot_ci(distrib, ci=self.inputs.ci), -1)
 
             # update results.boot_result dictionary
-            res.bootres.update(dict(bootstrapratios=bsrs,
-                                    uboot_se=uboot_se,
-                                    bootsamples=self.bootsamp,
-                                    behavcorr=res.behavcorr,
-                                    behavcorr_boot=distrib,
-                                    behavcorr_lolim=llcorr,
-                                    behavcorr_uplim=ulcorr))
+            res['bootres'].update(dict(x_weights_normed=bsrs,
+                                       x_weights_stderr=uboot_se,
+                                       y_loadings=res['y_loadings'].copy(),
+                                       y_loadings_boot=distrib,
+                                       y_loadings_ci=corrci,
+                                       bootsamples=self.bootsamp))
 
         # compute cross-validated prediction-based metrics
         if self.inputs.test_split is not None and self.inputs.test_size > 0:
             r, r2 = self.crossval(X, Y, groups=self.dummy, seed=self.rs)
-            res.cvres.update(dict(pearson_r=r, r_squared=r2))
+            res['cvres'].update(dict(pearson_r=r, r_squared=r2))
 
         # get rid of the stupid diagonal matrix
-        res.s = np.diag(res.s)
+        res['varexp'] = np.diag(compute.varexp(res['singvals']))
+        res['singvals'] = np.diag(res['singvals'])
 
         return res
 
@@ -255,13 +227,15 @@ class BehavioralPLS(BasePLS):
 # let's make it a function
 def behavioral_pls(X, Y, *, groups=None, n_cond=1, n_perm=5000, n_boot=5000,
                    n_split=0, test_size=0.25, test_split=100,
-                   covariance=False, rotate=True, ci=95, seed=None,
-                   verbose=True, n_proc=None, **kwargs):
+                   covariance=False, rotate=True, ci=95, permsamples=None,
+                   bootsamples=None, seed=None, verbose=True, n_proc=None,
+                   **kwargs):
     pls = BehavioralPLS(X=X, Y=Y, groups=groups, n_cond=n_cond,
                         n_perm=n_perm, n_boot=n_boot, n_split=n_split,
                         test_size=test_size, test_split=test_split,
-                        covariance=covariance, rotate=rotate, ci=ci, seed=seed,
-                        verbose=verbose, n_proc=n_proc, **kwargs)
+                        covariance=covariance, rotate=rotate, ci=ci,
+                        permsamples=permsamples, bootsamples=bootsamples,
+                        seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
     return pls.results
 
 
@@ -289,10 +263,12 @@ Y : (S, T) array_like
 {groups}
 {conditions}
 {stat_test}
+{split_half}
 {cross_val}
 {covariance}
 {rotate}
 {ci}
+{resamples}
 {proc_options}
 
 Returns

@@ -157,11 +157,11 @@ def compare_python_matlab(python, matlab, *, atol=1e-4, corr=0.975, alpha=0.05,
                          'instance, not {}.'.format(type(matlab)))
 
     # singular values close to 0 cannot be considered because they're random
-    keep = ~np.isclose(python.s, 0)
+    keep = ~np.isclose(python['singvals'], 0)
 
-    # check top-level results
+    # check top-level results (only for shared keys)
     for k in python.keys():
-        if isinstance(python[k], np.ndarray):
+        if isinstance(python[k], np.ndarray) and (k in matlab):
             a, b = python[k][..., keep], matlab[k][..., keep]
             try:
                 assert_num_equiv(a, b, atol=atol)
@@ -170,7 +170,8 @@ def compare_python_matlab(python, matlab, *, atol=1e-4, corr=0.975, alpha=0.05,
 
     # check pvals for functional equivalence
     if matlab.get('permres', {}).get('pvals') is not None:
-        a, b = python.permres.pvals[keep], matlab.permres.pvals[keep]
+        a = python['permres']['pvals'][keep]
+        b = matlab['permres']['pvals'][keep]
         try:
             assert_func_equiv(a, b, corr, ftol=ftol)
             assert_pvals_equiv(a, b, alpha)
@@ -178,17 +179,17 @@ def compare_python_matlab(python, matlab, *, atol=1e-4, corr=0.975, alpha=0.05,
             return False, 'permres.pvals'
 
     # check bootstraps for functional equivalence
-    if matlab.get('bootres', {}).get('bootstrapratios') is not None:
-        a = python.bootres.bootstrapratios[..., keep]
-        b = matlab.bootres.bootstrapratios[..., keep]
+    if matlab.get('bootres', {}).get('x_weights_normed') is not None:
+        a = python['bootres']['x_weights_normed'][..., keep]
+        b = matlab['bootres']['x_weights_normed'][..., keep]
         try:
             assert_func_equiv(a, b, corr, ftol=ftol)
         except AssertionError:
-            return False, 'bootres.bootstrapratios'
+            return False, 'bootres.x_weights_normed'
 
     # check splitcorr for functional equivalence
     if matlab.get('splitres', {}).get('ucorr') is not None:
-        a, b = python.splitres, matlab.splitres
+        a, b = python['splitres'], matlab['splitres']
         try:
             for k in ['ucorr', 'vcorr']:
                 assert_func_equiv(a[k][keep], b[k][keep], corr, ftol=ftol)
@@ -242,15 +243,15 @@ def assert_matlab_equivalence(fname, method=None, *, atol=1e-4, corr=0.975,
     matlab = pyls.matlab.import_matlab_result(fname)
 
     # fix n_split default (if not specified in matlab assume 0)
-    if not hasattr(matlab.inputs, 'n_split'):
-        matlab.inputs.n_split = 0
+    if 'n_split' not in matlab['inputs']:
+        matlab['inputs']['n_split'] = 0
 
     # get PLS method
     fcn = None
     if method is None:
-        if matlab.inputs.method == 1:
+        if matlab['inputs']['method'] == 1:
             fcn = pyls.meancentered_pls
-        elif matlab.inputs.method == 3:
+        elif matlab['inputs']['method'] == 3:
             fcn = pyls.behavioral_pls
     elif isinstance(method, str):
         if method == 'meancentered':
@@ -267,16 +268,16 @@ def assert_matlab_equivalence(fname, method=None, *, atol=1e-4, corr=0.975,
                          .format(fname))
 
     # use seed for reproducibility of re-analysis
-    matlab.inputs.seed = 1234
-    matlab.inputs.verbose = False
+    matlab['inputs']['seed'] = 1234
+    matlab['inputs']['verbose'] = False
     # don't update n_split if it was previously set to None
-    if matlab.inputs.n_split is None:
+    if matlab['inputs']['n_split'] is None:
         if 'n_split' in kwargs:
             kwargs.pop('n_split')
-    matlab.inputs.update(kwargs)
+    matlab['inputs'].update(kwargs)
 
     # run PLS
-    python = fcn(**matlab.inputs)
+    python = fcn(**matlab['inputs'])
     equiv, reason = compare_python_matlab(python, matlab, atol=atol, corr=corr,
                                           alpha=alpha, ftol=ftol)
 

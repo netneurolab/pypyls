@@ -12,17 +12,18 @@ This package provides a Python interface for partial least squares (PLS) analysi
 
 If you know where you're going, feel free to jump ahead:
 
-* [Installation](#requirements-and-installation)
+* [Installation and setup](#requirements-and-installation)
 * [Purpose](#purpose)
   * [Overview](#overview)
   * [Background](#background)
-  * [Development](#development)
-* [Example usage](#usage)
-  * [Behavioral PLS](#behavioral-pls)
-  * [Mean-centered PLS](#mean-centered-pls)
+* [Usage](#usage)
+  * [PLS correlation methods](#pls-correlation-methods)
+    * [Behavioral PLS](#behavioral-pls)
+    * [Mean-centered PLS](#mean-centered-pls)
+  * [PLS regression methods](#pls-regression-methods)
+    * [Regression with SIMPLS](#regression-with-simpls)
   * [PLS results](#results)
-* [How to get involved](#how-to-get-involved)
-
+  
 ## Installation and setup
 
 This package requires Python >= 3.5. Assuming you have the correct version of Python installed, you can install this package by opening a terminal and running the following:
@@ -39,31 +40,36 @@ There are plans (hopes?) to get this set up on PyPI for an easier installation p
 
 ### Overview
 
-Partial least squares (PLS) is a statistical technique that aims to find shared information between two sets of variables. If you're unfamiliar with PLS and are interested in a thorough (albeit quite technical) treatment of it [Abdi et al., 2013](https://doi.org/10.1007/978-1-62703-059-5_23) is a good resource. There are multiple "flavors" of PLS that are tailored to different use cases, but the implementation in the current package is often referred to as **PLS-C** (PLS correlation) or **PLS-SVD** (PLS singular value decomposition).
+Partial least squares (PLS) is a statistical technique that aims to find shared information between two sets of variables. 
+If you're unfamiliar with PLS and are interested in a thorough (albeit quite technical) treatment of it [Abdi et al., 2013](https://doi.org/10.1007/978-1-62703-059-5_23) is a good resource.
+There are multiple "flavors" of PLS that are tailored to different use cases; this package implements two functions that fall within the category typically referred to as **PLS-C** (PLS correlation) or **PLS-SVD** (PLS singular value decomposition) and one function that falls within the category typically referred to as **PLS-R** (PLS regression).
 
 ### Background
 
-The functionality of the current package largely mirrors that originally introduced by [McIntosh et al., (1996)](https://www.ncbi.nlm.nih.gov/pubmed/9345485) in their [Matlab toolbox](https://www.rotman-baycrest.on.ca/index.php?section=84). However, while the Matlab toolbox has a significant number of tools dedicated to integrating neuroimaging-specific paradigms (i.e., loading M/EEG and fMRI data), the current Python package aims to implement and expand on only the core _statistical_ functions of that toolbox.
+The functionality of the current package largely mirrors that originally introduced by [McIntosh et al., (1996)](https://www.ncbi.nlm.nih.gov/pubmed/9345485) in their [Matlab toolbox](https://www.rotman-baycrest.on.ca/index.php?section=84).
+However, while the Matlab toolbox has a significant number of tools dedicated to integrating neuroimaging-specific paradigms (i.e., loading M/EEG and fMRI data), the current Python package aims to implement and expand on only the core _statistical_ functions of that toolbox.
 
-While the core algorithm of PLS implemented in this package is also present in [`scikit-learn`](`http://scikit-learn.org/stable/modules/generated/sklearn.cross_decomposition.PLSSVD.html`), this package provides a slightly different API and includes some additional functionality. Namely, `pyls`:
+While the core algorithms of PLS implemented in this package are present (to a degree) in [`scikit-learn`](`https://scikit-learn.org/stable/modules/classes.html#module-sklearn.cross_decomposition`), this package provides a different API and includes some additional functionality.
+Namely, `pyls`:
 
 1. Has integrated significance and reliability testing via built-in permutation testing and bootstrap resampling,
-2. Implements [mean-centered PLS](https://www.ncbi.nlm.nih.gov/pubmed/20656037) for multivariate group/condition comparisons.
-
-### Development
-
-This package has largely been developed in the spare time of a single graduate student ([`@rmarkello`](https://github.com/rmarkello)), so while it would be :sparkles: amazing :sparkles: if anyone else finds it helpful, this package is not currently accepting requests for new features.
+2. Implements [mean-centered PLS](https://www.ncbi.nlm.nih.gov/pubmed/20656037) for multivariate group/condition comparisons,
+3. Uses the [SIMPLS](https://doi.org/10.1016%2F0169-7439%2893%2985002-X) instead of the [NIPALS algorithm](https://doi.org/10.1016/B978-0-12-426653-7.50032-6) for PLS regression
 
 ## Usage
 
-`pyls` implement two subtypes of PLS-C: a more traditional form that we call "behavioral PLS" (accessible as the function `behavioral_pls`) and a somewhat newer form that we call "mean-centered PLS" (accessible as the function `meancentered_pls`).
+`pyls` implement two subtypes of PLS-C: a more traditional form that we call "behavioral PLS" (`pyls.behavioral_pls`) and a somewhat newer form that we call "mean-centered PLS" (`pyls.meancentered_pls`).
+It also implements one type of PLS-R, which uses the SIMPLS algorithm (`pyls.pls_regression`); this is, in principle, very similar to "behavioral PLS."
 
-### Behavioral PLS
+### PLS correlation methods
 
-As the more "traditional" form of PLS-C, `behavioral_pls` looks to find relationships between two sets of variables. To run a behavioral PLS we would do the following:
+#### Behavioral PLS
+
+As the more "traditional" form of PLS-C, `pyls.behavioral_pls` looks to find relationships between two sets of variables. 
+To run a behavioral PLS we would do the following:
 
 ```python
->>> from pyls import behavioral_pls
+>>> import numpy as np
 
 # let's create two data arrays with 80 observations
 >>> X = np.random.rand(80, 10000)  # a 10000-feature (e.g., neural) data array
@@ -75,32 +81,44 @@ As the more "traditional" form of PLS-C, `behavioral_pls` looks to find relation
 >>> n_cond = 2         # the number of tasks or conditions
 
 # run the analysis and look at the results structure
+>>> from pyls import behavioral_pls
 >>> bpls = behavioral_pls(X, Y, groups=groups, n_cond=n_cond)
 >>> bpls
-PLSResults(u, s, v, brainscores, behavscores, behavcorr, permres, bootres, splitres, cvres, inputs)
+PLSResults(x_weights, y_weights, x_scores, y_scores, y_loadings, singvals, varexp, permres, 
+bootres, splitres, cvres, inputs)
 ```
 
-### Mean-centered PLS
+#### Mean-centered PLS
 
-In contrast to behavioral PLS, `meancentered_pls` doesn't look to find relationships between two sets of variables, but rather tries to find relationships between _groupings_ in a single set of variables. As such, we will only provide it with _one_ of our created data arrays (`X`) and it will attempt to examine how the features of that array differ between groups and/or conditions. To run a mean-centered PLS we would do the following:
+In contrast to behavioral PLS, `pyls.meancentered_pls` doesn't look to find relationships between two sets of variables, but rather tries to find relationships between _groupings_ in a single set of variables. As such, we will only provide it with _one_ of our created data arrays (`X`) and it will attempt to examine how the features of that array differ between groups and/or conditions. To run a mean-centered PLS we would do the following:
 
 ```python
 >>> from pyls import meancentered_pls
->>> mpls = pyls.meancentered_pls(X, groups=groups, n_cond=n_cond)
+>>> mpls = meancentered_pls(X, groups=groups, n_cond=n_cond)
 >>> mpls
-PLSResults(u, s, v, brainscores, brainscores_dm, designscores, permres, bootres, splitres, inputs)
+PLSResults(x_weights, y_weights, x_scores, y_scores, singvals, varexp, permres, bootres, splitres,
+inputs)
 ```
 
-### Results
+### PLS regression methods
 
-The doc-strings of the results objects (`bpls` and `mpls` in the above example) have some information describing what each output represents, so while we work on [getting some better documentation](https://github.com/rmarkello/pyls/issues/19) you can rely on those for some insight! Try typing `help(bpls)` or `help(mpls)` to get more information on what the different values represent.
+#### Regression with SIMPLS
 
-If you are at all familiar with the Matlab PLS toolbox you might notice that the results structures have a differeng naming convention; despite this all the same information should be present!
+Whereas `pyls.behavioral_pls` aims to maximize the symmetric relationship between `X` and `Y`, `pyls.pls_regression` performs a directed decomposition.
+That is, it aims to find components in `X` that explain the most variance in `Y` (but not necessarily vice versa).
+To run a PLS regression analysis we would do the following:
 
-## How to get involved
+```python
+>>> from pyls import pls_regression
+>>> plsr = pls_regression(X, Y, n_components=5)
+>>> plsr
+PLSResults(x_weights, x_scores, y_scores, y_loadings, varexp, permres, bootres, inputs)
+```
 
-We're thrilled to welcome new contributors! If you're interesting in getting involved, you should start by reading our [contributing guidelines](https://github.com/rmarkello/pyls/blob/master/CONTRIBUTING.md) and [code of conduct](https://github.com/rmarkello/pyls/blob/master/Code_of_Conduct.md).
+Currently `pyls.pls_regression()` does not support groups or conditions.
 
-Once you're done with that, you can take a look at our [roadmap](https://github.com/rmarkello/pyls/issues/26) and the accompanying [project](https://github.com/rmarkello/pyls/projects/1). If you find something you'd like to work on, head on over to the relevant [issue](https://github.com/rmarkello/pyls/issues) and let us know.
+### PLS Results
 
-If you've found a bug, are experiencing a problem, or have a question, create a new issue with some information about it!
+The docstrings of the results objects (`bpls`, `plsr`, and `mpls` in the above example) have some information describing what each output represents, so while we work on improving our documentation you can rely on those for some insight! Try typing `help(bpls)`, `help(plsr)`, or `help(mpls)` to get more information on what the different values represent.
+
+If you are at all familiar with the Matlab PLS toolbox you might notice that the results structures have a dramatically different naming convention; despite this all the same information should be present!

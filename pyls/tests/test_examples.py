@@ -40,7 +40,8 @@ def test_available_datasets():
         'description', 'reference', 'urls', 'X', 'n_perm', 'n_boot', 'groups'
     ]),
     ('whitaker_vertes_2016', [
-        'description', 'reference', 'urls', 'X', 'Y', 'n_perm'
+        'description', 'reference', 'urls', 'X', 'Y', 'n_perm', 'n_boot',
+        'n_components'
     ])
 ])
 def test_query_dataset(dataset, keys):
@@ -77,7 +78,7 @@ def test_get_data_dir(tmpdir):
     ('linnerud', ['X', 'Y', 'n_perm', 'n_boot']),
     ('mirchi_2018', ['X', 'Y', 'n_perm', 'n_boot', 'test_size', 'test_split']),
     ('wine', ['X', 'groups', 'n_perm', 'n_boot']),
-    ('whitaker_vertes_2016', ['X', 'Y', 'n_perm'])
+    ('whitaker_vertes_2016', ['X', 'Y', 'n_perm', 'n_boot', 'n_components'])
 ])
 def test_load_dataset(tmpdir, dataset, keys):
     ds = pyls.examples.load_dataset(dataset, str(tmpdir))

@@ -49,6 +49,8 @@ def save_results(fname, results):
             else:
                 if item is not None:
                     grp.attrs[key] = item
+                else:
+                    grp.attrs[key] = 'None'
 
     if not isinstance(fname, str):
         fname = str(fname)
@@ -100,6 +102,8 @@ def load_results(fname):
             elif isinstance(item, h5py.Group):
                 results[key] = _recursive_load(h5file, group=group + '/' + key)
         for key, value in h5file[group].attrs.items():
+            if isinstance(value, str) and value == 'None':
+                value = None
             results[key] = value
 
         return results

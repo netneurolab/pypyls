@@ -51,6 +51,8 @@
         ],
         "X": "PLS_gene_predictor_vars.csv",
         "Y": "PLS_MRI_response_vars.csv",
-        "n_perm": 1000
+        "n_perm": 1000,
+        "n_boot": 1000,
+        "n_components": 2
     }
 }

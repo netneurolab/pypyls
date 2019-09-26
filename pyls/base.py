@@ -251,7 +251,7 @@ class BasePLS():
     {references}
     """.format(**structures._pls_input_docs)
 
-    def __init__(self, X, groups=None, n_cond=1, **kwargs):
+    def __init__(self, X, Y=None, groups=None, n_cond=1, **kwargs):
         # if groups aren't provided or are provided wrong, fix them
         if groups is None:
             groups = [len(X) // n_cond]
@@ -271,8 +271,13 @@ class BasePLS():
                              '    ACTUAL:   {} (groups: {} * n_cond: {})'
                              .format(len(X), n_samples, groups, n_cond))
 
-        self.inputs = structures.PLSInputs(X=X, groups=groups, n_cond=n_cond,
-                                           **kwargs)
+        if Y is not None and len(X) != len(Y):
+            raise ValueError('Provided `X` and `Y` matrices must have the '
+                             'same number of samples. Provided matrices '
+                             'differed: X: {}, Y: {}'.format(len(X), len(Y)))
+
+        self.inputs = structures.PLSInputs(X=X, Y=Y, groups=groups,
+                                           n_cond=n_cond, **kwargs)
         # store dummy-coded array of groups / conditions (save on computation)
         self.dummy = utils.dummy_code(groups, n_cond)
         self.rs = check_random_state(self.inputs.get('seed'))
@@ -354,22 +359,23 @@ class BasePLS():
         self.res = res = structures.PLSResults(inputs=self.inputs)
 
         # get original singular vectors / values
-        res.u, res.s, res.v = self.svd(X, Y, seed=self.rs)
-        res.brainscores = X @ res.u
+        res['x_weights'], res['singvals'], res['y_weights'] = \
+            self.svd(X, Y, seed=self.rs)
+        res['x_scores'] = X @ res['x_weights']
 
         if self.inputs.n_perm > 0:
             # compute permutations and get statistical significance of LVs
             d_perm, ucorrs, vcorrs = self.permutation(X, Y, seed=self.rs)
-            res.permres.pvals = compute.perm_sig(res.s, d_perm)
-            res.permres.permsamples = self.permsamp
+            res['permres']['pvals'] = compute.perm_sig(res['singvals'], d_perm)
+            res['permres']['permsamples'] = self.permsamp
 
             if self.inputs.n_split is not None:
                 # get ucorr / vcorr (via split half resampling) for original,
                 # unpermuted `X` and `Y` arrays
-                di = np.linalg.inv(res.s)
+                di = np.linalg.inv(res['singvals'])
                 orig_ucorr, orig_vcorr = self.split_half(X, Y,
-                                                         res.u @ di,
-                                                         res.v @ di,
+                                                         res['x_weights'] @ di,
+                                                         res['y_weights'] @ di,
                                                          seed=self.rs)
                 # get p-values for ucorr/vcorr
                 ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
@@ -380,14 +386,14 @@ class BasePLS():
                 vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
 
                 # update results object with split-half resampling results
-                res.splitres.update(dict(ucorr=orig_ucorr,
-                                         vcorr=orig_vcorr,
-                                         ucorr_pvals=ucorr_prob,
-                                         vcorr_pvals=vcorr_prob,
-                                         ucorr_lolim=ucorr_ll,
-                                         vcorr_lolim=vcorr_ll,
-                                         ucorr_uplim=ucorr_ul,
-                                         vcorr_uplim=vcorr_ul))
+                res['splitres'].update(dict(ucorr=orig_ucorr,
+                                            vcorr=orig_vcorr,
+                                            ucorr_pvals=ucorr_prob,
+                                            vcorr_pvals=vcorr_prob,
+                                            ucorr_lolim=ucorr_ll,
+                                            vcorr_lolim=vcorr_ll,
+                                            ucorr_uplim=ucorr_ul,
+                                            vcorr_uplim=vcorr_ul))
 
         return res
 
@@ -425,7 +431,7 @@ class BasePLS():
 
         # generate cross-covariance matrix and determine # of components
         crosscov = self.gen_covcorr(X, Y, groups=groups)
-        U, d, V = compute.svd(crosscov)
+        U, d, V = compute.svd(crosscov, seed=seed)
 
         return U, d, V
 
@@ -468,8 +474,8 @@ class BasePLS():
         # make empty arrays to store bootstrapped singular vectors
         # these will be used to calculate the standard error later on for
         # creation of bootstrap ratios
-        u_sum = np.zeros_like(self.res.u)
-        u_square = np.zeros_like(self.res.u)
+        u_sum = np.zeros_like(self.res['x_weights'])
+        u_square = np.zeros_like(self.res['x_weights'])
 
         # `distrib` corresponds either to the behavioral correlations (if
         # running a behavioral PLS) or to the group/condition contrast (if
@@ -496,7 +502,8 @@ class BasePLS():
                 d, usu = zip(*parallel(func(self, X=X, Y=Y,
                                             inds=self.bootsamp[:, i],
                                             groups=self.dummy,
-                                            original=self.res.u, seed=i)
+                                            original=self.res['x_weights'],
+                                            seed=i)
                                        for i in range(boots, top)))
 
                 # sum bootstrapped singular vectors and store
@@ -569,7 +576,7 @@ class BasePLS():
 
     def make_permutation(self, X, Y, perminds):
         """
-        Permutes `X` according to `perminds`, leaving `Y` un-permuted
+        Permutes `Y` according to `perminds`, leaving `X` un-permuted
 
         Parameters
         ----------
@@ -578,17 +585,17 @@ class BasePLS():
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
         perminds : (S,) array_like
-            Array by which to permute `X`
+            Array by which to permute `Y`
 
         Returns
         -------
         Xp : (S, B) array_like
-            `X`, permuted according to `perminds`
+            Identical to `X`
         Yp : (S, T) array_like
-            Identical to `Y`
+            `Y`, permuted according to `perminds`
         """
 
-        return X[perminds], Y
+        return X, Y[perminds]
 
     def permutation(self, X, Y, seed=None):
         """
@@ -631,7 +638,8 @@ class BasePLS():
         gen = utils.trange(self.inputs.n_perm, verbose=self.inputs.verbose,
                            desc='Running permutations')
         out = parallel(func(self, X=X, Y=Y, inds=self.permsamp[:, i],
-                            groups=self.dummy, original=self.res.v, seed=i)
+                            groups=self.dummy, original=self.res['y_weights'],
+                            seed=i)
                        for i in gen)
         d_perm, ucorrs, vcorrs = [np.stack(o, axis=-1) for o in zip(*out)]
 

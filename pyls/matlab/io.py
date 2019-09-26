@@ -1,29 +1,25 @@
 # -*- coding: utf-8 -*-
 
-import collections
+from collections.abc import MutableMapping
+
 import numpy as np
 import scipy.io as sio
+
 from ..structures import PLSResults
 
 _result_mapping = (
-    ('u', 'u'),
-    ('s', 's'),
-    ('v', 'v'),
-    ('usc', 'brainscores'),
-    ('lvcorrs', 'behavcorr'),
+    ('u', 'x_weights'),
+    ('s', 'singvals'),
+    ('v', 'y_weights'),
+    ('usc', 'x_scores'),
+    ('vsc', 'y_scores'),
+    ('lvcorrs', 'y_loadings'),
     # permres
     ('perm_result_sprob', 'pvals'),
     ('perm_result_permsamp', 'permsamples'),
     # bootres
-    ('boot_result_orig_corr', 'behavcorr'),
-    ('boot_result_ulcorr', 'behavcorr_uplim'),
-    ('boot_result_llcorr', 'behavcorr_lolim'),
-    ('boot_result_orig_usc', 'contrast'),
-    ('boot_result_ulusc', 'contrast_uplim'),
-    ('boot_result_llusc', 'contrast_lolim'),
-    ('boot_result_compare_u', 'bootstrapratios'),
-    ('boot_result_u_se', 'uboot_se'),
-    ('boot_result_usc2', 'brainscores_dm'),
+    ('boot_result_compare_u', 'x_weights_normed'),
+    ('boot_result_u_se', 'x_weights_stderr'),
     ('boot_result_bootsamp', 'bootsamples'),
     # splitres
     ('perm_splithalf_orig_ucorr', 'ucorr'),
@@ -48,13 +44,17 @@ _result_mapping = (
 )
 
 _mean_centered_mapping = (
-    ('vsc', 'designscores'),
-    ('boot_result_distrib', 'contrast_boot')
+    ('boot_result_orig_usc', 'contrast'),
+    ('boot_result_distrib', 'contrast_boot'),
+    ('boot_result_ulusc', 'contrast_ci_up'),
+    ('boot_result_llusc', 'contrast_ci_lo'),
 )
 
 _behavioral_mapping = (
-    ('vsc', 'behavscores'),
-    ('boot_result_distrib', 'behavcorr_boot')
+    ('boot_result_orig_corr', 'y_loadings'),
+    ('boot_result_distrib', 'y_loadings_boot'),
+    ('boot_result_ulcorr', 'y_loadings_ci_up'),
+    ('boot_result_llcorr', 'y_loadings_ci_lo'),
 )
 
 
@@ -104,7 +104,7 @@ def _flatten(d, parent_key='', sep='_'):
     items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.MutableMapping):
+        if isinstance(v, MutableMapping):
             items.extend(_flatten(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
@@ -198,8 +198,16 @@ def import_matlab_result(fname, datamat='datamat_lst'):
     result = _rename_keys(_flatten(result), _result_mapping)
     if result['method'] == 3:
         result = _rename_keys(result, _behavioral_mapping)
+        if 'y_loadings_ci_up' in result:
+            result['y_loadings_ci'] = np.stack([
+                result['y_loadings_ci_lo'], result['y_loadings_ci_up']
+            ], axis=-1)
     else:
         result = _rename_keys(result, _mean_centered_mapping)
+        if 'contrast_ci_up' in result:
+            result['contrast_ci'] = np.stack([
+                result['contrast_ci_lo'], result['contrast_ci_up']
+            ], axis=-1)
 
     # index arrays - 1 to account for Matlab vs Python 1- vs 0-indexing
     for key in ['bootsamples', 'permsamples']:

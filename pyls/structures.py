@@ -51,11 +51,13 @@ _pls_input_docs = dict(
     # perms / resampling / crossval
     stat_test=dedent("""\
     n_perm : int, optional
-        Number of permutations to use for testing significance of latent
-        variables. Default: 5000
+        Number of permutations to use for testing significance of components.
+         Default: 5000
     n_boot : int, optional
-        Number of bootstraps to use for testing reliability of features.
+        Number of bootstraps to use for testing reliability of data features.
         Default: 5000
+    """),
+    split_half=dedent("""\
     n_split : int, optional
         Number of split-half resamples to assess during permutation testing.
         Default: 0\
@@ -105,6 +107,16 @@ _pls_input_docs = dict(
     results : :obj:`pyls.structures.PLSResults`
         Dictionary-like object containing results from the PLS analysis\
     """),
+    resamples=dedent("""\
+    permsamples : array_like, optional
+        Re-sampling array to be used during permutation test (if n_perm > 0).
+        If not specified a set of unique permutations will be generated.
+        Default: None
+    bootsamples : array_like, optional
+        Resampling array to be used during bootstrap resampling (if n_boot >
+        0). If not specified a set of unique bootstraps will be generated.
+        Default: None
+    """),
     references=dedent("""\
     McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L. (1996).
     Spatial pattern analysis of functional brain images using partial least
@@ -130,7 +142,7 @@ class PLSInputs(ResDict):
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
         'test_split', 'test_size', 'mean_centering', 'covariance', 'rotate',
         'ci', 'seed', 'verbose', 'n_proc', 'bootsamples', 'permsamples',
-        'method'
+        'method', 'n_components'
     ]
 
     def __init__(self, *args, **kwargs):
@@ -183,41 +195,38 @@ class PLSResults(ResDict):
 
     Attributes
     ----------
-    u : (B, L) `numpy.ndarray`
-        Left singular vectors from original singular value decomposition.
-    s : (L, L) `numpy.ndarray`
-        Singular values from original singular value decomposition.
-    v : (J, L) `numpy.ndarray`
-        Right singular vectors from original singular value decomposition.
-    brainscores : (S, L) `numpy.ndarray`
-        Brain scores (:math:`X \times v`), where `X` is :attr:`inputs.X`.
-    designscores : (S, L) `numpy.ndarray`
-        Design scores (:math:`Y \times u`), where `Y` is :attr:`inputs.Y`.
-        Only obtained from :obj:`.meancentered_pls`.
-    behavscores : (S, L) `numpy.ndarray`
-        Behavior scores (:math:`Y \times u`), where `Y` is :attr:`inputs.Y`.
-        Only obtained from :obj:`.behavioral_pls`.
-    brainscores_dm : (S, L) `numpy.ndarray`
-        Demeaned brain scores (:math:`(X - \bar{{X}}) \times v`), where `X` is
-        :attr:`inputs.X`. Only obtained from :obj:`.meancentered_pls`.
-    behavcorr : (J, L) `numpy.ndarray`
-        Correlation of :attr:`brainscores` with :attr:`inputs.Y`. Only
-        obtained from :obj:`.behavioral_pls`.
+    x_weights : (B, L) `numpy.ndarray`
+        Weights of `B` features used to project `X` matrix into PLS-derived
+        component space
+    y_weights : (J, L) `numpy.ndarray`
+        Weights of `J` features used to project `Y` matrix into PLS-derived
+        component space; not available with :func:`.pls_regression`
+    x_scores : (S, L) `numpy.ndarray`
+        Projection of `X` matrix into PLS-derived component space
+    y_scores : (S, L) `numpy.ndarray`
+        Projection of `Y` matrix into PLS-derived component space
+    y_loadings : (J, L) `numpy.ndarray`
+        Covariance of features in `Y` with projected `x_scores`
+    singvals : (L, L) `numpy.ndarray`
+        Singular values for PLS-derived component space; not available with
+        :func:`.pls_regression`
+    varexp : (L,) `numpy.ndarray`
+        Variance explained in each of the PLS-derived components
     permres : :obj:`~.structures.PLSPermResults`
-        Results of permutation testing
+        Results of permutation testing, as applicable
     bootres : :obj:`~.structures.PLSBootResults`
-        Results of bootstrap resampling
+        Results of bootstrap resampling, as applicable
     splitres : :obj:`~.structures.PLSSplitHalfResults`
-        Results of split-half resampling
+        Results of split-half resampling, as applicable
     cvres : :obj:`~.structures.PLSCrossValidationResults`
-        Results of cross-validation testing
+        Results of cross-validation testing, as applicable
     inputs : :obj:`~.structures.PLSInputs`
         Inputs provided to original PLS
     """
     allowed = [
-        'u', 's', 'v',
-        'brainscores', 'brainscores_dm', 'designscores', 'behavscores',
-        'behavcorr', 'permres', 'bootres', 'splitres', 'cvres', 'inputs'
+        'x_weights', 'y_weights', 'x_scores', 'y_scores',
+        'y_loadings', 'singvals', 'varexp',
+        'permres', 'bootres', 'splitres', 'cvres', 'inputs'
     ]
 
     def __init__(self, **kwargs):
@@ -236,45 +245,37 @@ class PLSBootResults(ResDict):
 
     Attributes
     ----------
-    bootstrapratios : (B, L) `numpy.ndarray`
-        Left singular vectors normalized by their standard error obtained
-        from bootstrapping (:attr:`uboot_se`). Often referred to as BSRs, these
-        can be interpreted as a z-score (assuming a Gaussian distribution).
-    uboot_se : (B, L) `numpy.ndarray`
-        Standard error of bootstrapped distribution of left singular vectors
-        vectors
+    x_weights_normed : (B, L) `numpy.ndarray`
+        `x_weights` normalized by their standard error, obtained from bootstrap
+        resampling (see `x_weights_stderr`)
+    x_weights_stderr : (B, L) `numpy.ndarray`
+        Standard error of `x_weights`, used to generate `x_weights_normed`
+    y_loadings : (J, L) `numpy.ndarray`
+        Covariance of features in `Y` with projected `x_scores`; not available
+        with :func:`.meancentered_pls`
+    y_loadings_boot : (J, L, R) `numpy.ndarray`
+        Distribution of `y_loadings` across all bootstrap resamples; not
+        available with :func:`.meancentered_pls`
+    y_loadings_ci: (J, L, 2) `numpy.ndarray`
+        Lower (..., 0) and upper (..., 1) bounds of confidence interval for
+        `y_loadings`; not available with :func:`.meancentered_pls`
     contrast : (J, L) `numpy.ndarray`
         Group x condition averages of :attr:`brainscores_demeaned`. Can be
         treated as a contrast indicating group x condition differences. Only
         obtained from :obj:`.meancentered_pls`.
     contrast_boot : (J, L, R) `numpy.ndarray`
-        Bootstrapped distribution of :attr:`contrast`. Only obtained from
-        :obj:`.meancentered_pls`.
-    contrast_uplim : (J, L) `numpy.ndarray`
-        Upper bound of confidence interval for :attr:`contrast`. Only obtained
-        from :obj:`.meancentered_pls`.
-    contrast_lolim : (J, L) `numpy.ndarray`
-        Lower bound of confidence interval for :attr:`contrast`. Only obtained
-        from :obj:`.meancentered_pls`.
-    behavcorr : (J, L) `numpy.ndarray`
-        Correlation of :attr:`brainscores` with :attr:`Y`. Only obtained from
-        :obj:`.behavioral_pls`.
-    behavcorr_boot : (J, L, R) `numpy.ndarray`
-        Bootstrapped distribution of :attr:`behavcorr`. Only obtained from
-        :obj:`.behavioral_pls`.
-    behavcorr_uplim : (J, L) `numpy.ndarray`
-        Upper bound of confidence interval for :attr:`behavcorr`. Only obtained
-        from :obj:`.behavioral_pls`.
-    behavcorr_lolim : (J, L) `numpy.ndarray`
-        Lower bound of confidence interval for :attr:`behavcorr`. Only obtained
-        from :obj:`.behavioral_pls`.
+        Bootstrapped distribution of `contrast`; only available with
+        :func:`.meancentered_pls`
+    contrast_ci : (J, L, 2) `numpy.ndarray`
+        Lower (..., 0) and upper (..., 1) bounds of confidence interval for
+        `contrast`; only available with :func:`.meancentered_pls`
     bootsamples : (S, R) `numpy.ndarray`
         Indices of bootstrapped samples `S` across `R` resamples.
     """
     allowed = [
-        'bootstrapratios', 'uboot_se', 'bootsamples',
-        'behavcorr', 'behavcorr_boot', 'behavcorr_uplim', 'behavcorr_lolim',
-        'contrast', 'contrast_boot', 'contrast_uplim', 'contrast_lolim'
+        'x_weights_normed', 'x_weights_stderr', 'bootsamples',
+        'y_loadings', 'y_loadings_boot', 'y_loadings_ci',
+        'contrast', 'contrast_boot', 'contrast_ci'
     ]
 
 
@@ -285,9 +286,10 @@ class PLSPermResults(ResDict):
     Attributes
     ----------
     pvals : (L,) `numpy.ndarray`
-        Non-parametric p-values of latent variables from PLS decomposition.
+        Non-parametric p-values used to examine whether components from
+        original decomposition explain more variance than permuted components
     permsamples : (S, P) `numpy.ndarray`
-        Indices of permuted samples `S` across `P` permutations.
+        Resampling array used to permute `S` samples over `P` permutations
     """
     allowed = [
         'pvals', 'permsamples'
