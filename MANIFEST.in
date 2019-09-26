@@ -1,6 +1,6 @@
-include README.md
-include requirements.txt
-include LICENSE
-
+include README.* setup* MANIFEST.in LICENSE requirements.txt
+include pyls/examples/datasets.json
+recursive-include data *
+recursive-include pyls/tests/data *
 include versioneer.py
 include pyls/_version.py

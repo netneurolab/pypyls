@@ -36,8 +36,16 @@ Examples of representing a project or community include using an official projec
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting Ross Markello at ross.markello@mail.mcgill.ca.
 Confidentiality will be respected in reporting.
 
+Enforcement of this Code can include (but is not limited to):
+
+* Facilitating a converstaion between the two parties involved in the violation of the Code of Conduct
+* Requesting a community member apologize for their behavior
+* Asking a community member (or multiple members) to enter a cooling off period that puts a time-limited pause on a particular discussion topic
+* Asking a community member to no longer participate in the `pyls` community, including making contributions or commenting on issues/pull requests
+
 ## Attribution
 
-This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4, available at [https://www.contributor-covenant.org/version/1/4/code-of-conduct.html](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html)
+This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4,
+available at [https://www.contributor-covenant.org/version/1/4/code-of-conduct.html](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html).
 
 [homepage]: https://www.contributor-covenant.org
