@@ -37,6 +37,7 @@ matrix:
     env:
       - INSTALL_JOBLIB=true
       - INSTALL_PANDAS=true
+      - CHECK_TYPE=test
 
 before_install:
   - python -m pip install --upgrade pip
