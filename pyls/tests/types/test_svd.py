@@ -10,7 +10,7 @@ subj = 100
 rs = np.random.RandomState(1234)
 
 
-class PLSBaseTest():
+class PLSSVDTest():
     defaults = pyls.structures.PLSInputs(X=rs.rand(subj, Xf),
                                          Y=rs.rand(subj, Yf),
                                          groups=None, n_cond=1,
@@ -48,10 +48,11 @@ class PLSBaseTest():
 
         attrs = [
             ('x_weights', (Xf, num_lv)),
-            ('singvals', (num_lv,)),
             ('y_weights', (behavior, num_lv)),
+            ('singvals', (num_lv,)),
+            ('varexp', (num_lv,)),
             ('x_scores', (subj, num_lv)),
-            ('y_scores', (subj, num_lv))
+            ('y_scores', (subj, num_lv)),
         ]
 
         return attrs
@@ -59,40 +60,40 @@ class PLSBaseTest():
     def confirm_outputs(self):
         """ Confirms generated outputs are of expected shape / size """
         for (attr, shape) in self.make_outputs():
-            assert hasattr(self.output, attr)
-            assert getattr(self.output, attr).shape == shape
+            assert attr in self.output
+            assert self.output[attr].shape == shape
 
 
 @pytest.mark.parametrize(('n_split', 'rotate'), [
     (None, True), (None, False), (5, True), (5, False)
 ])
 def test_behavioral_onegroup_onecondition(n_split, rotate):
-    PLSBaseTest('behavioral', groups=None, n_cond=1, n_split=n_split,
-                rotate=rotate)
+    PLSSVDTest('behavioral', groups=None, n_cond=1, n_split=n_split,
+               rotate=rotate)
 
 
 @pytest.mark.parametrize(('n_split', 'rotate'), [
     (None, True), (None, False), (5, True), (5, False)
 ])
 def test_behavioral_multigroup_onecondition(n_split, rotate):
-    PLSBaseTest('behavioral', groups=[33, 34, 33], n_cond=1, n_split=n_split,
-                rotate=rotate)
+    PLSSVDTest('behavioral', groups=[33, 34, 33], n_cond=1, n_split=n_split,
+               rotate=rotate)
 
 
 @pytest.mark.parametrize(('n_split', 'rotate'), [
     (None, True), (None, False), (5, True), (5, False)
 ])
 def test_behavioral_onegroup_multicondition(n_split, rotate):
-    PLSBaseTest('behavioral', groups=subj // 4, n_cond=4, n_split=n_split,
-                rotate=rotate)
+    PLSSVDTest('behavioral', groups=subj // 4, n_cond=4, n_split=n_split,
+               rotate=rotate)
 
 
 @pytest.mark.parametrize(('n_split', 'rotate'), [
     (None, True), (None, False), (5, True), (5, False)
 ])
 def test_behavioral_multigroup_multicondition(n_split, rotate):
-    PLSBaseTest('behavioral', groups=[25, 25], n_cond=2, n_split=n_split,
-                rotate=rotate)
+    PLSSVDTest('behavioral', groups=[25, 25], n_cond=2, n_split=n_split,
+               rotate=rotate)
 
 
 @pytest.mark.parametrize(('mean_centering', 'n_split', 'rotate'), [
@@ -100,8 +101,8 @@ def test_behavioral_multigroup_multicondition(n_split, rotate):
     (2, None, True), (2, None, False), (2, 5, True), (2, 5, False)
 ])
 def test_meancentered_multigroup_onecondition(mean_centering, n_split, rotate):
-    PLSBaseTest('meancentered', groups=[33, 34, 33], n_cond=1, n_split=n_split,
-                mean_centering=mean_centering, rotate=rotate)
+    PLSSVDTest('meancentered', groups=[33, 34, 33], n_cond=1, n_split=n_split,
+               mean_centering=mean_centering, rotate=rotate)
 
 
 @pytest.mark.parametrize(('mean_centering', 'n_split', 'rotate'), [
@@ -109,8 +110,8 @@ def test_meancentered_multigroup_onecondition(mean_centering, n_split, rotate):
     (2, None, True), (2, None, False), (2, 5, True), (2, 5, False)
 ])
 def test_meancentered_onegroup_multicondition(mean_centering, n_split, rotate):
-    PLSBaseTest('meancentered', groups=subj // 2, n_cond=2, n_split=n_split,
-                mean_centering=mean_centering, rotate=rotate)
+    PLSSVDTest('meancentered', groups=subj // 2, n_cond=2, n_split=n_split,
+               mean_centering=mean_centering, rotate=rotate)
 
 
 @pytest.mark.parametrize(('mean_centering', 'n_split', 'rotate'), [
@@ -120,23 +121,23 @@ def test_meancentered_onegroup_multicondition(mean_centering, n_split, rotate):
 ])
 def test_meancentered_multigroup_multicondition(mean_centering, n_split,
                                                 rotate):
-    PLSBaseTest('meancentered', groups=[25, 25], n_cond=2, n_split=n_split,
-                mean_centering=mean_centering, rotate=rotate)
+    PLSSVDTest('meancentered', groups=[25, 25], n_cond=2, n_split=n_split,
+               mean_centering=mean_centering, rotate=rotate)
 
 
 def test_warnings():
     with pytest.warns(UserWarning):
-        PLSBaseTest('meancentered', groups=[50, 50], mean_centering=0)
+        PLSSVDTest('meancentered', groups=[50, 50], mean_centering=0)
     with pytest.warns(UserWarning):
-        PLSBaseTest('meancentered', n_cond=2, mean_centering=1)
+        PLSSVDTest('meancentered', n_cond=2, mean_centering=1)
 
 
 def test_errors():
     with pytest.raises(ValueError):
-        PLSBaseTest('meancentered', groups=[50, 50], mean_centering=3)
+        PLSSVDTest('meancentered', groups=[50, 50], mean_centering=3)
     with pytest.raises(ValueError):
-        PLSBaseTest('meancentered', groups=[subj])
+        PLSSVDTest('meancentered', groups=[subj])
     with pytest.raises(ValueError):
-        PLSBaseTest('meancentered', n_cond=3)
+        PLSSVDTest('meancentered', n_cond=3)
     with pytest.raises(ValueError):
-        PLSBaseTest('behavioral', Y=rs.rand(subj - 1, Yf))
+        PLSSVDTest('behavioral', Y=rs.rand(subj - 1, Yf))
