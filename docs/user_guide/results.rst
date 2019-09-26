@@ -29,7 +29,7 @@ normally be displayed:
     >>> from pyls import behavioral_pls
     >>> results = behavioral_pls(**data, verbose=False)
     >>> results
-    PLSResults(u, s, v, brainscores, behavscores, behavcorr, permres, bootres, cvres, inputs)
+    PLSResults(x_weights, y_weights, x_scores, y_scores, y_loadings, singvals, varexp, permres, bootres, cvres, inputs)
 
 Printing the ``results`` object gives us a helpful view of some of the
 different outputs available to us. While we won't go into detail about all of
