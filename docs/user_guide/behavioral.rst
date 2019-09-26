@@ -201,8 +201,9 @@ for us:
 .. doctest::
 
     >>> from pyls.compute import varexp
-    >>> varexp(S)[0, 0]
-    0.9947133368247933
+    >>> pctvar = varexp(S)[0, 0]
+    >>> print('{:.4f}'.format(pctvar))
+    0.9947
 
 Taking a look at the variance explained, we see that a whopping ~99.5% of the
 covariance between the exercises and physiological measurements in
@@ -239,8 +240,9 @@ data matrices by the relevant singular vectors and then correlate the results:
     >>> from scipy.stats import pearsonr
     >>> XU = np.dot(data.X, U)
     >>> YV = np.dot(data.Y, V)
-    >>> pearsonr(XU[:, 0], YV[:, 0])
-    (0.4899724784550382, 0.028304653097330428)
+    >>> r, p = pearsonr(XU[:, 0], YV[:, 0])
+    >>> print('r = {:.4f}, p = {:.4f}'.format(r, p))
+    r = 0.4900, p = 0.0283
 
 The correlation value of this latent variable (~ ``0.49``) suggests that our
 interpretation of the singular vectors weights, above, is only *somewhat*
