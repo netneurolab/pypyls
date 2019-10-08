@@ -180,8 +180,8 @@ def simpls(X, Y, n_components=None, seed=1234):
 
 class PLSRegression(BasePLS):
     def __init__(self, X, Y, *, n_components=None, n_perm=5000, n_boot=5000,
-                 ci=95, seed=None, verbose=True, n_proc=None, permsamples=None,
-                 bootsamples=None, **kwargs):
+                 rotate=True, ci=95, permsamples=None, bootsamples=None,
+                 seed=None, verbose=True, n_proc=None, **kwargs):
 
         # check n_components isn't unreasonable
         max_components = min(len(X) - 1, X.shape[1])
@@ -196,10 +196,10 @@ class PLSRegression(BasePLS):
 
         super().__init__(X=np.asarray(X), Y=np.asarray(Y),
                          n_components=n_components, n_perm=n_perm,
-                         n_boot=n_boot, n_split=0, test_split=0, ci=ci,
-                         seed=seed, verbose=verbose,
-                         n_proc=n_proc, permsamples=permsamples,
-                         bootsamples=bootsamples, **kwargs)
+                         n_boot=n_boot, n_split=0, test_split=0,
+                         rotate=rotate, ci=ci,
+                         permsamples=permsamples, bootsamples=bootsamples,
+                         seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
 
         # mean-center here so that our outputs are generated accordingly
         X = self.inputs.X - self.inputs.X.mean(axis=0, keepdims=True)
@@ -249,8 +249,11 @@ class PLSRegression(BasePLS):
             Input data matrix, where `S` is observations and `T` is features
         inds : (S,) array_like
             Resampling array
-        groups,original : None
+        groups : None
             Do nothing; here for compatibility purposes
+        original : (B, N) array_like
+            Weights of `X` from original (non-bootstrapped) decomposition; used
+            to align bootstrapped weights
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
             Seed for random number generation. Default: None
 
@@ -262,11 +265,18 @@ class PLSRegression(BasePLS):
             Weights of `X` from PLS decomposition of resampled data
         """
 
-        # TODO: should we be aligning these to the `original` somehow?
         out = simpls(X[inds], Y[inds], self.n_components, seed=seed)
-        y_loadings = Y[inds].T @ out['x_scores']
 
-        return y_loadings, out['x_weights']
+        if original is not None:
+            # flip signs of weights based on correlations with `original`
+            flip = np.sign(compute.efficient_corr(out['x_weights'], original))
+            out['x_weights'] = out['x_weights'] * flip
+            # NOTE: should we be doing a procrustes here?
+
+            # recompute y_loadings based on new x_weight signs
+            out['y_loadings'] = Y[inds].T @ (X[inds] @ out['x_weights'])
+
+        return out['y_loadings'], out['x_weights']
 
     def _single_perm(self, X, Y, inds, groups=None, original=None, seed=None):
         """
@@ -280,8 +290,11 @@ class PLSRegression(BasePLS):
             Input data matrix, where `S` is observations and `T` is features
         inds : (S,) array_like
             Resampling array
-        groups,original : None
+        groups : None
             Do nothing; here for compatibility purposes
+        original : (B, N) array_like, optional
+            Weights of `X` from original (non-permuted) decomposition; used to
+            to align permuted weights
         seed : {int, :obj:`numpy.random.RandomState`, None}, optional
             Seed for random number generation. Default: None
 
@@ -293,7 +306,19 @@ class PLSRegression(BasePLS):
 
         # TODO: should we be aligning these to the `original` somehow?
         Xp, Yp = self.make_permutation(X, Y, inds)
-        varexp = simpls(Xp, Yp, self.n_components, seed=seed)['pctvar'][1]
+        out = simpls(Xp, Yp, self.n_components, seed=seed)
+
+        if self.inputs.rotate and original is not None:
+            # flip signs of weights based on correlations with `original`
+            flip = np.sign(compute.efficient_corr(out['x_weights'], original))
+            out['x_weights'] = out['x_weights'] * flip
+            # NOTE: should we be doing a procrustes here?
+
+            # recompute pctvar based on new x_weight signs
+            y_loadings = Y[inds].T @ (X[inds] @ out['x_weights'])
+            varexp = np.sum(y_loadings ** 2, axis=0) / np.sum(Yp ** 2)
+        else:
+            varexp = out['pctvar'][1]
 
         # need to return len-3 for compatibility purposes
         return varexp, None, None
@@ -341,13 +366,13 @@ class PLSRegression(BasePLS):
 
 
 # let's make it a function
-def pls_regression(X, Y, *, n_components=None, n_perm=5000, n_boot=5000, ci=95,
-                   permsamples=None, bootsamples=None, seed=None, verbose=True,
-                   n_proc=None, **kwargs):
+def pls_regression(X, Y, *, n_components=None, n_perm=5000, n_boot=5000,
+                   rotate=True, ci=95, permsamples=None, bootsamples=None,
+                   seed=None, verbose=True, n_proc=None, **kwargs):
     pls = PLSRegression(X=X, Y=Y, n_components=n_components, n_perm=n_perm,
-                        n_boot=n_boot, ci=ci, permsamples=permsamples,
-                        bootsamples=bootsamples, seed=seed, verbose=verbose,
-                        n_proc=n_proc, **kwargs)
+                        n_boot=n_boot, rotate=rotate, ci=ci,
+                        permsamples=permsamples, bootsamples=bootsamples,
+                        seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
     return pls.results
 
 
@@ -372,6 +397,7 @@ n_components : int, optional
     Number of components to estimate. If not specified this will be set to
     min(`S-1`, `B`). Default: None
 {stat_test}
+{rotate}
 {ci}
 {resamples}
 {proc_options}
