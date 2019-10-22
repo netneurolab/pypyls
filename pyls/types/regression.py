@@ -357,9 +357,7 @@ class PLSRegression(BasePLS):
             Input data matrix, where `S` is observations and `T` is features
         """
 
-        if Y.ndim == 3:
-            Y_agg = self.aggfunc(Y, axis=-1)
-
+        Y_agg = self.aggfunc(Y, axis=-1) if Y.ndim == 3 else Y
         res = super().run_pls(X, Y_agg)
         res['y_loadings'] = Y_agg.T @ res['x_scores']
         res['y_scores'] = resid_yscores(res['x_scores'],
