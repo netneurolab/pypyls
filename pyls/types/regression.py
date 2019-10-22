@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from ..base import BasePLS
+from ..base import BasePLS, gen_bootsamp
 from ..structures import _pls_input_docs
 from .. import compute
 
@@ -179,25 +179,41 @@ def simpls(X, Y, n_components=None, seed=1234):
 
 
 class PLSRegression(BasePLS):
-    def __init__(self, X, Y, *, n_components=None, n_perm=5000, n_boot=5000,
-                 rotate=True, ci=95, permsamples=None, bootsamples=None,
-                 seed=None, verbose=True, n_proc=None, **kwargs):
+    def __init__(self, X, Y, *, n_components=None,
+                 n_perm=5000, n_boot=5000,
+                 rotate=True, ci=95, aggfunc='mean',
+                 permsamples=None, bootsamples=None,
+                 seed=None, verbose=True, n_proc=None,
+                 **kwargs):
 
         # check n_components isn't unreasonable
         max_components = min(len(X) - 1, X.shape[1])
         if n_components is None:
             n_components = max_components
         else:
-            if not isinstance(n_components, int):
-                raise ValueError('Provided `n_components` must be integer.')
+            n_components = int(n_components)
             if n_components > max_components:
                 raise ValueError('Provided `n_components` cannot be greater '
                                  'than {}'.format(max_components))
 
+        # if we receive a 3d `Y` matrix, assume the last axis is observations
+        # that we want to bootstrap from; to do that, we'll need to generate
+        # the bootstraps ahead of time
+        # also, we only care about aggfunc if we have a 3d `Y` matrix
+        if Y.ndim == 3:
+            bootsamples = gen_bootsamp([Y.shape[-1]], n_cond=1, n_boot=n_boot,
+                                       seed=seed, verbose=verbose)
+
+            aggfuncs = dict(mean=np.mean, median=np.median, sum=np.sum)
+            if not callable(aggfunc) and aggfunc not in aggfuncs:
+                raise ValueError('Provided `aggfunc` must either be callable '
+                                 'or one of {}'.format(sorted(aggfuncs)))
+            self.aggfunc = aggfuncs.get(aggfunc, aggfunc)
+
         super().__init__(X=np.asarray(X), Y=np.asarray(Y),
                          n_components=n_components, n_perm=n_perm,
                          n_boot=n_boot, n_split=0, test_split=0,
-                         rotate=rotate, ci=ci,
+                         rotate=rotate, ci=ci, aggfunc=aggfunc,
                          permsamples=permsamples, bootsamples=bootsamples,
                          seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
 
@@ -265,7 +281,14 @@ class PLSRegression(BasePLS):
             Weights of `X` from PLS decomposition of resampled data
         """
 
-        out = simpls(X[inds], Y[inds], self.n_components, seed=seed)
+        # if we have a 3d `Y` matrix only bootstrap over the last dimension
+        # do NOT bootstrap over `X` at all
+        if Y.ndim == 3:
+            Xi, Yi = X, self.aggfunc(Y[..., inds])
+        else:
+            Xi, Yi = X[inds], Y[inds]
+
+        out = simpls(Xi, Yi, self.n_components, seed=seed)
 
         if original is not None:
             # flip signs of weights based on correlations with `original`
@@ -274,7 +297,7 @@ class PLSRegression(BasePLS):
             # NOTE: should we be doing a procrustes here?
 
             # recompute y_loadings based on new x_weight signs
-            out['y_loadings'] = Y[inds].T @ (X[inds] @ out['x_weights'])
+            out['y_loadings'] = Yi.T @ (Xi @ out['x_weights'])
 
         return out['y_loadings'], out['x_weights']
 
@@ -304,7 +327,6 @@ class PLSRegression(BasePLS):
             Variance explained by PLS decomposition of permuted data
         """
 
-        # TODO: should we be aligning these to the `original` somehow?
         Xp, Yp = self.make_permutation(X, Y, inds)
         out = simpls(Xp, Yp, self.n_components, seed=seed)
 
@@ -335,9 +357,13 @@ class PLSRegression(BasePLS):
             Input data matrix, where `S` is observations and `T` is features
         """
 
-        res = super().run_pls(X, Y)
-        res['y_loadings'] = Y.T @ res['x_scores']
-        res['y_scores'] = resid_yscores(res['x_scores'], Y @ res['y_loadings'])
+        if Y.ndim == 3:
+            Y_agg = self.aggfunc(Y, axis=-1)
+
+        res = super().run_pls(X, Y_agg)
+        res['y_loadings'] = Y_agg.T @ res['x_scores']
+        res['y_scores'] = resid_yscores(res['x_scores'],
+                                        Y_agg @ res['y_loadings'])
 
         if self.inputs.n_boot > 0:
             # compute bootstraps
@@ -367,10 +393,11 @@ class PLSRegression(BasePLS):
 
 # let's make it a function
 def pls_regression(X, Y, *, n_components=None, n_perm=5000, n_boot=5000,
-                   rotate=True, ci=95, permsamples=None, bootsamples=None,
+                   rotate=True, ci=95, aggfunc='mean',
+                   permsamples=None, bootsamples=None,
                    seed=None, verbose=True, n_proc=None, **kwargs):
     pls = PLSRegression(X=X, Y=Y, n_components=n_components, n_perm=n_perm,
-                        n_boot=n_boot, rotate=rotate, ci=ci,
+                        n_boot=n_boot, rotate=rotate, ci=ci, aggfunc=aggfunc,
                         permsamples=permsamples, bootsamples=bootsamples,
                         seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
     return pls.results
@@ -399,6 +426,8 @@ n_components : int, optional
 {stat_test}
 {rotate}
 {ci}
+aggfunc : str or callable, optional
+    If `Y` is provided as a 3D array
 {resamples}
 {proc_options}
 
