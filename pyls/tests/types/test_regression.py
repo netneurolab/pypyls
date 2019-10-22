@@ -60,8 +60,13 @@ class PLSRegressionTests():
 @pytest.mark.parametrize('n_components', [
     None, 2, 5, 10, 15
 ])
-def test_behavioral_onegroup_onecondition(n_components):
+def test_regression_onegroup_onecondition(n_components):
     PLSRegressionTests(n_components=n_components)
+
+
+def test_regression_3dbootstrap():
+    Y = rs.rand(subj, Yf, 100)
+    PLSRegressionTests(n_components=2, Y=Y)
 
 
 def test_errors():

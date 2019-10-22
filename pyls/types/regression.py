@@ -280,7 +280,7 @@ class PLSRegression(BasePLS):
         # if we have a 3d `Y` matrix only bootstrap over the last dimension
         # do NOT bootstrap over `X` at all
         if Y.ndim == 3:
-            Xi, Yi = X, self.aggfunc(Y[..., inds])
+            Xi, Yi = X, self.aggfunc(Y[..., inds], axis=-1)
         else:
             Xi, Yi = X[inds], Y[inds]
 
