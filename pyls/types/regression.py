@@ -217,11 +217,7 @@ class PLSRegression(BasePLS):
                          permsamples=permsamples, bootsamples=bootsamples,
                          seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
 
-        # mean-center here so that our outputs are generated accordingly
-        X = self.inputs.X - self.inputs.X.mean(axis=0, keepdims=True)
-        Y = self.inputs.Y - self.inputs.Y.mean(axis=0, keepdims=True)
         self.n_components = n_components
-
         self.results = self.run_pls(X, Y)
 
     def svd(self, X, Y, seed=None):
@@ -358,6 +354,11 @@ class PLSRegression(BasePLS):
         """
 
         Y_agg = self.aggfunc(Y, axis=-1) if Y.ndim == 3 else Y
+
+        # mean-center here so that our outputs are generated accordingly
+        X -= X.mean(axis=0, keepdims=True)
+        Y_agg -= Y_agg.mean(axis=0, keepdims=True)
+
         res = super().run_pls(X, Y_agg)
         res['y_loadings'] = Y_agg.T @ res['x_scores']
         res['y_scores'] = resid_yscores(res['x_scores'],
@@ -416,8 +417,11 @@ This implementation of PLS regression uses the SIMPLS algorithm from [R1]_.
 Parameters
 ----------
 {input_matrix}
-Y : (S, T) array_like
-    Input data matrix, where `S` is samples and `T` is features
+Y : (S, T[, C]) array_like
+    Input data matrix, where `S` is samples and `T` is features. A 3d array
+    can optionally be provided, where `C` indicates separate observations. In
+    this case, bootstrapping will be performed over the final axis (`C`) and
+    and the array will be collapsed with `aggfunc` prior to decomposition.
 n_components : int, optional
     Number of components to estimate. If not specified this will be set to
     min(`S-1`, `B`). Default: None
@@ -425,7 +429,9 @@ n_components : int, optional
 {rotate}
 {ci}
 aggfunc : str or callable, optional
-    If `Y` is provided as a 3D array
+    If `Y` is provided as a 3D array then this function will be used to reduce
+    the final axis of the matrix. If a string is provided it must be one of
+    ['mean', 'median', 'sum']. Default: 'mean'
 {resamples}
 {proc_options}
 
