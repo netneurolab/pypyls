@@ -144,35 +144,12 @@ def trange(n_iter, verbose=True, **kwargs):
     progbar : :obj:`tqdm.tqdm`
     """
 
-    class cmrange():
-        def __init__(self, n_iter):
-            self.n_iter = n_iter
-
-        def __enter__(self, *args, **kwargs):
-            return self
-
-        def __exit__(self, *args, **kwargs):
-            return
-
-        def __iter__(self):
-            for i in range(self.n_iter):
-                yield i
-
-        def update(self, *args, **kwargs):
-            return
-
-        def close(self, *args, **kwargs):
-            return
-
-    if not verbose:
-        return cmrange(n_iter)
-
     form = ('{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
             ' | {elapsed}<{remaining}')
     defaults = dict(ascii=True, leave=False, bar_format=form)
     defaults.update(kwargs)
 
-    return tqdm.trange(n_iter, **defaults)
+    return tqdm.trange(n_iter, disable=not verbose, **defaults)
 
 
 def dummy_code(groups, n_cond=1):
