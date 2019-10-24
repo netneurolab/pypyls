@@ -161,6 +161,9 @@ def trange(n_iter, verbose=True, **kwargs):
         def update(self, *args, **kwargs):
             return
 
+        def close(self, *args, **kwargs):
+            return
+
     if not verbose:
         return cmrange(n_iter)
 
