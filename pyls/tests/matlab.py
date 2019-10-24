@@ -244,7 +244,7 @@ def assert_matlab_equivalence(fname, method=None, *, atol=1e-4, corr=0.975,
 
     # fix n_split default (if not specified in matlab assume 0)
     if 'n_split' not in matlab['inputs']:
-        matlab['inputs']['n_split'] = 0
+        matlab['inputs']['n_split'] = None
 
     # get PLS method
     fcn = None

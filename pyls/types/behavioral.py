@@ -110,12 +110,14 @@ class BehavioralPLS(BasePLS):
                             seed=seed,
                             test_size=self.inputs.test_size)
 
-        parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_crossval)
         gen = utils.trange(self.inputs.test_split, verbose=self.inputs.verbose,
                            desc='Running cross-validation')
-        out = parallel(func(self, X=X, Y=Y, inds=splits[:, i],
-                            groups=groups, seed=i) for i in gen)
+        with utils.get_par_func(self.inputs.n_proc,
+                                self.__class__._single_crossval) as (par, func):
+            out = par(
+                func(self, X=X, Y=Y, inds=splits[:, i], groups=groups, seed=i)
+                for i in gen
+            )
         r_scores, r2_scores = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return r_scores, r2_scores
