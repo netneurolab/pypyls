@@ -113,7 +113,8 @@ class BehavioralPLS(BasePLS):
         gen = utils.trange(self.inputs.test_split, verbose=self.inputs.verbose,
                            desc='Running cross-validation')
         with utils.get_par_func(self.inputs.n_proc,
-                                self.__class__._single_crossval) as (par, func):
+                                self.__class__._single_crossval) as (par,
+                                                                     func):
             out = par(
                 func(self, X=X, Y=Y, inds=splits[:, i], groups=groups, seed=i)
                 for i in gen
