@@ -84,7 +84,7 @@ jobs:
           command: |
             . venv/bin/activate
             for mat in /tmp/data/matlab/bpls*mat; do
-              echo "${mat}"
+              echo $( date +%H:%M:%S ) "${mat}"
               python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc='max', n_perm=2500, n_split=100);"
             done
 
@@ -109,7 +109,7 @@ jobs:
           command: |
             . venv/bin/activate
             for mat in /tmp/data/matlab/mpls*mat; do
-              echo "${mat}"
+              echo $( date +%H:%M:%S ) "${mat}"
               python -c "import pyls.tests; pyls.tests.assert_matlab_equivalence('${mat}', n_proc='max', n_perm=2500, n_split=250);"
             done
 
