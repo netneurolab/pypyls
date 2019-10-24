@@ -196,14 +196,30 @@ class PLSRegression(BasePLS):
                 raise ValueError('Provided `n_components` cannot be greater '
                                  'than {}'.format(max_components))
 
-        # if we receive a 3d `Y` matrix, assume the last axis is observations
-        # that we want to bootstrap from; to do that, we'll need to generate
-        # the bootstraps ahead of time
-        # also, we only care about aggfunc if we have a 3d `Y` matrix
+        # bootstrapping is more complicated in this instance
         if Y.ndim == 3:
-            bootsamples = gen_bootsamp([Y.shape[-1]], n_cond=1, n_boot=n_boot,
-                                       seed=seed, verbose=verbose)
+            if bootsamples is None:
+                # we can generate exactly what we need for the bootsamples
+                s = gen_bootsamp([Y.shape[0]], n_cond=1, n_boot=n_boot,
+                                 seed=seed, verbose=verbose)
+                c = gen_bootsamp([Y.shape[-1]], n_cond=1, n_boot=n_boot,
+                                 seed=seed, verbose=verbose)
+                bootsamples = np.array(list(zip(s.T, c.T))).T
+            else:
+                # we expect a (2, n_boot) array, where the first row is an
+                # array of arrays, each of which is the size of the first dim
+                # of `Y`, and the second row is an array of arrays, each of
+                # which is the size of the third dim of `Y`
+                bootsamples = np.asarray(bootsamples)
+                s, c = [np.row_stack(b).shape[-1] for b in bootsamples]
+                sexp, cexp = Y.shape[0], Y.shape[-1]
+                if bootsamples.shape != (2, n_boot) or s != sexp or c != cexp:
+                    raise ValueError('Provided bootsamples arrays does not '
+                                     'match size of provided input arrays or '
+                                     'number of bootstraps requested via '
+                                     '`nboot`.')
 
+            # also, we only care about aggfunc if we have a 3d `Y` matrix
             aggfuncs = dict(mean=np.mean, median=np.median, sum=np.sum)
             if not callable(aggfunc) and aggfunc not in aggfuncs:
                 raise ValueError('Provided `aggfunc` must either be callable '
@@ -277,10 +293,11 @@ class PLSRegression(BasePLS):
             Weights of `X` from PLS decomposition of resampled data
         """
 
-        # if we have a 3d `Y` matrix only bootstrap over the last dimension
-        # do NOT bootstrap over `X` at all
+        # if we have a 3d `Y` matrix then our bootstrap matrix is complicated
         if Y.ndim == 3:
-            Xi, Yi = X, self.aggfunc(Y[..., inds], axis=-1)
+            sboot, cboot = inds
+            Xi, Yi = X[sboot], self.aggfunc(Y[..., cboot], axis=-1)[sboot]
+        # otherwise, very normal easy bootstrap
         else:
             Xi, Yi = X[inds], Y[inds]
 
@@ -353,7 +370,12 @@ class PLSRegression(BasePLS):
             Input data matrix, where `S` is observations and `T` is features
         """
 
-        Y_agg = self.aggfunc(Y, axis=-1) if Y.ndim == 3 else Y
+        try:
+            Y_agg = self.aggfunc(Y, axis=-1) if Y.ndim == 3 else Y
+        except TypeError:
+            raise TypeError('Provided callable `aggfun` must accept `axis` '
+                            'keyword argument to condense an array along '
+                            'the specified axis.')
 
         # mean-center here so that our outputs are generated accordingly
         X -= X.mean(axis=0, keepdims=True)
