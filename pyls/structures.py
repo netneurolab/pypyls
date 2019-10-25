@@ -55,7 +55,7 @@ _pls_input_docs = dict(
          Default: 5000
     n_boot : int, optional
         Number of bootstraps to use for testing reliability of data features.
-        Default: 5000
+        Default: 5000\
     """),
     split_half=dedent("""\
     n_split : int, optional
@@ -115,7 +115,7 @@ _pls_input_docs = dict(
     bootsamples : array_like, optional
         Resampling array to be used during bootstrap resampling (if n_boot >
         0). If not specified a set of unique bootstraps will be generated.
-        Default: None
+        Default: None\
     """),
     references=dedent("""\
     McIntosh, A. R., Bookstein, F. L., Haxby, J. V., & Grady, C. L. (1996).
@@ -142,7 +142,7 @@ class PLSInputs(ResDict):
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
         'test_split', 'test_size', 'mean_centering', 'covariance', 'rotate',
         'ci', 'seed', 'verbose', 'n_proc', 'bootsamples', 'permsamples',
-        'method', 'n_components'
+        'method', 'n_components', 'aggfunc'
     ]
 
     def __init__(self, *args, **kwargs):

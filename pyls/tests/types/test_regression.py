@@ -17,9 +17,9 @@ class PLSRegressionTests():
                                          ci=95, seed=rs, verbose=False)
 
     def __init__(self, n_components=None, **kwargs):
-        self.inputs = pyls.structures.PLSInputs(**{key: kwargs.get(key, val)
-                                                   for (key, val) in
-                                                   self.defaults.items()})
+        params = self.defaults.copy()
+        params.update(kwargs)
+        self.inputs = pyls.structures.PLSInputs(**params)
         self.inputs['n_components'] = n_components
         self.output = pyls.pls_regression(**self.inputs)
         self.confirm_outputs()
@@ -60,8 +60,24 @@ class PLSRegressionTests():
 @pytest.mark.parametrize('n_components', [
     None, 2, 5, 10, 15
 ])
-def test_behavioral_onegroup_onecondition(n_components):
+def test_regression_onegroup_onecondition(n_components):
     PLSRegressionTests(n_components=n_components)
+
+
+@pytest.mark.parametrize('aggfunc', [
+    'mean', 'median', 'sum'
+])
+def test_regression_3dbootstrap(aggfunc):
+    # confirm providing 3D arrays works
+    Y = rs.rand(subj, Yf, 100)
+    PLSRegressionTests(Y=Y, n_components=2, aggfunc=aggfunc)
+
+    # confirm providing valid bootsamples for 3D array works
+    sboot = pyls.base.gen_bootsamp([subj], 1, n_boot=10)
+    nboot = pyls.base.gen_bootsamp([100], 1, n_boot=10)
+    bootsamples = np.array(list(zip(sboot.T, nboot.T))).T
+    PLSRegressionTests(Y=Y, n_components=2, aggfunc=aggfunc,
+                       bootsamples=bootsamples, n_boot=10)
 
 
 def test_errors():
@@ -69,3 +85,9 @@ def test_errors():
         PLSRegressionTests(n_components=1000)
     with pytest.raises(ValueError):
         PLSRegressionTests(Y=rs.rand(subj - 1, Yf))
+    with pytest.raises(ValueError):
+        PLSRegressionTests(Y=rs.rand(subj, Yf, 10), aggfunc='notafunc')
+    with pytest.raises(TypeError):
+        PLSRegressionTests(Y=rs.rand(subj, Yf, 10), aggfunc=lambda x: x)
+    with pytest.raises(ValueError):
+        PLSRegressionTests(Y=rs.rand(subj, Yf, 10), bootsamples=[[10], [10]])
