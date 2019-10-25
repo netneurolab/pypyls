@@ -468,9 +468,6 @@ class BasePLS():
                                          seed=seed,
                                          verbose=self.inputs.verbose)
 
-        parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_boot)
-
         # make empty arrays to store bootstrapped singular vectors
         # these will be used to calculate the standard error later on for
         # creation of bootstrap ratios
@@ -486,9 +483,11 @@ class BasePLS():
 
         # determine the number of bootstraps we'll run each iteration
         iters = 1 if self.inputs.n_proc is None else self.inputs.n_proc
+        gen = utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
+                           desc='Running bootstraps')
 
-        with utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
-                          desc='Running bootstraps') as gen:
+        with utils.get_par_func(self.inputs.n_proc,
+                                self.__class__._single_boot) as (par, func):
             boots = 0
             while boots < self.inputs.n_boot:
                 # determine number of bootstraps to run this round
@@ -499,12 +498,12 @@ class BasePLS():
                     top = self.inputs.n_boot
 
                 # run the bootstraps
-                d, usu = zip(*parallel(func(self, X=X, Y=Y,
-                                            inds=self.bootsamp[:, i],
-                                            groups=self.dummy,
-                                            original=self.res['x_weights'],
-                                            seed=i)
-                                       for i in range(boots, top)))
+                d, usu = zip(*par(func(self, X=X, Y=Y,
+                                       inds=self.bootsamp[..., i],
+                                       groups=self.dummy,
+                                       original=self.res['x_weights'],
+                                       seed=i)
+                                  for i in range(boots, top)))
 
                 # sum bootstrapped singular vectors and store
                 u_sum += np.sum(usu, axis=0)
@@ -523,6 +522,7 @@ class BasePLS():
                 # update progress bar and # of bootstraps already run
                 gen.update(top - boots)
                 boots = top
+        gen.close()
 
         return np.stack(distrib, axis=-1), u_sum, u_square
 
@@ -633,14 +633,14 @@ class BasePLS():
                                          verbose=self.inputs.verbose)
 
         # get permuted values (parallelizing as requested)
-        parallel, func = utils.get_par_func(self.inputs.n_proc,
-                                            self.__class__._single_perm)
         gen = utils.trange(self.inputs.n_perm, verbose=self.inputs.verbose,
                            desc='Running permutations')
-        out = parallel(func(self, X=X, Y=Y, inds=self.permsamp[:, i],
-                            groups=self.dummy, original=self.res['y_weights'],
-                            seed=i)
-                       for i in gen)
+        with utils.get_par_func(self.inputs.n_proc,
+                                self.__class__._single_perm) as (par, func):
+            out = par(func(self, X=X, Y=Y, inds=self.permsamp[:, i],
+                           groups=self.dummy, original=self.res['y_weights'],
+                           seed=i)
+                      for i in gen)
         d_perm, ucorrs, vcorrs = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return d_perm, ucorrs, vcorrs

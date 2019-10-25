@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from contextlib import contextmanager
+
 import numpy as np
 import tqdm
 from sklearn.utils import Bunch
@@ -142,32 +144,12 @@ def trange(n_iter, verbose=True, **kwargs):
     progbar : :obj:`tqdm.tqdm`
     """
 
-    class cmrange():
-        def __init__(self, n_iter):
-            self.n_iter = n_iter
-
-        def __enter__(self, *args, **kwargs):
-            return self
-
-        def __exit__(self, *args, **kwargs):
-            return
-
-        def __iter__(self):
-            for i in range(self.n_iter):
-                yield i
-
-        def update(self, *args, **kwargs):
-            return
-
-    if not verbose:
-        return cmrange(n_iter)
-
     form = ('{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
             ' | {elapsed}<{remaining}')
     defaults = dict(ascii=True, leave=False, bar_format=form)
     defaults.update(kwargs)
 
-    return tqdm.trange(n_iter, **defaults)
+    return tqdm.trange(n_iter, disable=not verbose, **defaults)
 
 
 def dummy_code(groups, n_cond=1):
@@ -267,6 +249,7 @@ class _unravel():
         pass
 
 
+@contextmanager
 def get_par_func(n_proc, func, **kwargs):
     """
     Creates joblib-style parallelization function if joblib is available
@@ -287,10 +270,10 @@ def get_par_func(n_proc, func, **kwargs):
     """
 
     if joblib_avail:
-        parallel = Parallel(n_jobs=n_proc, max_nbytes=1e6, mmap_mode='r+',
-                            **kwargs)
         func = delayed(func)
+        with Parallel(n_jobs=n_proc, max_nbytes=1e6,
+                      mmap_mode='r+', **kwargs) as parallel:
+            yield parallel, func
     else:
         parallel = _unravel()
-
-    return parallel, func
+        yield parallel, func
