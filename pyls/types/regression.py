@@ -234,7 +234,7 @@ class PLSRegression(BasePLS):
                          seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
 
         self.n_components = n_components
-        self.results = self.run_pls(X, Y)
+        self.results = self.run_pls(self.inputs.X, self.inputs.Y)
 
     def svd(self, X, Y, seed=None):
         """
