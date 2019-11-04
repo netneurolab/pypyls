@@ -80,6 +80,17 @@ def test_regression_3dbootstrap(aggfunc):
                        bootsamples=bootsamples, n_boot=10)
 
 
+def test_regression_missingdata():
+    X = rs.rand(subj, Xf)
+    X[10] = np.nan
+    PLSRegressionTests(X=X, n_components=2)
+    X[20] = np.nan
+    PLSRegressionTests(X=X, n_components=2)
+    Y = rs.rand(subj, Yf)
+    Y[11] = np.nan
+    PLSRegressionTests(X=X, Y=Y, n_components=2)
+
+
 def test_errors():
     with pytest.raises(ValueError):
         PLSRegressionTests(n_components=1000)
