@@ -45,6 +45,14 @@ def resid_yscores(x_scores, y_scores, copy=True):
     return y_scores
 
 
+def get_mask(X, Y):
+    """ Returns mask removing rows where either X/Y contain all NaN values
+    """
+
+    return np.logical_not(np.logical_or(np.all(np.isnan(X), axis=1),
+                                        np.all(np.isnan(Y), axis=1)))
+
+
 def simpls(X, Y, n_components=None, seed=1234):
     """
     Performs partial least squares regression with the SIMPLS algorithm
@@ -226,10 +234,11 @@ class PLSRegression(BasePLS):
                                  'or one of {}'.format(sorted(aggfuncs)))
             self.aggfunc = aggfuncs.get(aggfunc, aggfunc)
 
+        # these need to be zero -- they're not implemented for PLSRegression
+        kwargs.update(n_split=0, test_split=0)
         super().__init__(X=np.asarray(X), Y=np.asarray(Y),
                          n_components=n_components, n_perm=n_perm,
-                         n_boot=n_boot, n_split=0, test_split=0,
-                         rotate=rotate, ci=ci, aggfunc=aggfunc,
+                         n_boot=n_boot, rotate=rotate, ci=ci, aggfunc=aggfunc,
                          permsamples=permsamples, bootsamples=bootsamples,
                          seed=seed, verbose=verbose, n_proc=n_proc, **kwargs)
 
@@ -258,7 +267,9 @@ class PLSRegression(BasePLS):
             Variance explained by PLS-derived components; diagonal array
         """
 
-        out = simpls(X, Y, self.n_components, seed=seed)
+        # find nan rows and mask for the decomposition
+        mask = get_mask(X, Y)
+        out = simpls(X[mask], Y[mask], self.n_components, seed=seed)
 
         # need to return len-3 for compatibility purposes
         # use the variance explained in Y in lieu of the singular values since
@@ -301,18 +312,19 @@ class PLSRegression(BasePLS):
         else:
             Xi, Yi = X[inds], Y[inds]
 
-        out = simpls(Xi, Yi, self.n_components, seed=seed)
+        x_weights = self.svd(Xi, Yi, seed=seed)[0]
 
         if original is not None:
             # flip signs of weights based on correlations with `original`
-            flip = np.sign(compute.efficient_corr(out['x_weights'], original))
-            out['x_weights'] = out['x_weights'] * flip
+            flip = np.sign(compute.efficient_corr(x_weights, original))
+            x_weights *= flip
             # NOTE: should we be doing a procrustes here?
 
-            # recompute y_loadings based on new x_weight signs
-            out['y_loadings'] = Yi.T @ (Xi @ out['x_weights'])
+        # compute y_loadings
+        mask = get_mask(Xi, Yi)
+        y_loadings = Yi[mask].T @ (Xi @ x_weights)[mask]
 
-        return out['y_loadings'], out['x_weights']
+        return y_loadings, x_weights
 
     def _single_perm(self, X, Y, inds, groups=None, original=None, seed=None):
         """
@@ -340,20 +352,22 @@ class PLSRegression(BasePLS):
             Variance explained by PLS decomposition of permuted data
         """
 
+        # should permute Y (but not X) by default
         Xp, Yp = self.make_permutation(X, Y, inds)
-        out = simpls(Xp, Yp, self.n_components, seed=seed)
+        x_weights, varexp, _ = self.svd(Xp, Yp, seed=seed)
 
         if self.inputs.rotate and original is not None:
             # flip signs of weights based on correlations with `original`
-            flip = np.sign(compute.efficient_corr(out['x_weights'], original))
-            out['x_weights'] = out['x_weights'] * flip
+            flip = np.sign(compute.efficient_corr(x_weights, original))
+            x_weights *= flip
             # NOTE: should we be doing a procrustes here?
 
             # recompute pctvar based on new x_weight signs
-            y_loadings = Y[inds].T @ (X[inds] @ out['x_weights'])
-            varexp = np.sum(y_loadings ** 2, axis=0) / np.sum(Yp ** 2)
+            mask = get_mask(Xp, Yp)
+            y_loadings = Yp[mask].T @ (Xp @ x_weights)[mask]
+            varexp = np.sum(y_loadings ** 2, axis=0) / np.sum(Yp[mask] ** 2)
         else:
-            varexp = out['pctvar'][1]
+            varexp = np.diag(varexp)
 
         # need to return len-3 for compatibility purposes
         return varexp, None, None
@@ -378,13 +392,15 @@ class PLSRegression(BasePLS):
                             'the specified axis.')
 
         # mean-center here so that our outputs are generated accordingly
-        X -= X.mean(axis=0, keepdims=True)
-        Y_agg -= Y_agg.mean(axis=0, keepdims=True)
+        X -= np.nanmean(X, axis=0, keepdims=True)
+        Y_agg -= np.nanmean(Y_agg, axis=0, keepdims=True)
+        mask = get_mask(X, Y_agg)
 
         res = super().run_pls(X, Y_agg)
-        res['y_loadings'] = Y_agg.T @ res['x_scores']
-        res['y_scores'] = resid_yscores(res['x_scores'],
-                                        Y_agg @ res['y_loadings'])
+        res['y_loadings'] = Y_agg[mask].T @ res['x_scores'][mask]
+        res['y_scores'] = np.full((len(Y_agg), self.n_components), np.nan)
+        res['y_scores'][mask] = resid_yscores(res['x_scores'][mask],
+                                              Y_agg[mask] @ res['y_loadings'])
 
         if self.inputs.n_boot > 0:
             # compute bootstraps
@@ -400,7 +416,7 @@ class PLSRegression(BasePLS):
             corrci = np.stack(compute.boot_ci(distrib, ci=self.inputs.ci), -1)
             res['bootres'].update(dict(x_weights_normed=bsrs,
                                        x_weights_stderr=uboot_se,
-                                       y_loadings=res['y_loadings'].copy(),
+                                       y_loadings=res['y_loadings'],
                                        y_loadings_boot=distrib,
                                        y_loadings_ci=corrci,
                                        bootsamples=self.bootsamp,))
