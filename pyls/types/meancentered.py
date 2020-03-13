@@ -67,9 +67,13 @@ class MeanCenteredPLS(BasePLS):
             Mean-centered matrix
         """
 
+        n_comp = (min(X.shape), min(Y.shape))
         mean_centered = compute.get_mean_center(X, Y, self.inputs.n_cond,
                                                 self.inputs.mean_centering,
                                                 means=True)
+
+        if kwargs.get('return_comp', False):
+            return mean_centered, n_comp
         return mean_centered
 
     def gen_distrib(self, X, Y, original, *args, **kwargs):

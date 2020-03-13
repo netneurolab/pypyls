@@ -46,10 +46,18 @@ class BehavioralPLS(BasePLS):
             Cross-covariance matrix
         """
 
-        return np.row_stack([
+        if groups.shape[-1] == 1:
+            n_comp = min(min(X.shape), min(Y.shape))
+        else:
+            n_comp = min(min(X.shape), min(Y.shape), min(groups.shape))
+        crosscov = np.row_stack([
             compute.xcorr(X[grp], Y[grp], covariance=self.inputs.covariance)
             for grp in groups.T.astype(bool)
         ])
+
+        if kwargs.get('return_comp', False):
+            return crosscov, n_comp
+        return crosscov
 
     def gen_distrib(self, X, Y, original, groups, *args, **kwargs):
         """

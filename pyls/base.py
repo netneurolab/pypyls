@@ -430,8 +430,8 @@ class BasePLS():
             groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
 
         # generate cross-covariance matrix and determine # of components
-        crosscov = self.gen_covcorr(X, Y, groups=groups)
-        U, d, V = compute.svd(crosscov, seed=seed)
+        crosscov, nc = self.gen_covcorr(X, Y, groups=groups, return_comp=True)
+        U, d, V = compute.svd(crosscov, n_components=nc, seed=seed)
 
         return U, d, V
 
