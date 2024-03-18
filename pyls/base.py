@@ -368,6 +368,7 @@ class BasePLS():
             d_perm, ucorrs, vcorrs = self.permutation(X, Y, seed=self.rs)
             res['permres']['pvals'] = compute.perm_sig(res['singvals'], d_perm)
             res['permres']['permsamples'] = self.permsamp
+            res['permres']['perm_singval'] = d_perm
 
             if self.inputs.n_split is not None:
                 # get ucorr / vcorr (via split half resampling) for original,
