@@ -109,9 +109,15 @@ _pls_input_docs = dict(
     """),
     resamples=dedent("""\
     permsamples : array_like, optional
-        Re-sampling array to be used during permutation test (if n_perm > 0).
+        Resampled array to be used during permutation testing. 
         If not specified a set of unique permutations will be generated.
         Default: None
+    permindices : Boolean, optional
+        Re-sampling array to be used during permutation test (if n_perm > 0).
+        If not specified a set of unique permutations will be generated.
+        Whether permsamples is an array to permute indices or a pre-permuted
+        array. Useful when permuting with methods like BrainSMASH or Eigenstrapping.
+        Default: True   
     bootsamples : array_like, optional
         Resampling array to be used during bootstrap resampling (if n_boot >
         0). If not specified a set of unique bootstraps will be generated.
@@ -142,7 +148,7 @@ class PLSInputs(ResDict):
         'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
         'test_split', 'test_size', 'mean_centering', 'covariance', 'rotate',
         'ci', 'seed', 'verbose', 'n_proc', 'bootsamples', 'permsamples',
-        'method', 'n_components', 'aggfunc'
+        'method', 'n_components', 'aggfunc', 'permindices'
     ]
 
     def __init__(self, *args, **kwargs):

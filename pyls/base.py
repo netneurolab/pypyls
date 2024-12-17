@@ -627,26 +627,31 @@ class BasePLS():
         # generate permuted indices (unless already provided)
         self.permsamp = self.inputs.get('permsamples')
         if self.permsamp is None:
+            use_permind = self.inputs.get('permindices')
             self.permsamp = gen_permsamp(self.inputs.groups,
                                          self.inputs.n_cond,
                                          self.inputs.n_perm,
                                          seed=seed,
                                          verbose=self.inputs.verbose)
+        else:
+            use_permind = self.inputs.get('permindices')
+            self.permsamp = self.permsamp if use_permind else \
+                            np.transpose(self.permsamp, (1, 2, 0))
 
         # get permuted values (parallelizing as requested)
         gen = utils.trange(self.inputs.n_perm, verbose=self.inputs.verbose,
                            desc='Running permutations')
         with utils.get_par_func(self.inputs.n_proc,
                                 self.__class__._single_perm) as (par, func):
-            out = par(func(self, X=X, Y=Y, inds=self.permsamp[:, i],
-                           groups=self.dummy, original=self.res['y_weights'],
-                           seed=i)
+            out = par(func(self, X=X, Y=Y, samples=self.permsamp[..., i], 
+                           use_permind=use_permind, groups=self.dummy, 
+                           original=self.res['y_weights'], seed=i)
                       for i in gen)
         d_perm, ucorrs, vcorrs = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return d_perm, ucorrs, vcorrs
 
-    def _single_perm(self, X, Y, inds, groups=None, original=None, seed=None):
+    def _single_perm(self, X, Y, samples, use_permind=True, groups=None, original=None, seed=None):
         """
         Permutes `X` (w/o replacement) and recomputes SVD
 
@@ -656,8 +661,10 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
-        inds : (S,) array_like
-            Permutation resampling array
+        samples : (S,) or (S, T) array_like
+            Permutation resampling array or pre-permuted Y matrix
+        use_permind : bool
+            Whether `samples` is a resampling array or pre-permuted array
         original : (J, L) array_like
             Right singular vector from original decomposition of `X` and `Y`.
             Used to perform Procrustes rotation on permuted singular values,
@@ -679,7 +686,10 @@ class BasePLS():
         """
 
         # calculate SVD of permuted matrices
-        Xp, Yp = self.make_permutation(X, Y, inds)
+        if use_permind:
+            Xp, Yp = self.make_permutation(X, Y, samples)
+        else:
+            Xp, Yp = X, samples
         U, d, V = self.svd(Xp, Yp, groups=groups, seed=seed)
 
         # optionally get rotated/rescaled singular values
