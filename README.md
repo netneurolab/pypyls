@@ -29,7 +29,7 @@ If you know where you're going, feel free to jump ahead:
 This package requires Python >= 3.5. Assuming you have the correct version of Python installed, you can install this package by opening a terminal and running the following:
 
 ```bash
-git clone https://github.com/rmarkello/pyls.git
+git clone https://github.com/netneurolab/pypyls.git
 cd pyls
 python setup.py install
 ```
