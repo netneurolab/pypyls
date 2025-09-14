@@ -326,7 +326,7 @@ class PLSRegression(BasePLS):
 
         return y_loadings, x_weights
 
-    def _single_perm(self, X, Y, inds, groups=None, original=None, seed=None):
+    def _single_perm(self, X, Y, samples, use_permind=True, groups=None, original=None, seed=None):
         """
         Permutes `Y` (w/o replacement) and recomputes PLS decomposition
 
@@ -336,7 +336,7 @@ class PLSRegression(BasePLS):
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
-        inds : (S,) array_like
+        samples : (S,) array_like
             Resampling array
         groups : None
             Do nothing; here for compatibility purposes
@@ -353,7 +353,7 @@ class PLSRegression(BasePLS):
         """
 
         # should permute Y (but not X) by default
-        Xp, Yp = self.make_permutation(X, Y, inds)
+        Xp, Yp = self.make_permutation(X, Y, samples)
         x_weights, varexp, _ = self.svd(Xp, Yp, seed=seed)
 
         if self.inputs.rotate and original is not None:
