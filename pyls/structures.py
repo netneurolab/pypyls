@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Data structures to hold PLS inputs and results objects
-"""
+"""Data structures to hold PLS inputs and results objects."""
 
 from multiprocessing import cpu_count
 from textwrap import dedent
@@ -108,19 +105,19 @@ _pls_input_docs = dict(
         Dictionary-like object containing results from the PLS analysis\
     """),
     resamples=dedent("""\
-    permsamples : array_like, optional
-        Resampled array to be used during permutation testing. 
+    permsamples : (S, P) array_like, optional
+        Resampling array to be used during permutation test (if n_perm > 0),
+        where `S` is samples and `P` is permutations.
         If not specified a set of unique permutations will be generated.
         Default: None
-    permindices : Boolean, optional
-        Re-sampling array to be used during permutation test (if n_perm > 0).
-        If not specified a set of unique permutations will be generated.
-        Whether permsamples is an array to permute indices or a pre-permuted
-        array. Useful when permuting with methods like BrainSMASH or Eigenstrapping.
-        Default: True   
-    bootsamples : array_like, optional
+    custom_permuted_Y : (S, T, P) array_like, optional
+        Custom permuted `Y` array to be used during permutation test (if
+        n_perm > 0), where `S` is samples, `T` is features, and `P` is permutations.
+        If this is provided, `permsamples` is ignored. Default: None
+    bootsamples : (S, R) array_like, optional
         Resampling array to be used during bootstrap resampling (if n_boot >
-        0). If not specified a set of unique bootstraps will be generated.
+        0), where `S` is samples and `R` is resamples. If not specified a set
+        of unique bootstraps will be generated.
         Default: None\
     """),
     references=dedent("""\
@@ -139,37 +136,56 @@ _pls_input_docs = dict(
     PLS resampling: comparing significance versus reliability across range of
     simulations. In New Perspectives in Partial Least Squares and Related
     Methods (pp. 159-170). Springer, New York, NY. Chicago\
-    """)
+    """),
 )
 
 
-class PLSInputs(ResDict):
+class PLSInputs(ResDict):  # noqa: D101
     allowed = [
-        'X', 'Y', 'groups', 'n_cond', 'n_perm', 'n_boot', 'n_split',
-        'test_split', 'test_size', 'mean_centering', 'covariance', 'rotate',
-        'ci', 'seed', 'verbose', 'n_proc', 'bootsamples', 'permsamples',
-        'method', 'n_components', 'aggfunc', 'permindices'
+        "X",
+        "Y",
+        "groups",
+        "n_cond",
+        "n_perm",
+        "n_boot",
+        "n_split",
+        "test_split",
+        "test_size",
+        "mean_centering",
+        "covariance",
+        "rotate",
+        "ci",
+        "seed",
+        "verbose",
+        "n_proc",
+        "bootsamples",
+        "permsamples",
+        "custom_permuted_Y",
+        "method",
+        "n_components",
+        "aggfunc",
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.get('n_split') == 0:
-            self['n_split'] = None
+        if self.get("n_split") == 0:
+            self["n_split"] = None
 
-        if self.get('test_split') == 0:
-            self['test_split'] = None
+        if self.get("test_split") == 0:
+            self["test_split"] = None
 
-        if self.get('n_proc') is not None:
-            n_proc = self.get('n_proc')
-            if n_proc == 'max' or n_proc == -1:
-                self['n_proc'] = cpu_count()
+        if self.get("n_proc") is not None:
+            n_proc = self.get("n_proc")
+            if n_proc == "max" or n_proc == -1:
+                self["n_proc"] = cpu_count()
             elif n_proc < 0:
-                self['n_proc'] = cpu_count() + 1 + n_proc
+                self["n_proc"] = cpu_count() + 1 + n_proc
 
-        ts = self.get('test_size')
+        ts = self.get("test_size")
         if ts is not None and (ts < 0 or ts >= 1):
-            raise ValueError('test_size must be in [0, 1). Provided value: {}'
-                             .format(ts))
+            raise ValueError(
+                "test_size must be in [0, 1). Provided value: {}".format(ts)
+            )
 
 
 PLSInputs.__doc__ = dedent("""\
@@ -197,7 +213,7 @@ PLSInputs.__doc__ = dedent("""\
 
 class PLSResults(ResDict):
     r"""
-    Dictionary-like object containing results of PLS analysis
+    Dictionary-like object containing results of PLS analysis.
 
     Attributes
     ----------
@@ -229,25 +245,35 @@ class PLSResults(ResDict):
     inputs : :obj:`~.structures.PLSInputs`
         Inputs provided to original PLS
     """
+
     allowed = [
-        'x_weights', 'y_weights', 'x_scores', 'y_scores',
-        'y_loadings', 'singvals', 'varexp',
-        'permres', 'bootres', 'splitres', 'cvres', 'inputs'
+        "x_weights",
+        "y_weights",
+        "x_scores",
+        "y_scores",
+        "y_loadings",
+        "singvals",
+        "varexp",
+        "permres",
+        "bootres",
+        "splitres",
+        "cvres",
+        "inputs",
     ]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # create all sub-dictionaries
-        self.inputs = PLSInputs(**kwargs.get('inputs', kwargs))
-        self.bootres = PLSBootResults(**kwargs.get('bootres', kwargs))
-        self.permres = PLSPermResults(**kwargs.get('permres', kwargs))
-        self.splitres = PLSSplitHalfResults(**kwargs.get('splitres', kwargs))
-        self.cvres = PLSCrossValidationResults(**kwargs.get('cvres', kwargs))
+        self.inputs = PLSInputs(**kwargs.get("inputs", kwargs))
+        self.bootres = PLSBootResults(**kwargs.get("bootres", kwargs))
+        self.permres = PLSPermResults(**kwargs.get("permres", kwargs))
+        self.splitres = PLSSplitHalfResults(**kwargs.get("splitres", kwargs))
+        self.cvres = PLSCrossValidationResults(**kwargs.get("cvres", kwargs))
 
 
 class PLSBootResults(ResDict):
     """
-    Dictionary-like object containing results of PLS bootstrap resampling
+    Dictionary-like object containing results of PLS bootstrap resampling.
 
     Attributes
     ----------
@@ -278,16 +304,23 @@ class PLSBootResults(ResDict):
     bootsamples : (S, R) `numpy.ndarray`
         Indices of bootstrapped samples `S` across `R` resamples.
     """
+
     allowed = [
-        'x_weights_normed', 'x_weights_stderr', 'bootsamples',
-        'y_loadings', 'y_loadings_boot', 'y_loadings_ci',
-        'contrast', 'contrast_boot', 'contrast_ci'
+        "x_weights_normed",
+        "x_weights_stderr",
+        "bootsamples",
+        "y_loadings",
+        "y_loadings_boot",
+        "y_loadings_ci",
+        "contrast",
+        "contrast_boot",
+        "contrast_ci",
     ]
 
 
 class PLSPermResults(ResDict):
     """
-    Dictionary-like object containing results of PLS permutation testing
+    Dictionary-like object containing results of PLS permutation testing.
 
     Attributes
     ----------
@@ -297,14 +330,13 @@ class PLSPermResults(ResDict):
     permsamples : (S, P) `numpy.ndarray`
         Resampling array used to permute `S` samples over `P` permutations
     """
-    allowed = [
-        'pvals', 'permsamples', 'perm_singval'
-    ]
+
+    allowed = ["pvals", "permsamples", "perm_singval"]
 
 
 class PLSSplitHalfResults(ResDict):
     """
-    Dictionary-like object containing results of PLS split-half resampling
+    Dictionary-like object containing results of PLS split-half resampling.
 
     Attributes
     ----------
@@ -324,17 +356,22 @@ class PLSSplitHalfResults(ResDict):
         Lower bound of confidence interval for correlations between split
         halves for left/right singular vectors
     """
+
     allowed = [
-        'ucorr', 'vcorr',
-        'ucorr_pvals', 'vcorr_pvals',
-        'ucorr_uplim', 'vcorr_uplim',
-        'ucorr_lolim', 'vcorr_lolim'
+        "ucorr",
+        "vcorr",
+        "ucorr_pvals",
+        "vcorr_pvals",
+        "ucorr_uplim",
+        "vcorr_uplim",
+        "ucorr_lolim",
+        "vcorr_lolim",
     ]
 
 
 class PLSCrossValidationResults(ResDict):
     """
-    Dictionary-like object containing results of PLS cross-validation testing
+    Dictionary-like object containing results of PLS cross-validation testing.
 
     Attributes
     ----------
@@ -346,6 +383,5 @@ class PLSCrossValidationResults(ResDict):
         Pearson's correlation for each of `T` predicted behavioral scores
         against true behavioral scores across `I` train / test split
     """
-    allowed = [
-        'pearson_r', 'r_squared'
-    ]
+
+    allowed = ["pearson_r", "r_squared"]

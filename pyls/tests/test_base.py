@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Tests for the base module."""
 
 import numpy as np
 import pytest
@@ -12,6 +12,7 @@ import pyls
 # has time for right now.
 # thus, we get repetitive tests to make sure that nothing is screwed up!
 def test_gen_permsamp():
+    """Test the gen_permsamp function for generating permutation samples."""
     # test to make sure that there are no duplicates generated given a
     # sufficiently large number of samples / conditions to work with
     unique_perms = pyls.base.gen_permsamp([10, 10], 2, seed=1234, n_perm=10)
@@ -61,8 +62,7 @@ def test_gen_permsamp():
     # confirm subject conditions are permuted together
     for g in [g1, g2]:
         for n in range(10):
-            comp = [f + 10 if f < 10 or (f >= 20 and f < 30) else f - 10
-                    for f in g[n]]
+            comp = [f + 10 if f < 10 or (f >= 20 and f < 30) else f - 10 for f in g[n]]
             assert np.all(comp == g[n + 10])
     # confirm subjects perare muted between groups
     comp = np.arange(0, 20)[:, None]
@@ -71,6 +71,7 @@ def test_gen_permsamp():
 
 
 def test_gen_bootsamp():
+    """Test the gen_bootsamp function for generating bootstrap samples."""
     # test to make sure that there are no duplicates generated given a
     # sufficiently large number of samples / conditions to work with
     unique_boots = pyls.base.gen_bootsamp([10, 10], 2, seed=1234, n_boot=10)
@@ -116,6 +117,7 @@ def test_gen_bootsamp():
 
 
 def test_gen_splitsamp():
+    """Test the gen_splitsamp function for generating split samples."""
     # test to make sure that there are no duplicates generated given a
     # sufficiently large number of samples / conditions to work with
     unique_splits = pyls.base.gen_splits([10, 10], 2, seed=1234, n_split=10)
@@ -155,6 +157,7 @@ def test_gen_splitsamp():
 
 
 def test_BasePLS(pls_inputs):
+    """Test the BasePLS base class functionality and input validation."""
     # test that BasePLS accepts all inputs and stores them correctly
     basepls = pyls.base.BasePLS(**pls_inputs)
     for key in pls_inputs.keys():
@@ -162,7 +165,7 @@ def test_BasePLS(pls_inputs):
         assert np.all(basepls.inputs[key] == pls_inputs[key])
 
     # test that groups are handled correctly
-    X, n_samples = pls_inputs['X'], len(pls_inputs['X'])
+    X, n_samples = pls_inputs["X"], len(pls_inputs["X"])
     # when not provided, should be calculated
     basepls = pyls.base.BasePLS(X, n_cond=2)
     assert basepls.inputs.groups == [n_samples // 2]
@@ -175,6 +178,6 @@ def test_BasePLS(pls_inputs):
 
     # ensure errors are raised for not implemented
     with pytest.raises(NotImplementedError):
-        basepls.gen_covcorr(pls_inputs['X'], pls_inputs['Y'])
+        basepls.gen_covcorr(pls_inputs["X"], pls_inputs["Y"])
     with pytest.raises(NotImplementedError):
-        basepls.gen_distrib(pls_inputs['X'], pls_inputs['Y'])
+        basepls.gen_distrib(pls_inputs["X"], pls_inputs["Y"])

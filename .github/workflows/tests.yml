@@ -1,0 +1,88 @@
+name: pyls-tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  check_style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ruff
+      - name: Run style checks
+        run: ruff check .
+  
+  run_tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ['ubuntu-latest']
+        python-version: ['3.9']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for cached Matlab PLS results
+        uses: actions/cache/restore@v4
+        id: matlab-data-cache
+        with:
+            path: /tmp/data
+            key: matlab-data-cache
+      - name: Prepare Matlab PLS results
+        run: |
+            if [[ -e /tmp/data/matlab ]]; then
+                echo "Restoring Matlab PLS results from cache"
+            else
+                mkdir -p /tmp/data/matlab
+                curl -L "https://osf.io/download/n2xdf" | tar xz -C /tmp/data/matlab
+            fi
+      - name: Cache Matlab PLS results
+        uses: actions/cache@v4
+        if: steps.matlab-data-cache.outputs.cache-hit != 'true'
+        with:
+            path: /tmp/data
+            key: matlab-data-cache
+      - name: Create soft links to Matlab data
+        run: |
+          mkdir -p ./data
+          ln -sf /tmp/data/matlab/* ./data/
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-cov codecov
+      - name: Install pyls
+        run: python -m pip install .
+      - name: Print pyls version
+        run: python -c "import pyls; print(pyls.__version__)"
+      - name: Test submodule import
+        run: |
+          cd ..
+          python -c "from pyls import behavioral_pls; from pyls.matlab import import_matlab_result"
+      - name: Run tests
+        run: pytest --cov=pyls --cov-report=xml --junitxml=junit/test-results.xml --verbose --pyargs pyls
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-${{ matrix.os }}-${{ matrix.python-version }}
+          path: junit/test-results.xml

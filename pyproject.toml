@@ -1,0 +1,123 @@
+[project]
+name = "pyls"
+authors = [
+    {name = "pyls developers"},
+]
+maintainers = [
+    {name = "Network Neuroscience Lab", email = "toolboxes-aaaarjdiokgbm6xvziehumegcu@netneurolab.slack.com"},
+]
+description = "A toolbox for performing multivariate PLS decomposition analyses"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "h5py",
+    "numpy",
+    "scikit-learn",
+    "scipy",
+    "tqdm",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+doc = [
+    "sphinx >= 2.0",
+    "sphinx-argparse",
+    "sphinx_rtd_theme",
+]
+plotting = [
+    "pandas",
+    "seaborn",
+]
+style = [
+    "flake8",
+    "ruff"
+]
+test = [
+    "pytest >= 3.6",
+    "pytest-cov",
+]
+all = [
+    "pyls[doc,plotting,style,test]",
+]
+
+[project.urls]
+Homepage = "https://github.com/netneurolab/pypyls"
+
+[build-system]
+requires = ["setuptools", "versioneer[toml]", ]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+  "pyls",
+  "pyls.*"
+]
+
+[tool.setuptools.package-data]
+pyls = [
+    "data/*.csv",
+    "pyls/examples/*.json",
+    "pyls/tests/data/*.mat",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "pyls.__version__"}
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "pyls/_version.py"
+versionfile_build = "pyls/_version.py"
+tag_prefix = ""
+parentdir_prefix = ""
+
+[tool.ruff]
+line-length = 88
+exclude = [
+  "setup.py",
+  "versioneer.py",
+  "pyls/_version.py",
+  "docs/conf.py"
+]
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "W", "D", "NPY"]
+ignore = [
+    "B905", # zip() without an explicit strict= parameter
+    # "W605", # Invalid escape sequence: latex
+    "NPY002", # Replace legacy `np.random` call with `np.random.Generator`
+]
+preview = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["D104", "F401"]
+"test_*" = ["B011"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --maxfail=2 --pyargs"
+
+[tool.coverage.run]
+source = ["pyls"]
+omit = [
+    "pyls/_version.py",
+    "pyls/tests/matlab.py",
+]

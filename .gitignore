@@ -1,6 +1,7 @@
 plsc/
 .vscode/
 docs/generated/
+pyls/tests/data/*.mat
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

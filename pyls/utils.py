@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Utility functions for PLS toolbox."""
 
 from contextlib import contextmanager
 
@@ -6,8 +6,10 @@ import numpy as np
 import tqdm
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_random_state
+
 try:
     from joblib import Parallel, delayed
+
     joblib_avail = True
 except ImportError:
     joblib_avail = False
@@ -15,7 +17,7 @@ except ImportError:
 
 class ResDict(Bunch):
     """
-    Subclass of `sklearn.utils.Bunch` that only accepts keys in `cls.allowed`
+    Subclass of `sklearn.utils.Bunch` that only accepts keys in `cls.allowed`.
 
     Also edits string representation to show non-empty keys
     """
@@ -24,23 +26,23 @@ class ResDict(Bunch):
 
     def __init__(self, **kwargs):
         # only keep allowed keys
-        i = {key: val for key, val in kwargs.items() if key in
-             self.__class__.allowed}
+        i = {key: val for key, val in kwargs.items() if key in self.__class__.allowed}
         super().__init__(**i)
 
     def __str__(self):
-        # override dict built-in string repr to display only non-empty keys
-        items = [k for k in self.__class__.allowed
-                 if k in _not_empty_keys(self)]
-        return '{name}({keys})'.format(name=self.__class__.__name__,
-                                       keys=', '.join(items))
+        """Return string representation showing only non-empty keys."""
+        items = [k for k in self.__class__.allowed if k in _not_empty_keys(self)]
+        return "{name}({keys})".format(
+            name=self.__class__.__name__, keys=", ".join(items)
+        )
 
     def __setitem__(self, key, val):
-        # legit we only want keys that are allowed
+        """Set item only if key is in the allowed list."""
         if key in self.__class__.allowed:
             super().__setitem__(key, val)
 
     def __eq__(self, value):
+        """Return True if objects are equal, False otherwise."""
         # easy check -- are objects the same class?
         if not isinstance(value, self.__class__):
             return False
@@ -69,6 +71,7 @@ class ResDict(Bunch):
         return True
 
     def __ne__(self, value):
+        """Return True if objects are not equal, False otherwise."""
         return not self == value
 
     __repr__ = __str__
@@ -76,7 +79,7 @@ class ResDict(Bunch):
 
 def _not_empty_keys(dictionary):
     """
-    Returns list of non-empty keys in `dictionary`
+    Return list of non-empty keys in `dictionary`.
 
     Non-empty keys are defined as (1) not being None-type and (2) not being an
     empty dictionary, itself
@@ -91,10 +94,10 @@ def _not_empty_keys(dictionary):
     keys : list
         Non-empty keys in `dictionary`
     """
-
     if not isinstance(dictionary, dict):
-        raise TypeError('Provided input must be type dict, not {}'
-                        .format(type(dictionary)))
+        raise TypeError(
+            "Provided input must be type dict, not {}".format(type(dictionary))
+        )
 
     keys = []
     for key, value in dictionary.items():
@@ -106,7 +109,7 @@ def _not_empty_keys(dictionary):
 
 def _empty_dict(dobj):
     """
-    Returns True if `dobj` is an empty dictionary; otherwise, returns False
+    Return True if `dobj` is an empty dictionary; otherwise, returns False.
 
     Parameters
     ----------
@@ -118,7 +121,6 @@ def _empty_dict(dobj):
     empty : bool
         Whether `dobj` is an empty dictionary-like object
     """
-
     try:
         return len(dobj.keys()) == 0
     except (AttributeError, TypeError):
@@ -127,7 +129,7 @@ def _empty_dict(dobj):
 
 def trange(n_iter, verbose=True, **kwargs):
     """
-    Wrapper for :obj:`tqdm.trange` with some default options set
+    Wrap :obj:`tqdm.trange` with some default options set.
 
     Parameters
     ----------
@@ -143,9 +145,9 @@ def trange(n_iter, verbose=True, **kwargs):
     -------
     progbar : :obj:`tqdm.tqdm`
     """
-
-    form = ('{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}'
-            ' | {elapsed}<{remaining}')
+    form = (
+        "{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} | {elapsed}<{remaining}"
+    )
     defaults = dict(ascii=True, leave=False, bar_format=form)
     defaults.update(kwargs)
 
@@ -154,7 +156,7 @@ def trange(n_iter, verbose=True, **kwargs):
 
 def dummy_code(groups, n_cond=1):
     """
-    Dummy codes `groups` and `n_cond`
+    Dummycode `groups` and `n_cond`.
 
     Parameters
     ----------
@@ -168,7 +170,6 @@ def dummy_code(groups, n_cond=1):
     Y : (S, F) `numpy.ndarray`
         Dummy-coded group array
     """
-
     labels = dummy_label(groups, n_cond)
     dummy = np.column_stack([labels == g for g in np.unique(labels)])
 
@@ -177,7 +178,7 @@ def dummy_code(groups, n_cond=1):
 
 def dummy_label(groups, n_cond=1):
     """
-    Generates group labels for `groups` and `n_cond`
+    Generate group labels for `groups` and `n_cond`.
 
     Parameters
     ----------
@@ -191,7 +192,6 @@ def dummy_label(groups, n_cond=1):
     Y : (S,) `numpy.ndarray`
         Dummy-label group array
     """
-
     num_labels = len(groups) * n_cond
 
     return np.repeat(np.arange(num_labels) + 1, np.repeat(groups, n_cond))
@@ -199,7 +199,7 @@ def dummy_label(groups, n_cond=1):
 
 def permute_cols(x, seed=None):
     """
-    Permutes the rows for each column in `x` separately
+    Permute the rows for each column in `x` separately.
 
     Taken from https://stackoverflow.com/a/27489131
 
@@ -215,7 +215,6 @@ def permute_cols(x, seed=None):
     permuted : `numpy.ndarray`
         Permuted array
     """
-
     # can't permute row with only 1 sample...
     x = check_array(x)
     rs = check_random_state(seed)
@@ -224,9 +223,9 @@ def permute_cols(x, seed=None):
     return x[ix_i, ix_j]
 
 
-class _unravel():
+class _unravel:
     """
-    Small utility to unravel generator object into a list
+    Small utility to unravel generator object into a list.
 
     Parameters
     ----------
@@ -236,6 +235,7 @@ class _unravel():
     -------
     y : list
     """
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -252,7 +252,7 @@ class _unravel():
 @contextmanager
 def get_par_func(n_proc, func, **kwargs):
     """
-    Creates joblib-style parallelization function if joblib is available
+    Create joblib-style parallelization function if joblib is available.
 
     Parameters
     ----------
@@ -268,11 +268,11 @@ def get_par_func(n_proc, func, **kwargs):
     func : :obj:`joblib.delayed` object
         Provided `func` wrapped in `joblib.delayed`
     """
-
     if joblib_avail:
         func = delayed(func)
-        with Parallel(n_jobs=n_proc, max_nbytes=1e6,
-                      mmap_mode='r+', **kwargs) as parallel:
+        with Parallel(
+            n_jobs=n_proc, max_nbytes=1e6, mmap_mode="r+", **kwargs
+        ) as parallel:
             yield parallel, func
     else:
         parallel = _unravel()

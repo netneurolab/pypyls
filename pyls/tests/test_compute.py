@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Tests for the compute module."""
 
 import numpy as np
 import pytest
@@ -8,6 +8,7 @@ rs = np.random.RandomState(1234)
 
 
 def test_normalize():
+    """Test the normalize function for axis-wise normalization."""
     X = rs.rand(10, 10)
     out = pyls.compute.normalize(X, axis=0)
     assert np.allclose(np.sum(out**2, axis=0), 1)
@@ -17,6 +18,7 @@ def test_normalize():
 
 
 def test_xcorr():
+    """Test the xcorr function for cross-correlation computation."""
     X = rs.rand(20, 200)
     Y = rs.rand(20, 25)
 
@@ -34,6 +36,7 @@ def test_xcorr():
 
 
 def test_efficient_corr():
+    """Test the efficient_corr function for optimized correlation computation."""
     x, y = rs.rand(100), rs.rand(100, 10)
     assert pyls.compute.efficient_corr(x, y).shape == (10,)
     x = rs.rand(100, 10)
@@ -46,4 +49,4 @@ def test_efficient_corr():
     x, y = np.ones((100, 2)), np.ones((100, 2)) * 5
     x[50:, 0], y[50:, 0] = 2, 6
     x[50:, 1], y[50:, 1] = 2, 4
-    assert np.allclose(pyls.compute.efficient_corr(x, y), np.array([1., -1.]))
+    assert np.allclose(pyls.compute.efficient_corr(x, y), np.array([1.0, -1.0]))

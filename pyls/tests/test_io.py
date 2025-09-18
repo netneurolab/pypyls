@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Tests for the I/O functions."""
 
 import os.path as op
 import h5py
@@ -7,7 +7,8 @@ import pyls
 
 
 def test_load_save(testdir, mpls_results, bpls_results):
-    for res, fn in zip([mpls_results, bpls_results], ['mpls', 'bpls']):
+    """Test saving and loading of results."""
+    for res, fn in zip([mpls_results, bpls_results], ["mpls", "bpls"]):
         fname = pyls.save_results(op.join(testdir, fn), res)
         assert op.isfile(fname)
         assert h5py.is_hdf5(fname)

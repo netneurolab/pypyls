@@ -26,12 +26,10 @@ If you know where you're going, feel free to jump ahead:
   
 ## Installation and setup
 
-This package requires Python >= 3.5. Assuming you have the correct version of Python installed, you can install this package by opening a terminal and running the following:
+This package requires Python >= 3.9. Assuming you have the correct version of Python installed, you can install this package by opening a terminal and running the following:
 
 ```bash
-git clone https://github.com/netneurolab/pypyls.git
-cd pyls
-python setup.py install
+pip install git+https://github.com/netneurotools/pypyls.git
 ```
 
 There are plans (hopes?) to get this set up on PyPI for an easier installation process, but that is a long-term goal!

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Core computational functions for PLS analysis."""
 
 import numpy as np
 from scipy.stats import zscore, zmap
@@ -9,7 +9,7 @@ from pyls import utils
 
 def svd(crosscov, n_components=None, seed=None):
     """
-    Calculates the SVD of `crosscov` and returns singular vectors/values
+    Calculate the SVD of `crosscov` and returns singular vectors/values.
 
     Parameters
     ----------
@@ -29,24 +29,26 @@ def svd(crosscov, n_components=None, seed=None):
     V : (J, L) `numpy.ndarray`
         Right singular vectors from singular value decomposition
     """
-
     seed = check_random_state(seed)
     crosscov = np.asanyarray(crosscov)
 
     if n_components is None:
         n_components = min(crosscov.shape)
     elif not isinstance(n_components, int):
-        raise TypeError('Provided `n_components` {} must be of type int'
-                        .format(n_components))
+        raise TypeError(
+            "Provided `n_components` {} must be of type int".format(n_components)
+        )
 
     # run most computationally efficient SVD
     if crosscov.shape[0] <= crosscov.shape[1]:
-        U, d, V = randomized_svd(crosscov.T, n_components=n_components,
-                                 random_state=seed, transpose=False)
+        U, d, V = randomized_svd(
+            crosscov.T, n_components=n_components, random_state=seed, transpose=False
+        )
         V = V.T
     else:
-        V, d, U = randomized_svd(crosscov, n_components=n_components,
-                                 random_state=seed, transpose=False)
+        V, d, U = randomized_svd(
+            crosscov, n_components=n_components, random_state=seed, transpose=False
+        )
         U = U.T
 
     return U, np.diag(d), V
@@ -54,7 +56,7 @@ def svd(crosscov, n_components=None, seed=None):
 
 def xcorr(X, Y, norm=False, covariance=False):
     """
-    Calculates the cross-covariance matrix of `X` and `Y`
+    Calculate the cross-covariance matrix of `X` and `Y`.
 
     Parameters
     ----------
@@ -74,7 +76,6 @@ def xcorr(X, Y, norm=False, covariance=False):
     xprod : (T, B) `numpy.ndarray`
         Cross-covariance of `X` and `Y`
     """
-
     check_X_y(X, Y, multi_output=True)
 
     # we could just use scipy.stats zscore but if we do this we retain the
@@ -96,7 +97,7 @@ def xcorr(X, Y, norm=False, covariance=False):
 
 def normalize(X, axis=0):
     """
-    Normalizes `X` along `axis`
+    Normalize `X` along `axis`.
 
     Utilizes Frobenius norm (or Hilbert-Schmidt norm / `L_{p,q}` norm where
     `p=q=2`)
@@ -113,7 +114,6 @@ def normalize(X, axis=0):
     normed : (S, B) `numpy.ndarray`
         Normalized `X`
     """
-
     normed = np.array(X)
     normal_base = np.linalg.norm(normed, axis=axis, keepdims=True)
     # avoid DivideByZero errors
@@ -128,7 +128,7 @@ def normalize(X, axis=0):
 
 def rescale_test(X_train, X_test, Y_train, U, V):
     """
-    Generates out-of-sample predicted `Y` values
+    Generate out-of-sample predicted `Y` values.
 
     Parameters
     ----------
@@ -144,7 +144,6 @@ def rescale_test(X_train, X_test, Y_train, U, V):
     Y_pred : (S2, T) `numpy.ndarray`
         Behavioral matrix, where `S2` is observations and `T` is features
     """
-
     X_resc = zmap(X_test, compare=X_train, ddof=1)
     Y_pred = (X_resc @ U @ V.T) + Y_train.mean(axis=0, keepdims=True)
 
@@ -153,7 +152,7 @@ def rescale_test(X_train, X_test, Y_train, U, V):
 
 def perm_sig(orig, perm):
     """
-    Calculates significance of `orig` values agains `perm` distributions
+    Calculate significance of `orig` values agains `perm` distributions.
 
     Compares amplitude of each singular value to distribution created via
     permutation in `perm`
@@ -174,7 +173,6 @@ def perm_sig(orig, perm):
         number of permutations. Can be interpreted as the statistical
         significance of the latent variables (i.e., non-parametric p-value).
     """
-
     sp = np.sum(perm > np.diag(orig)[:, None], axis=1) + 1
     sprob = sp / (perm.shape[-1] + 1)
 
@@ -183,7 +181,7 @@ def perm_sig(orig, perm):
 
 def boot_ci(boot, ci=95):
     """
-    Generates CI for bootstrapped values `boot`
+    Generate CI for bootstrapped values `boot`.
 
     Parameters
     ----------
@@ -200,7 +198,6 @@ def boot_ci(boot, ci=95):
     upper : (G, L) `numpy.ndarray`
         Upper bound of CI for singular vectors in `boot`
     """
-
     low = (100 - ci) / 2
     prc = [low, 100 - low]
 
@@ -211,7 +208,7 @@ def boot_ci(boot, ci=95):
 
 def boot_rel(orig, u_sum, u_square, n_boot):
     """
-    Determines bootstrap ratios (BSR) of saliences from bootstrap distributions
+    Determine bootstrap ratios (BSR) of saliences from bootstrap distributions.
 
     Parameters
     ----------
@@ -229,8 +226,7 @@ def boot_rel(orig, u_sum, u_square, n_boot):
     bsr : (G, L) `numpy.ndarray`
         Bootstrap ratios for provided singular vectors
     """
-
-    u_sum2 = (u_sum ** 2) / n_boot
+    u_sum2 = (u_sum**2) / n_boot
     u_se = np.sqrt(np.abs(u_square - u_sum2) / (n_boot - 1))
     bsr = orig / u_se
 
@@ -239,7 +235,7 @@ def boot_rel(orig, u_sum, u_square, n_boot):
 
 def procrustes(original, permuted, singular):
     """
-    Performs Procrustes rotation on `permuted` to align with `original`
+    Perform Procrustes rotation on `permuted` to align with `original`.
 
     `original` and `permuted` should be either left *or* right singular
     vector from two SVDs. `singular` should be the diagonal matrix of
@@ -256,7 +252,6 @@ def procrustes(original, permuted, singular):
     resamp : `numpy.ndarray`
         Singular values of rotated `permuted` matrix
     """
-
     temp = original.T @ permuted
     N, _, P = randomized_svd(temp, n_components=min(temp.shape))
     resamp = permuted @ singular @ (P.T @ N.T)
@@ -266,6 +261,8 @@ def procrustes(original, permuted, singular):
 
 def get_group_mean(X, Y, n_cond=1, mean_centering=0):
     """
+    Get means of `X` over groups defined in `Y` for mean-centering.
+
     Parameters
     ----------
     X : (S, B) array_like
@@ -285,7 +282,6 @@ def get_group_mean(X, Y, n_cond=1, mean_centering=0):
     group_mean : (T, B) `numpy.ndarray`
         Means to be removed from `X` during centering
     """
-
     if mean_centering == 0:
         # we want means of GROUPS, collapsing across conditions
         inds = slice(0, Y.shape[-1], n_cond)
@@ -300,8 +296,7 @@ def get_group_mean(X, Y, n_cond=1, mean_centering=0):
         raise ValueError("Mean centering type must be in [0, 1, 2].")
 
     # get mean of data over grouping variable
-    group_mean = np.row_stack([X[grp].mean(axis=0)[None] for grp in
-                               groups.T.astype(bool)])
+    group_mean = np.vstack([X[grp].mean(axis=0)[None] for grp in groups.T.astype(bool)])
 
     # we want group_mean to have the same number of rows as Y does columns
     # that way, we can easily subtract it for mean centering the data
@@ -319,6 +314,8 @@ def get_group_mean(X, Y, n_cond=1, mean_centering=0):
 
 def get_mean_center(X, Y, n_cond=1, mean_centering=0, means=True):
     """
+    Get mean-centered data or means of `X` over groups defined in `Y`.
+
     Parameters
     ----------
     X : (S, B) array_like
@@ -342,24 +339,25 @@ def get_mean_center(X, Y, n_cond=1, mean_centering=0, means=True):
         If `means` is True, returns array with shape (T, B); otherwise, returns
         (S, B)
     """
-
     mc = get_group_mean(X, Y, n_cond=n_cond, mean_centering=mean_centering)
 
     if means:
         # take mean of groups and subtract relevant mean_centering entry
-        mean_centered = np.row_stack([X[grp].mean(axis=0) - mc[n] for (n, grp)
-                                      in enumerate(Y.T.astype(bool))])
+        mean_centered = np.vstack(
+            [X[grp].mean(axis=0) - mc[n] for (n, grp) in enumerate(Y.T.astype(bool))]
+        )
     else:
         # subtract relevant mean_centering entry from each observation
-        mean_centered = np.row_stack([X[grp] - mc[n][None] for (n, grp)
-                                      in enumerate(Y.T.astype(bool))])
+        mean_centered = np.vstack(
+            [X[grp] - mc[n][None] for (n, grp) in enumerate(Y.T.astype(bool))]
+        )
 
     return mean_centered
 
 
 def efficient_corr(x, y):
     """
-    Computes correlation of matching columns in `x` and `y`
+    Compute correlation of matching columns in `x` and `y`.
 
     Parameters
     ----------
@@ -371,17 +369,17 @@ def efficient_corr(x, y):
     corr : (M,) numpy.ndarray
         Correlations of columns in `x` and `y`
     """
-
     # we need 2D arrays
     x, y = np.vstack(x), np.vstack(y)
 
     # check shapes
     if x.shape != y.shape:
         if x.shape[-1] != 1 and y.shape[-1] != 1:
-            raise ValueError('Provided inputs x and y must either have '
-                             'matching shapes or one must be a column '
-                             'vector.\nProvided data:\n\tx: {}\n\ty: {}'
-                             .format(x.shape, y.shape))
+            raise ValueError(
+                "Provided inputs x and y must either have "
+                "matching shapes or one must be a column "
+                "vector.\nProvided data:\n\tx: {}\n\ty: {}".format(x.shape, y.shape)
+            )
 
     corr = np.sum(zscore(x, ddof=1) * zscore(y, ddof=1), axis=0) / (len(x) - 1)
 
@@ -393,7 +391,7 @@ def efficient_corr(x, y):
 
 def varexp(singular):
     """
-    Calculates the variance explained by values in `singular`
+    Calculate the variance explained by values in `singular`.
 
     Parameters
     ----------
@@ -405,10 +403,10 @@ def varexp(singular):
     varexp : (L, L) `numpy.ndarray`
         Variance explained
     """
-
     if singular.ndim != 2:
-        raise ValueError('Provided `singular` array must be a square diagonal '
-                         'matrix, not array of shape {}'
-                         .format(singular.shape))
+        raise ValueError(
+            "Provided `singular` array must be a square diagonal "
+            "matrix, not array of shape {}".format(singular.shape)
+        )
 
-    return np.diag(np.diag(singular)**2 / np.sum(np.diag(singular)**2))
+    return np.diag(np.diag(singular) ** 2 / np.sum(np.diag(singular) ** 2))

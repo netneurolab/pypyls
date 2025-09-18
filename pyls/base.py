@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Base PLS class and resampling functions."""
 
 import gc
 import warnings
@@ -9,7 +9,7 @@ from . import compute, structures, utils
 
 def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     """
-    Generates permutation arrays for PLS permutation testing
+    Generate permutation arrays for PLS permutation testing.
 
     Parameters
     ----------
@@ -41,18 +41,18 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
     # do this here to save on calculation time
     indices, grps = np.where(Y)
     grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
-    to_permute = [np.vstack(grp_conds[i:i + n_cond]) for i in
-                  range(0, Y.shape[-1], n_cond)]
+    to_permute = [
+        np.vstack(grp_conds[i : i + n_cond]) for i in range(0, Y.shape[-1], n_cond)
+    ]
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    for i in utils.trange(n_perm, verbose=verbose, desc='Making permutations'):
+    for i in utils.trange(n_perm, verbose=verbose, desc="Making permutations"):
         count, duplicated = 0, True
         while duplicated and count < 500:
             count, duplicated = count + 1, False
             # generate conditions permuted w/i subject
-            inds = np.hstack([utils.permute_cols(i, seed=rs) for i
-                              in to_permute])
+            inds = np.hstack([utils.permute_cols(i, seed=rs) for i in to_permute])
             # generate permutation of subjects across groups
             perm = rs.permutation(subj_inds)
             # confirm subjects *are* mixed across groups
@@ -61,8 +61,9 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
                     if np.all(np.sort(perm[grp]) == subj_inds[grp]):
                         duplicated = True
             # permute conditions w/i subjects across groups and stack
-            perminds = np.hstack([f.flatten('F') for f in
-                                  np.split(inds[:, perm].T, splitinds)])
+            perminds = np.hstack(
+                [f.flatten("F") for f in np.split(inds[:, perm].T, splitinds)]
+            )
             # make sure permuted indices are not a duplicate sequence
             dupe_seq = perminds[:, None] == permsamp[:, :i]
             if dupe_seq.all(axis=0).any():
@@ -71,7 +72,7 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
         # generate a new one, just warn that we're using duplicate
         # permutations and give up
         if count == 500 and not warned:
-            warnings.warn('WARNING: Duplicate permutations used.')
+            warnings.warn("WARNING: Duplicate permutations used.", stacklevel=2)
             warned = True
         # store the permuted indices
         permsamp[:, i] = perminds
@@ -81,7 +82,7 @@ def gen_permsamp(groups, n_cond, n_perm, seed=None, verbose=True):
 
 def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
     """
-    Generates bootstrap arrays for PLS bootstrap resampling
+    Generate bootstrap arrays for PLS bootstrap resampling.
 
     Parameters
     ----------
@@ -115,12 +116,13 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
     # calculation time
     indices, grps = np.where(Y)
     grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
-    inds = np.hstack([np.vstack(grp_conds[i:i + n_cond]) for i
-                      in range(0, len(grp_conds), n_cond)])
+    inds = np.hstack(
+        [np.vstack(grp_conds[i : i + n_cond]) for i in range(0, len(grp_conds), n_cond)]
+    )
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
-    for i in utils.trange(n_boot, verbose=verbose, desc='Making bootstraps'):
+    for i in utils.trange(n_boot, verbose=verbose, desc="Making bootstraps"):
         count, duplicated = 0, True
         while duplicated and count < 500:
             count, duplicated = count + 1, False
@@ -131,16 +133,16 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
                 curr_grp, all_same = subj_inds[grp], True
                 while all_same:
                     num_subj = curr_grp.size
-                    boot[curr_grp] = np.sort(rs.choice(curr_grp,
-                                                       size=num_subj,
-                                                       replace=True),
-                                             axis=0)
+                    boot[curr_grp] = np.sort(
+                        rs.choice(curr_grp, size=num_subj, replace=True), axis=0
+                    )
                     # make sure bootstrap has enough unique subjs
                     if np.unique(boot[curr_grp]).size >= min_subj:
                         all_same = False
             # resample subjects (with conditions) and stack groups
-            bootinds = np.hstack([f.flatten('F') for f in
-                                  np.split(inds[:, boot].T, splitinds)])
+            bootinds = np.hstack(
+                [f.flatten("F") for f in np.split(inds[:, boot].T, splitinds)]
+            )
             # make sure bootstrap is not a duplicated sequence
             for grp in check_grps:
                 curr_grp = subj_inds[grp]
@@ -151,7 +153,7 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
         # generate a new one, just warn that we're using duplicate
         # bootstraps and give up
         if count == 500 and not warned:
-            warnings.warn('WARNING: Duplicate bootstraps used.')
+            warnings.warn("WARNING: Duplicate bootstraps used.", stacklevel=2)
             warned = True
         # store the bootstrapped indices
         bootsamp[:, i] = bootinds
@@ -161,7 +163,7 @@ def gen_bootsamp(groups, n_cond, n_boot, seed=None, verbose=True):
 
 def gen_splits(groups, n_cond, n_split, seed=None, test_size=0.5):
     """
-    Generates splitting arrays for PLS split-half resampling and CV
+    Generate splitting arrays for PLS split-half resampling and CV.
 
     Parameters
     ----------
@@ -192,8 +194,9 @@ def gen_splits(groups, n_cond, n_split, seed=None, test_size=0.5):
     # do this here to save on calculation time
     indices, grps = np.where(Y)
     grp_conds = np.split(indices, np.where(np.diff(grps))[0] + 1)
-    inds = np.hstack([np.vstack(grp_conds[i:i + n_cond]) for i
-                      in range(0, len(grp_conds), n_cond)])
+    inds = np.hstack(
+        [np.vstack(grp_conds[i : i + n_cond]) for i in range(0, len(grp_conds), n_cond)]
+    )
     splitinds = np.cumsum(groups)[:-1]
     check_grps = utils.dummy_code(groups).T.astype(bool)
 
@@ -208,28 +211,30 @@ def gen_splits(groups, n_cond, n_split, seed=None, test_size=0.5):
                 curr_grp = subj_inds[grp]
                 take = rs.choice([np.ceil, np.floor])
                 num_subj = int(take(curr_grp.size * (1 - test_size)))
-                splinds = rs.choice(curr_grp,
-                                    size=num_subj,
-                                    replace=False)
+                splinds = rs.choice(curr_grp, size=num_subj, replace=False)
                 split[splinds] = True
             # split subjects (with conditions) and stack groups
-            half = np.hstack([f.flatten('F') for f in
-                              np.split(((inds + 1).astype(bool)
-                                        * [split[None]]).T,
-                                       splitinds)])
+            half = np.hstack(
+                [
+                    f.flatten("F")
+                    for f in np.split(
+                        ((inds + 1).astype(bool) * [split[None]]).T, splitinds
+                    )
+                ]
+            )
             # make sure split half is not a duplicated sequence
             dupe_seq = half[:, None] == splitsamp[:, :i]
             if dupe_seq.all(axis=0).any():
                 duplicated = True
         if count == 500 and not warned:
-            warnings.warn('WARNING: Duplicate split halves used.')
+            warnings.warn("WARNING: Duplicate split halves used.", stacklevel=2)
             warned = True
         splitsamp[:, i] = half
 
     return splitsamp
 
 
-class BasePLS():
+class BasePLS:  # noqa: D101
     """
     Base PLS class to be subclassed
 
@@ -247,7 +252,6 @@ class BasePLS():
 
     References
     ----------
-
     {references}
     """.format(**structures._pls_input_docs)
 
@@ -264,36 +268,45 @@ class BasePLS():
         # check that data matrices and groups + n_cond inputs jibe
         n_samples = sum([g * n_cond for g in groups])
         if len(X) != n_samples:
-            raise ValueError('Number of samples specified by `groups` and '
-                             '`n_cond` does not match number of samples in '
-                             'input array(s).\n'
-                             '    EXPECTED: {}\n'
-                             '    ACTUAL:   {} (groups: {} * n_cond: {})'
-                             .format(len(X), n_samples, groups, n_cond))
+            raise ValueError(
+                "Number of samples specified by `groups` and "
+                "`n_cond` does not match number of samples in "
+                "input array(s).\n"
+                "    EXPECTED: {}\n"
+                "    ACTUAL:   {} (groups: {} * n_cond: {})".format(
+                    len(X), n_samples, groups, n_cond
+                )
+            )
 
         if Y is not None and len(X) != len(Y):
-            raise ValueError('Provided `X` and `Y` matrices must have the '
-                             'same number of samples. Provided matrices '
-                             'differed: X: {}, Y: {}'.format(len(X), len(Y)))
+            raise ValueError(
+                "Provided `X` and `Y` matrices must have the "
+                "same number of samples. Provided matrices "
+                "differed: X: {}, Y: {}".format(len(X), len(Y))
+            )
 
-        self.inputs = structures.PLSInputs(X=X, Y=Y, groups=groups,
-                                           n_cond=n_cond, **kwargs)
+        self.inputs = structures.PLSInputs(
+            X=X, Y=Y, groups=groups, n_cond=n_cond, **kwargs
+        )
         # store dummy-coded array of groups / conditions (save on computation)
         self.dummy = utils.dummy_code(groups, n_cond)
-        self.rs = check_random_state(self.inputs.get('seed'))
+        self.rs = check_random_state(self.inputs.get("seed"))
 
         # check for parallel processing desire
-        n_proc = self.inputs.get('n_proc')
+        n_proc = self.inputs.get("n_proc")
         if n_proc is not None and n_proc != 1 and not utils.joblib_avail:
             self.inputs.n_proc = None
-            warnings.warn('Setting n_proc > 1 requires the joblib module. '
-                          'Considering installing joblib and re-running this '
-                          'if you would like parallelization. Resetting '
-                          'n_proc to 1 for now.')
+            warnings.warn(
+                "Setting n_proc > 1 requires the joblib module. "
+                "Considering installing joblib and re-running this "
+                "if you would like parallelization. Resetting "
+                "n_proc to 1 for now.",
+                stacklevel=2,
+            )
 
     def gen_covcorr(self, X, Y, groups=None):
         """
-        Should generate cross-covariance array to be used in `self._svd()`
+        Generate cross-covariance array to be used in `self._svd()`.
 
         Must accept the listed parameters and return one array
 
@@ -311,12 +324,11 @@ class BasePLS():
         crosscov : np.ndarray
             Covariance array for decomposition
         """
-
         raise NotImplementedError
 
     def gen_distrib(self, X, Y, groups=None, original=None):
         """
-        Should generate behavioral correlations or contrast for bootstrap
+        Generate behavioral correlations or contrast for bootstrap.
 
         Parameters
         ----------
@@ -335,12 +347,11 @@ class BasePLS():
         distrib : (T, L)
             Behavioral correlations or contrast for single bootstrap resample
         """
-
         raise NotImplementedError
 
     def run_pls(self, X, Y):
         """
-        Runs PLS analysis
+        Run PLS analysis.
 
         Parameters
         ----------
@@ -354,30 +365,29 @@ class BasePLS():
         results : :obj:`pyls.structures.PLSResults`
             Results of PLS (not including PLS type-specific outputs)
         """
-
         # initate results structure
         self.res = res = structures.PLSResults(inputs=self.inputs)
 
         # get original singular vectors / values
-        res['x_weights'], res['singvals'], res['y_weights'] = \
-            self.svd(X, Y, seed=self.rs)
-        res['x_scores'] = X @ res['x_weights']
+        res["x_weights"], res["singvals"], res["y_weights"] = self.svd(
+            X, Y, seed=self.rs
+        )
+        res["x_scores"] = X @ res["x_weights"]
 
         if self.inputs.n_perm > 0:
             # compute permutations and get statistical significance of LVs
             d_perm, ucorrs, vcorrs = self.permutation(X, Y, seed=self.rs)
-            res['permres']['pvals'] = compute.perm_sig(res['singvals'], d_perm)
-            res['permres']['permsamples'] = self.permsamp
-            res['permres']['perm_singval'] = d_perm
+            res["permres"]["pvals"] = compute.perm_sig(res["singvals"], d_perm)
+            res["permres"]["permsamples"] = self.permsamp
+            res["permres"]["perm_singval"] = d_perm
 
             if self.inputs.n_split is not None:
                 # get ucorr / vcorr (via split half resampling) for original,
                 # unpermuted `X` and `Y` arrays
-                di = np.linalg.inv(res['singvals'])
-                orig_ucorr, orig_vcorr = self.split_half(X, Y,
-                                                         res['x_weights'] @ di,
-                                                         res['y_weights'] @ di,
-                                                         seed=self.rs)
+                di = np.linalg.inv(res["singvals"])
+                orig_ucorr, orig_vcorr = self.split_half(
+                    X, Y, res["x_weights"] @ di, res["y_weights"] @ di, seed=self.rs
+                )
                 # get p-values for ucorr/vcorr
                 ucorr_prob = compute.perm_sig(np.diag(orig_ucorr), ucorrs)
                 vcorr_prob = compute.perm_sig(np.diag(orig_vcorr), vcorrs)
@@ -387,20 +397,24 @@ class BasePLS():
                 vcorr_ll, vcorr_ul = compute.boot_ci(vcorrs, ci=self.inputs.ci)
 
                 # update results object with split-half resampling results
-                res['splitres'].update(dict(ucorr=orig_ucorr,
-                                            vcorr=orig_vcorr,
-                                            ucorr_pvals=ucorr_prob,
-                                            vcorr_pvals=vcorr_prob,
-                                            ucorr_lolim=ucorr_ll,
-                                            vcorr_lolim=vcorr_ll,
-                                            ucorr_uplim=ucorr_ul,
-                                            vcorr_uplim=vcorr_ul))
+                res["splitres"].update(
+                    dict(
+                        ucorr=orig_ucorr,
+                        vcorr=orig_vcorr,
+                        ucorr_pvals=ucorr_prob,
+                        vcorr_pvals=vcorr_prob,
+                        ucorr_lolim=ucorr_ll,
+                        vcorr_lolim=vcorr_ll,
+                        ucorr_uplim=ucorr_ul,
+                        vcorr_uplim=vcorr_ul,
+                    )
+                )
 
         return res
 
     def svd(self, X, Y, groups=None, seed=None):
         """
-        Runs SVD on cross-covariance matrix computed from `X` and `Y`
+        Run SVD on cross-covariance matrix computed from `X` and `Y`.
 
         Parameters
         ----------
@@ -425,7 +439,6 @@ class BasePLS():
         V : (J, L) `numpy.ndarray`
             Right singular vectors from singular value decomposition
         """
-
         # make dummy-coded grouping array if not provided
         if groups is None:
             groups = utils.dummy_code(self.inputs.groups, self.inputs.n_cond)
@@ -438,7 +451,7 @@ class BasePLS():
 
     def bootstrap(self, X, Y, seed=None):
         """
-        Bootstraps `X` and `Y` (w/replacement) and recomputes SVD
+        Bootstrap `X` and `Y` (w/replacement) and recomputes SVD.
 
         Parameters
         ----------
@@ -459,21 +472,22 @@ class BasePLS():
         u_square : (B, L) numpy.ndarray
             Sum of the squared left singular vectors across all bootstraps
         """
-
         # generate bootstrap resampled indices (unless already provided)
-        self.bootsamp = self.inputs.get('bootsamples', None)
+        self.bootsamp = self.inputs.get("bootsamples", None)
         if self.bootsamp is None:
-            self.bootsamp = gen_bootsamp(self.inputs.groups,
-                                         self.inputs.n_cond,
-                                         self.inputs.n_boot,
-                                         seed=seed,
-                                         verbose=self.inputs.verbose)
+            self.bootsamp = gen_bootsamp(
+                self.inputs.groups,
+                self.inputs.n_cond,
+                self.inputs.n_boot,
+                seed=seed,
+                verbose=self.inputs.verbose,
+            )
 
         # make empty arrays to store bootstrapped singular vectors
         # these will be used to calculate the standard error later on for
         # creation of bootstrap ratios
-        u_sum = np.zeros_like(self.res['x_weights'])
-        u_square = np.zeros_like(self.res['x_weights'])
+        u_sum = np.zeros_like(self.res["x_weights"])
+        u_square = np.zeros_like(self.res["x_weights"])
 
         # `distrib` corresponds either to the behavioral correlations (if
         # running a behavioral PLS) or to the group/condition contrast (if
@@ -484,11 +498,14 @@ class BasePLS():
 
         # determine the number of bootstraps we'll run each iteration
         iters = 1 if self.inputs.n_proc is None else self.inputs.n_proc
-        gen = utils.trange(self.inputs.n_boot, verbose=self.inputs.verbose,
-                           desc='Running bootstraps')
+        gen = utils.trange(
+            self.inputs.n_boot, verbose=self.inputs.verbose, desc="Running bootstraps"
+        )
 
-        with utils.get_par_func(self.inputs.n_proc,
-                                self.__class__._single_boot) as (par, func):
+        with utils.get_par_func(self.inputs.n_proc, self.__class__._single_boot) as (
+            par,
+            func,
+        ):
             boots = 0
             while boots < self.inputs.n_boot:
                 # determine number of bootstraps to run this round
@@ -499,12 +516,20 @@ class BasePLS():
                     top = self.inputs.n_boot
 
                 # run the bootstraps
-                d, usu = zip(*par(func(self, X=X, Y=Y,
-                                       inds=self.bootsamp[..., i],
-                                       groups=self.dummy,
-                                       original=self.res['x_weights'],
-                                       seed=i)
-                                  for i in range(boots, top)))
+                d, usu = zip(
+                    *par(
+                        func(
+                            self,
+                            X=X,
+                            Y=Y,
+                            inds=self.bootsamp[..., i],
+                            groups=self.dummy,
+                            original=self.res["x_weights"],
+                            seed=i,
+                        )
+                        for i in range(boots, top)
+                    )
+                )
 
                 # sum bootstrapped singular vectors and store
                 u_sum += np.sum(usu, axis=0)
@@ -529,7 +554,7 @@ class BasePLS():
 
     def _single_boot(self, X, Y, inds, groups=None, original=None, seed=None):
         """
-        Bootstraps `X` and `Y` (w/replacement) and recomputes SVD
+        Bootstrap `X` and `Y` (w/replacement) and recomputes SVD.
 
         Parameters
         ----------
@@ -558,7 +583,6 @@ class BasePLS():
             Left singular vectors from decomposition of bootstrap resampled `X`
             and `Y`
         """
-
         # make sure we have original (non-bootstrapped) singular vectors
         # these are required for the procrustes rotation to ensure our
         # singular vectors are all in the same orientation
@@ -577,7 +601,7 @@ class BasePLS():
 
     def make_permutation(self, X, Y, perminds):
         """
-        Permutes `Y` according to `perminds`, leaving `X` un-permuted
+        Permute `Y` according to `perminds`, leaving `X` un-permuted.
 
         Parameters
         ----------
@@ -595,12 +619,11 @@ class BasePLS():
         Yp : (S, T) array_like
             `Y`, permuted according to `perminds`
         """
-
         return X, Y[perminds]
 
     def permutation(self, X, Y, seed=None):
         """
-        Permutes `X` (w/o replacement) and recomputes SVD
+        Permute `X` (w/o replacement) and recomputes SVD.
 
         Parameters
         ----------
@@ -623,37 +646,89 @@ class BasePLS():
             Split-half correlations of right singular values. Only set if
             `self.inputs.n_split != 0`
         """
-
         # generate permuted indices (unless already provided)
-        self.permsamp = self.inputs.get('permsamples')
-        if self.permsamp is None:
-            use_permind = self.inputs.get('permindices')
-            self.permsamp = gen_permsamp(self.inputs.groups,
-                                         self.inputs.n_cond,
-                                         self.inputs.n_perm,
-                                         seed=seed,
-                                         verbose=self.inputs.verbose)
-        else:
-            use_permind = self.inputs.get('permindices')
-            self.permsamp = self.permsamp if use_permind else \
-                            np.transpose(self.permsamp, (1, 2, 0))
+        self.permsamp = self.inputs.get("permsamples")
+        self.custom_permuted_Y = self.inputs.get("custom_permuted_Y")
+        if self.permsamp is None and self.custom_permuted_Y is None:
+            self.permsamp = gen_permsamp(
+                self.inputs.groups,
+                self.inputs.n_cond,
+                self.inputs.n_perm,
+                seed=seed,
+                verbose=self.inputs.verbose,
+            )
+
+        # check custom permsamples if requested
+        is_sample_permuted = False
+        if self.custom_permuted_Y is not None:
+            if self.custom_permuted_Y.shape[:-1] != Y.shape:
+                raise ValueError(
+                    "When using custom permutation samples, "
+                    "`custom_permuted_Y` must have the same "
+                    "first two dimensions as `Y`.\n"
+                    "    EXPECTED: {}\n"
+                    "    ACTUAL:   {}".format(
+                        Y.shape[0], self.custom_permuted_Y.shape[:-1]
+                    )
+                )
+            if self.custom_permuted_Y.shape[-1] != self.inputs.n_perm:
+                raise ValueError(
+                    "When using custom permutation samples, "
+                    "the last dimension of `custom_permuted_Y` "
+                    "must be equal to the requested number of "
+                    "permutations (i.e., `n_perm`).\n"
+                    "    EXPECTED: {}\n"
+                    "    ACTUAL:   {}".format(
+                        self.inputs.n_perm, self.custom_permuted_Y.shape[-1]
+                    )
+                )
+            is_sample_permuted = True
 
         # get permuted values (parallelizing as requested)
-        gen = utils.trange(self.inputs.n_perm, verbose=self.inputs.verbose,
-                           desc='Running permutations')
-        with utils.get_par_func(self.inputs.n_proc,
-                                self.__class__._single_perm) as (par, func):
-            out = par(func(self, X=X, Y=Y, samples=self.permsamp[..., i], 
-                           use_permind=use_permind, groups=self.dummy, 
-                           original=self.res['y_weights'], seed=i)
-                      for i in gen)
+        gen = utils.trange(
+            self.inputs.n_perm, verbose=self.inputs.verbose, desc="Running permutations"
+        )
+        with utils.get_par_func(self.inputs.n_proc, self.__class__._single_perm) as (
+            par,
+            func,
+        ):
+            if is_sample_permuted:
+                out = par(
+                    func(
+                        self,
+                        X=X,
+                        Y=Y,
+                        inds=None,
+                        Y_permuted=self.custom_permuted_Y[..., i],
+                        groups=self.dummy,
+                        original=self.res["y_weights"],
+                        seed=i,
+                    )
+                    for i in gen
+                )
+            else:
+                out = par(
+                    func(
+                        self,
+                        X=X,
+                        Y=Y,
+                        inds=self.permsamp[:, i],
+                        # Y_permuted=None,
+                        groups=self.dummy,
+                        original=self.res["y_weights"],
+                        seed=i,
+                    )
+                    for i in gen
+                )
         d_perm, ucorrs, vcorrs = [np.stack(o, axis=-1) for o in zip(*out)]
 
         return d_perm, ucorrs, vcorrs
 
-    def _single_perm(self, X, Y, samples, use_permind=True, groups=None, original=None, seed=None):
+    def _single_perm(
+        self, X, Y, inds=None, Y_permuted=None, groups=None, original=None, seed=None
+    ):
         """
-        Permutes `X` (w/o replacement) and recomputes SVD
+        Permute `X` (w/o replacement) and recomputes SVD.
 
         Parameters
         ----------
@@ -661,10 +736,15 @@ class BasePLS():
             Input data matrix, where `S` is observations and `B` is features
         Y : (S, T) array_like
             Input data matrix, where `S` is observations and `T` is features
-        samples : (S,) or (S, T) array_like
-            Permutation resampling array or pre-permuted Y matrix
-        use_permind : bool
-            Whether `samples` is a resampling array or pre-permuted array
+        inds : (S,) array_like
+            Permutation resampling array
+        Y_permuted : (S, T) array_like
+            Pre-permuted `Y` matrix. If provided, `inds` will be ignored.
+        groups : (S, J) array_like
+            Dummy coded input array, where `S` is observations and `J`
+            corresponds to the number of different groups x conditions. A value
+            of 1 indicates that an observation belongs to a specific group or
+            condition.
         original : (J, L) array_like
             Right singular vector from original decomposition of `X` and `Y`.
             Used to perform Procrustes rotation on permuted singular values,
@@ -684,28 +764,27 @@ class BasePLS():
             Split-half correlations of right singular values. Only set if
             `self.inputs.n_split != 0`
         """
-
         # calculate SVD of permuted matrices
-        if use_permind:
-            Xp, Yp = self.make_permutation(X, Y, samples)
+        if Y_permuted is not None:
+            Xp, Yp = X, Y_permuted
         else:
-            Xp, Yp = X, samples
+            Xp, Yp = self.make_permutation(X, Y, inds)
         U, d, V = self.svd(Xp, Yp, groups=groups, seed=seed)
 
         # optionally get rotated/rescaled singular values
         if self.inputs.rotate:
             if original is None:
                 original = self.svd(X, Y, groups=groups, seed=seed)[-1]
-            ssd = np.sqrt(np.sum(compute.procrustes(original, V, d)**2,
-                                 axis=0))
+            ssd = np.sqrt(np.sum(compute.procrustes(original, V, d) ** 2, axis=0))
         else:
             ssd = np.diag(d)
 
         # get ucorr/vcorr if split-half resampling requested
         if self.inputs.n_split is not None:
             di = np.linalg.inv(d)
-            ucorr, vcorr = self.split_half(Xp, Yp, U @ di, V @ di,
-                                           groups=groups, seed=seed)
+            ucorr, vcorr = self.split_half(
+                Xp, Yp, U @ di, V @ di, groups=groups, seed=seed
+            )
         else:
             ucorr, vcorr = None, None
 
@@ -713,6 +792,8 @@ class BasePLS():
 
     def split_half(self, X, Y, ud=None, vd=None, groups=None, seed=None):
         """
+        Split `X` and `Y` in half (w/o replacement) and recomputes SVD.
+
         Parameters
         ----------
         X : (S, B) array_like
@@ -733,13 +814,14 @@ class BasePLS():
         vcorr : (L,) `numpy.ndarray`
             Average correlation of right singular vectors across split-halves
         """
-
         # generate splits
-        splitsamp = gen_splits(self.inputs.groups,
-                               self.inputs.n_cond,
-                               self.inputs.n_split,
-                               seed=seed,
-                               test_size=0.5).astype(bool)
+        splitsamp = gen_splits(
+            self.inputs.groups,
+            self.inputs.n_cond,
+            self.inputs.n_split,
+            seed=seed,
+            test_size=0.5,
+        ).astype(bool)
 
         # make dummy-coded grouping array if not provided
         if groups is None:

@@ -1,35 +1,42 @@
-# -*- coding: utf-8 -*-
+"""Tests for MATLAB equivalence in pyls."""
 
-import os.path as op
-import pkg_resources
 import pytest
-import pyls
+import os
+from pyls.tests import assert_matlab_equivalence
 
-data_dir = pkg_resources.resource_filename('pyls', 'tests/data')
-EXAMPLES = ['mpls_multigroup_onecond_nosplit.mat',
-            'mpls_multigroup_onecond_split.mat',
-            'bpls_onegroup_onecond_nosplit.mat',
-            'bpls_onegroup_onecond_split.mat',
-            'resultonly.mat']
+try:
+    from importlib.resources import files
+except ImportError:
+    from importlib_resources import files
 
-attrs = [
-    'x_weights', 'singvals', 'y_weights', 'x_scores', 'permres', 'bootres',
-    'inputs'
-]
+data_dir = files("pyls") / "tests" / "data"
 
 
-@pytest.mark.parametrize('fname', EXAMPLES)
-def test_import_matlab(fname):
-    res = pyls.matlab.import_matlab_result(op.join(data_dir, fname))
-    # make sure the mat file cast appropriately
-    assert isinstance(res, pyls.structures.PLSResults)
-    # make sure all the attributes are there (don't check outputs)
-    for attr in attrs:
-        assert hasattr(res, attr)
-    if '_split' in fname:
-        assert hasattr(res, 'splitres')
+@pytest.mark.parametrize(
+    "mat_file",
+    [
+        "bpls_multigroup_multicond_nosplit.mat",
+        "bpls_multigroup_multicond_split.mat",
+        "bpls_multigroup_onecond_nosplit.mat",
+        "bpls_multigroup_onecond_split.mat",
+        "bpls_onegroup_multicond_nosplit.mat",
+        "bpls_onegroup_multicond_split.mat",
+        "bpls_onegroup_onecond_nosplit.mat",
+        "bpls_onegroup_onecond_split.mat",
+        "mpls_multigroup_multicond_nosplit.mat",
+        "mpls_multigroup_multicond_split.mat",
+        "mpls_multigroup_onecond_nosplit.mat",
+        "mpls_multigroup_onecond_split.mat",
+        "mpls_onegroup_multicond_nosplit.mat",
+        "mpls_onegroup_multicond_split.mat",
+    ],
+)
+def test_matlab_equivalence(mat_file):
+    """Test MATLAB equivalence for each .mat file."""
+    if not os.path.exists(data_dir / mat_file):
+        pytest.skip(f"MATLAB file {mat_file} not found")
 
-
-def test_errors():
-    with pytest.raises(ValueError):
-        pyls.matlab.import_matlab_result(op.join(data_dir, 'empty.mat'))
+    print(f"Testing {mat_file}")
+    assert_matlab_equivalence(
+        data_dir / mat_file, n_proc="max", n_perm=2500, n_split=100
+    )

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Tests for the utility functions."""
 
 import numpy as np
 from pyls import utils
@@ -7,47 +7,51 @@ import tqdm
 
 
 def test_empty_dict():
+    """Test the _empty_dict utility function."""
     assert utils._empty_dict({})
     assert utils._empty_dict(dict())
     assert not utils._empty_dict(dict(d=10))
     assert not utils._empty_dict(dict(d=dict(d=dict(d=10))))
     assert not utils._empty_dict([])
     assert not utils._empty_dict(None)
-    assert not utils._empty_dict('test')
+    assert not utils._empty_dict("test")
     assert not utils._empty_dict(10)
     assert not utils._empty_dict(10.0)
     assert not utils._empty_dict(set())
 
 
 def test_not_empty_keys():
+    """Test the _not_empty_keys utility function."""
     assert utils._not_empty_keys(dict()) == set()
-    assert utils._not_empty_keys(dict(test=10)) == {'test'}
-    assert utils._not_empty_keys(dict(test=10, temp=None)) == {'test'}
-    assert utils._not_empty_keys(dict(test=10, temp={})) == {'test'}
+    assert utils._not_empty_keys(dict(test=10)) == {"test"}
+    assert utils._not_empty_keys(dict(test=10, temp=None)) == {"test"}
+    assert utils._not_empty_keys(dict(test=10, temp={})) == {"test"}
 
     with pytest.raises(TypeError):
         utils._not_empty_keys([10, 20, 30])
 
 
 def test_ResDict():
+    """Test the ResDict class."""
+
     # toy example with some allowed keys
     class TestDict(utils.ResDict):
-        allowed = ['test', 'temp']
+        allowed = ["test", "temp"]
 
     # confirm string representations work
     d = utils.ResDict()
-    assert str(d) == 'ResDict()'
-    assert str(TestDict(test={})) == 'TestDict()'
-    assert str(TestDict(test=None)) == 'TestDict()'
+    assert str(d) == "ResDict()"
+    assert str(TestDict(test={})) == "TestDict()"
+    assert str(TestDict(test=None)) == "TestDict()"
     assert d != TestDict()
 
     # confirm general key checking works
     test1 = TestDict(test=10)
     test2 = TestDict(test=11)
     test3 = TestDict(test=10, temp=11)
-    assert str(test1) == 'TestDict(test)'
-    assert str(test2) == 'TestDict(test)'
-    assert str(test3) == 'TestDict(test, temp)'
+    assert str(test1) == "TestDict(test)"
+    assert str(test2) == "TestDict(test)"
+    assert str(test3) == "TestDict(test, temp)"
     assert test1 == test1
     assert test1 != test2
     assert test1 != test3
@@ -76,7 +80,7 @@ def test_ResDict():
 
     # confirm rejection of item assignment not in cls.allowed
     test1.blargh = 10
-    assert not hasattr(test1, 'blargh')
+    assert not hasattr(test1, "blargh")
 
     test1.temp = None
     test2.temp = None
@@ -84,15 +88,17 @@ def test_ResDict():
 
 
 def test_trange():
+    """Test the trange utility function for progress bar functionality."""
     # test that verbose=False generates a range object
-    out = utils.trange(1000, verbose=False, desc='Test tqdm')
+    out = utils.trange(1000, verbose=False, desc="Test tqdm")
     assert [f for f in out] == list(range(1000))
     # test that function will accept arbitrary kwargs and overwrite defaults
-    out = utils.trange(1000, desc='Test tqdm', mininterval=0.5, ascii=False)
+    out = utils.trange(1000, desc="Test tqdm", mininterval=0.5, ascii=False)
     assert isinstance(out, tqdm.tqdm)
 
 
 def test_dummy_label():
+    """Test the dummy_label utility function."""
     groups = [10, 12, 11]
     expected = [[10, 12, 11], [10, 10, 12, 12, 11, 11]]
     for n_cond in range(1, 3):
@@ -104,6 +110,7 @@ def test_dummy_label():
 
 
 def test_dummy_code():
+    """Test the dummy_code utility function."""
     groups = [10, 12, 11]
     expected = [[10, 12, 11], [10, 10, 12, 12, 11, 11]]
     for n_cond in range(1, 3):
@@ -115,6 +122,7 @@ def test_dummy_code():
 
 
 def test_permute_cols():
+    """Test the permute_cols utility function."""
     x = np.arange(9).reshape(3, 3)
     expected = np.array([[0, 1, 5], [6, 4, 2], [3, 7, 8]])
 
@@ -127,10 +135,11 @@ def test_permute_cols():
 
 
 def test_unravel():
+    """Test the _unravel context manager utility function."""
     expected = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     assert utils._unravel()(range(10)) == expected
     expected = [0, 1, 4, 9, 16, 25, 36, 49, 64, 81]
-    assert utils._unravel()(x ** 2 for x in range(10)) == expected
+    assert utils._unravel()(x**2 for x in range(10)) == expected
 
     # test context manager status and arbitrary argument acceptance
     with utils._unravel(10, test=20) as cm:
@@ -138,13 +147,17 @@ def test_unravel():
 
 
 def test_get_par_func():
+    """Test the get_par_func utility function."""
+
     def fcn(x):
         return x
+
     assert fcn(10) == 10
     assert fcn([10, 10]) == [10, 10]
 
     if utils.joblib_avail:
         import joblib
+
         with utils.get_par_func(1000, fcn) as (par, func):
             assert isinstance(par, joblib.Parallel)
             assert par.n_jobs == 1000
